@@ -7,17 +7,25 @@ license = ""
 repository = ""
 default-run = "app"
 edition = "2021"
-rust-version = "1.60"
+rust-version = "1.77"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-tauri-build = { version = "1.5.5", features = [] }
+tauri-build = { version = "1.5.6", features = [] }
 
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.8.1", features = [] }
+tauri = { version = "1.8.3", features = [ "dialog-open"] }
+
+# Minecraft 核心邏輯：版本清單、安裝、啟動、Java、驗證、模組
+hexomc-lib = "0.1"
+tokio = { version = "1", features = ["rt-multi-thread", "fs", "time"] }
+uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
+open = "5"
+dirs = "5"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
