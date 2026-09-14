@@ -11,7 +11,7 @@ use crate::error::CmdResult;
 #[serde(rename_all = "camelCase")]
 pub struct VersionSummary {
     pub id: String,
-    /// "release" | "snapshot" | "old_beta" | "old_alpha"
+
     pub version_type: String,
     pub release_time: String,
 }

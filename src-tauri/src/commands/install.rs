@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use hexomc_lib::{
@@ -8,10 +8,12 @@ use hexomc_lib::{
 use serde::Serialize;
 use tauri::Manager;
 
-use super::instance::{load_config, InstanceSummary};
+use super::instance::{build_view, InstanceView, EVENT_INSTANCES_CHANGED};
 use super::java::{pick_java_for_tools, resolve_java};
-use super::{validate_instance_name, LoaderKind, EVENT_INSTALL_PROGRESS};
-use crate::error::CmdResult;
+use super::{instance_dir, validate_instance_name, LoaderKind, EVENT_INSTALL_PROGRESS};
+use crate::error::{CmdError, CmdResult};
+use crate::store::instance_meta::{InstanceMeta, LocalStore};
+use crate::store::now_secs;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,37 +24,57 @@ pub struct InstallProgress {
     pub message: String,
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallRequest {
+    pub base_dir: String,
+
+    pub instance_name: String,
+
+    pub name: Option<String>,
+    pub icon: Option<String>,
+    pub group: Option<String>,
+    pub mc_version: String,
+    pub loader: LoaderKind,
+    pub loader_version: Option<String>,
+
+    pub java_path: Option<String>,
+}
+
 #[tauri::command]
 pub async fn install_instance(
     app: tauri::AppHandle,
-    base_dir: String,
-    mc_version: String,
-    instance_name: String,
-    loader: LoaderKind,
-    loader_version: Option<String>,
-    java_path: Option<String>,
-) -> CmdResult<InstanceSummary> {
+    request: InstallRequest,
+) -> CmdResult<InstanceView> {
+    let InstallRequest {
+        base_dir,
+        instance_name,
+        name,
+        icon,
+        group,
+        mc_version,
+        loader,
+        loader_version,
+        java_path,
+    } = request;
+
     validate_instance_name(&instance_name)?;
     let base = Path::new(&base_dir);
-    tokio::fs::create_dir_all(base).await?;
+    let dir = instance_dir(base, &instance_name)?;
+    tokio::fs::create_dir_all(&dir).await?;
 
-    let installer: Box<dyn LoaderInstaller> = match loader {
-        LoaderKind::Vanilla => Box::new(VanillaInstaller),
-        LoaderKind::Fabric => match loader_version {
-            Some(v) => Box::new(FabricInstaller::new(v)),
-            None => Box::new(FabricInstaller::latest()),
-        },
+    // 先把 loader 版本定下來再安裝：meta 裡記到確切版本，換一台電腦才裝得出同一份。
+    let tool_java = match loader {
         LoaderKind::Forge | LoaderKind::NeoForge => {
-            // Forge / NeoForge 的 installer 會用 Java 跑 processor，這裡要先備妥。
-            let java = tool_java(base, java_path.as_deref()).await?;
-            match (loader, loader_version) {
-                (LoaderKind::Forge, Some(v)) => Box::new(ForgeInstaller::with_version(java, v)),
-                (LoaderKind::Forge, None) => Box::new(ForgeInstaller::new(java)),
-                (_, Some(v)) => Box::new(NeoForgeInstaller::with_version(java, v)),
-                (_, None) => Box::new(NeoForgeInstaller::new(java)),
-            }
+            Some(tool_java(base, java_path.as_deref()).await?)
         }
+        _ => None,
     };
+    let loader_version = resolve_loader_version(loader, &mc_version, loader_version, &tool_java)
+        .await?
+        .unwrap_or_default();
+
+    let installer = build_installer(loader, &loader_version, tool_java);
 
     let progress: ProgressFn = {
         let app = app.clone();
@@ -70,6 +92,27 @@ pub async fn install_instance(
         })
     };
 
+    let mut meta = InstanceMeta::load(&dir, &instance_name).await?;
+    if let Some(name) = name {
+        meta.name = name.trim().to_string();
+    }
+    if let Some(icon) = icon {
+        meta.icon = icon;
+    }
+    if let Some(group) = group {
+        meta.group = group.trim().to_string();
+    }
+    if meta.name.is_empty() {
+        meta.name = instance_name.clone();
+    }
+    if meta.created_at == 0 {
+        meta.created_at = now_secs();
+    }
+    meta.mc_version = mc_version.clone();
+    meta.loader = loader;
+    meta.loader_version = loader_version;
+    meta.save(&dir).await?;
+
     install_with_loader(
         &mc_version,
         &instance_name,
@@ -79,11 +122,103 @@ pub async fn install_instance(
     )
     .await?;
 
-    let config = load_config(base, &instance_name).await?;
-    InstanceSummary::build(base, &instance_name, &config)
+    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    build_view(base, &instance_name, &LocalStore::load().await?).await
 }
 
-async fn tool_java(base_dir: &Path, java_path: Option<&str>) -> CmdResult<std::path::PathBuf> {
+#[tauri::command]
+pub async fn repair_instance(
+    app: tauri::AppHandle,
+    base_dir: String,
+    instance_name: String,
+) -> CmdResult<InstanceView> {
+    let base = Path::new(&base_dir);
+    let dir = instance_dir(base, &instance_name)?;
+    if !dir.exists() {
+        return Err(CmdError::new(
+            "instanceNotFound",
+            format!("找不到 instance: {}", instance_name),
+        ));
+    }
+
+    let meta = InstanceMeta::load(&dir, &instance_name).await?;
+    if meta.mc_version.is_empty() {
+        return Err(CmdError::launcher(
+            "這個實例沒有記錄 Minecraft 版本，請用「變更版本」重新指定",
+        ));
+    }
+
+    install_instance(
+        app,
+        InstallRequest {
+            base_dir,
+            instance_name,
+            name: None,
+            icon: None,
+            group: None,
+            mc_version: meta.mc_version,
+            loader: meta.loader,
+            loader_version: Some(meta.loader_version).filter(|v| !v.is_empty()),
+            java_path: None,
+        },
+    )
+    .await
+}
+
+fn build_installer(
+    loader: LoaderKind,
+    loader_version: &str,
+    tool_java: Option<PathBuf>,
+) -> Box<dyn LoaderInstaller> {
+    let version = Some(loader_version).filter(|v| !v.is_empty());
+
+    match loader {
+        LoaderKind::Vanilla => Box::new(VanillaInstaller),
+        LoaderKind::Fabric => match version {
+            Some(v) => Box::new(FabricInstaller::new(v)),
+            None => Box::new(FabricInstaller::latest()),
+        },
+        LoaderKind::Forge => {
+            let java = tool_java.unwrap_or_default();
+            match version {
+                Some(v) => Box::new(ForgeInstaller::with_version(java, v)),
+                None => Box::new(ForgeInstaller::new(java)),
+            }
+        }
+        LoaderKind::NeoForge => {
+            let java = tool_java.unwrap_or_default();
+            match version {
+                Some(v) => Box::new(NeoForgeInstaller::with_version(java, v)),
+                None => Box::new(NeoForgeInstaller::new(java)),
+            }
+        }
+    }
+}
+
+async fn resolve_loader_version(
+    loader: LoaderKind,
+    mc_version: &str,
+    requested: Option<String>,
+    tool_java: &Option<PathBuf>,
+) -> CmdResult<Option<String>> {
+    if loader == LoaderKind::Vanilla {
+        return Ok(None);
+    }
+    if let Some(version) = requested.filter(|v| !v.is_empty()) {
+        return Ok(Some(version));
+    }
+
+    let installer = build_installer(loader, "", tool_java.clone());
+    let versions = installer.available_versions(mc_version).await?;
+    versions.into_iter().next().map(Some).ok_or_else(|| {
+        CmdError::new(
+            "unsupportedLoader",
+            format!("{:?} 沒有支援 Minecraft {}", loader, mc_version),
+        )
+    })
+}
+
+async fn tool_java(base_dir: &Path, java_path: Option<&str>) -> CmdResult<PathBuf> {
     if let Some(path) = java_path.filter(|p| !p.is_empty()) {
         return Ok(resolve_java(base_dir, 17, Some(path), false).await?.path);
     }

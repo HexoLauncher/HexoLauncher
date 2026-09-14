@@ -14,7 +14,16 @@
     "allowlist": {
       "all": false,
       "dialog": {
-        "open": true
+        "open": true,
+        "save": true
+      },
+      "window": {
+        "create": true,
+        "close": true,
+        "setTitle": true,
+        "setFocus": true,
+        "unminimize": true,
+        "center": true
       }
     },
     "bundle": {
@@ -59,10 +68,13 @@
     "windows": [
       {
         "fullscreen": false,
-        "height": 600,
+        "height": 760,
         "resizable": true,
-        "title": "hexo launcher",
-        "width": 800
+        "title": "Hexo Launcher",
+        "width": 1180,
+        "label": "main",
+        "minWidth": 900,
+        "minHeight": 560
       }
     ]
   }

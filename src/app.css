@@ -1,1 +1,378 @@
 @import 'tailwindcss';
+
+/* =============================================================
+   Hexo Launcher — 設計 token
+   版面沿用 Prism Launcher，視覺質感取自 Modrinth App。
+   這裡的每個值都會變成 Tailwind utility：
+   --color-window → bg-window / text-window / border-window
+   --radius-lg    → rounded-lg
+   --shadow-md    → shadow-md
+   ============================================================= */
+
+@theme {
+	/* 表面：由深到淺堆疊，靠層次而不是框線分隔 */
+	--color-deep: #16181c; /* 最深的背景、內容視圖 */
+	--color-window: #1e2024; /* 工具列、對話框 */
+	--color-raised: #26292f; /* 浮出的選單 */
+	--color-card: #282b32; /* 卡片、圖示底座 */
+	--color-row: #1b1d22; /* 表格交錯列 */
+
+	/* 按鈕 */
+	--color-btn: #2f323a;
+	--color-btn-hi: #3a3e48;
+	--color-btn-lo: #24272d;
+	--color-btn-off: #24262b;
+
+	/* 框線 */
+	--color-line: #2e3138;
+	--color-line-hi: #3d414a;
+
+	/* 文字 */
+	--color-ink: #e9ebf0;
+	--color-muted: #96a2b0;
+	--color-faint: #5b616c;
+
+	/* 強調色 */
+	--color-brand: #1bd96a;
+	--color-brand-hi: #3ae584;
+	--color-brand-lo: #16b757;
+	--color-brand-soft: #1bd96a21;
+	--color-brand-soft-hi: #1bd96a38;
+	--color-brand-line: #1bd96a6b;
+	--color-brand-ink: #08170e;
+
+	--color-danger: #ff6b6b;
+	--color-danger-hi: #ff8585;
+	--color-danger-soft: #ff6b6b24;
+	--color-danger-ink: #2a0b0b;
+	--color-warn: #ffa347;
+
+	/* 圓角 */
+	--radius-sm: 5px;
+	--radius-md: 7px;
+	--radius-lg: 11px;
+	--radius-xl: 15px;
+
+	/* 陰影 */
+	--shadow-sm: 0 1px 3px #0000004d;
+	--shadow-md: 0 6px 20px #00000066;
+	--shadow-lg: 0 24px 64px #000000a6;
+
+	/* 字型 */
+	--font-sans: 'Inter', 'Segoe UI', 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
+	--font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
+
+	/* 動畫 */
+	--animate-rise: rise 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-fade: fade 0.16s ease;
+	--animate-march: march 1.2s ease-in-out infinite;
+
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(8px) scale(0.99);
+		}
+	}
+	@keyframes fade {
+		from {
+			opacity: 0;
+		}
+	}
+	@keyframes march {
+		0% {
+			transform: translateX(-100%);
+		}
+		100% {
+			transform: translateX(250%);
+		}
+	}
+}
+
+/* =============================================================
+   Base
+   ============================================================= */
+
+@layer base {
+	:root {
+		color-scheme: dark;
+		font-synthesis: none;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	/* 字級只能掛在 body。掛到 html 會改動 root font-size，
+	   Tailwind 的 rem 間距會整組跟著縮水。 */
+	html {
+		@apply h-full overflow-hidden bg-deep;
+	}
+
+	body {
+		@apply h-full overflow-hidden bg-deep font-sans text-[13px] leading-[1.45] text-ink;
+		margin: 0;
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	p {
+		@apply m-0 text-[length:inherit] font-[inherit];
+	}
+
+	a {
+		@apply text-brand no-underline hover:underline;
+	}
+
+	button {
+		@apply cursor-pointer border-0 bg-transparent p-0 text-inherit;
+	}
+	button:disabled {
+		@apply cursor-default;
+	}
+
+	svg {
+		@apply shrink-0;
+	}
+
+	input,
+	select,
+	textarea {
+		font: inherit;
+		color: inherit;
+	}
+
+	input[type='checkbox'],
+	input[type='radio'],
+	input[type='range'] {
+		@apply m-0 cursor-pointer;
+		accent-color: var(--color-brand);
+	}
+
+	:focus-visible {
+		outline: 2px solid var(--color-brand-line);
+		outline-offset: -2px;
+	}
+
+	/* 細捲軸，沒有軌道底色 */
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	::-webkit-scrollbar-track,
+	::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: var(--color-btn-hi);
+		background-clip: content-box;
+		border: 3px solid transparent;
+		border-radius: 99px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: #4d525e;
+		background-clip: content-box;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			transition: none !important;
+			animation: none !important;
+		}
+	}
+}
+
+/* =============================================================
+   重複度高的元件類別。
+   這些在整個 app 裡出現上百次，寫成 class 比每次貼十幾個
+   utility 好讀；其餘一次性的版面一律寫在 markup 的 utility 裡。
+   ============================================================= */
+
+@layer components {
+	/* ---------- 按鈕 ---------- */
+
+	.qt-button {
+		@apply inline-flex min-h-[30px] items-center justify-center gap-[7px]
+			whitespace-nowrap rounded-md border border-transparent bg-btn px-3.5 py-[5px]
+			font-medium transition-[background-color,color,box-shadow] duration-150
+			not-disabled:hover:bg-btn-hi not-disabled:active:bg-btn-lo
+			disabled:bg-btn-off disabled:text-faint;
+	}
+
+	/* 主要動作：Modrinth 的綠色實心按鈕 */
+	.qt-button.primary {
+		@apply bg-brand font-semibold text-brand-ink
+			not-disabled:hover:bg-brand-hi not-disabled:hover:shadow-[0_0_0_4px_var(--color-brand-soft)]
+			not-disabled:active:bg-brand-lo
+			disabled:bg-btn-off disabled:text-faint disabled:shadow-none;
+	}
+
+	.qt-button.destructive {
+		@apply bg-danger font-semibold text-danger-ink
+			not-disabled:hover:bg-danger-hi
+			not-disabled:hover:shadow-[0_0_0_4px_var(--color-danger-soft)];
+	}
+
+	.qt-button.danger {
+		@apply not-disabled:hover:bg-danger not-disabled:hover:text-danger-ink;
+	}
+
+	/* ---------- 輸入 ---------- */
+
+	.qt-input,
+	.qt-select,
+	.qt-textarea {
+		@apply min-h-[30px] rounded-md border border-line bg-deep px-[9px] py-[5px]
+			outline-none transition-[border-color,box-shadow] duration-150
+			not-disabled:hover:border-line-hi
+			focus:border-brand-line focus:shadow-[0_0_0_3px_var(--color-brand-soft)]
+			disabled:bg-[#1a1c20] disabled:text-faint
+			placeholder:text-faint;
+	}
+
+	.qt-textarea {
+		@apply resize-none leading-[1.7];
+	}
+
+	/* 核取／選項的整列 */
+	.qt-check {
+		@apply flex min-h-[26px] cursor-pointer items-center gap-[9px] py-1;
+	}
+	.qt-check.compact {
+		@apply min-h-0 py-0;
+	}
+	.qt-check > input {
+		@apply shrink-0;
+	}
+
+	/* ---------- 群組方塊 ---------- */
+
+	.qt-group {
+		@apply relative mt-4 rounded-lg border border-line bg-[#212329] px-3.5 pb-3 pt-3.5;
+	}
+	.qt-group > .qt-group-title {
+		@apply mb-2.5 flex items-center gap-[9px] font-semibold text-ink;
+	}
+	.qt-group.checkable-off > *:not(.qt-group-title) {
+		@apply pointer-events-none opacity-40;
+	}
+
+	/* ---------- 表單列（右對齊標籤 + 欄位） ---------- */
+
+	.qt-field {
+		@apply mb-2 grid grid-cols-[132px_1fr] items-center gap-2.5;
+	}
+	.qt-field > label {
+		@apply text-right text-muted;
+	}
+
+	/* ---------- 表格 ---------- */
+
+	.qt-table-wrap {
+		@apply min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-deep p-1;
+	}
+	.qt-table {
+		@apply w-full border-separate border-spacing-0 text-left;
+	}
+	.qt-table th {
+		@apply sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-deep
+			px-2.5 py-[7px] font-medium text-muted;
+	}
+	.qt-table td {
+		@apply overflow-hidden text-ellipsis whitespace-nowrap px-2.5 py-[7px];
+	}
+	.qt-table tbody tr {
+		@apply transition-colors duration-150;
+	}
+	.qt-table tbody tr:hover td {
+		@apply bg-white/5;
+	}
+	.qt-table tbody tr td:first-child {
+		@apply rounded-l-md;
+	}
+	.qt-table tbody tr td:last-child {
+		@apply rounded-r-md;
+	}
+	.qt-table tbody tr.selected td {
+		@apply bg-brand-soft text-ink;
+	}
+	.qt-table tbody tr.selected td:first-child {
+		@apply shadow-[inset_2px_0_0_var(--color-brand)];
+	}
+	.qt-table .dim {
+		@apply text-muted;
+	}
+
+	/* ---------- 下拉選單 ---------- */
+
+	.qt-menu {
+		@apply absolute top-[calc(100%+1px)] z-[200] min-w-[200px] rounded-lg
+			border border-line bg-raised p-1.5 shadow-md;
+	}
+	.qt-menu-scrim {
+		@apply fixed inset-0 z-[199] cursor-default;
+	}
+	.qt-menu-item {
+		@apply flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-left
+			transition-colors duration-150
+			not-disabled:hover:bg-brand-soft not-disabled:hover:text-brand
+			disabled:text-faint;
+	}
+	.qt-menu-item.danger {
+		@apply not-disabled:hover:bg-danger-soft not-disabled:hover:text-danger;
+	}
+	.qt-menu-item .shortcut {
+		@apply ml-auto pl-5 text-faint;
+	}
+	.qt-menu-item .check-slot {
+		@apply w-[13px] shrink-0 text-center text-brand;
+	}
+	.qt-menu-label {
+		@apply px-2.5 pb-1 pt-[7px] text-[11px] font-semibold uppercase tracking-[0.4px] text-faint;
+	}
+	.qt-menu hr {
+		@apply mx-1.5 my-[5px] h-px border-0 bg-line;
+	}
+
+	/* ---------- 工具列按鈕 ---------- */
+
+	.tool-button {
+		@apply flex items-center rounded-md border border-transparent text-muted
+			transition-colors duration-150
+			not-disabled:hover:bg-btn-hi not-disabled:hover:text-ink
+			not-disabled:active:bg-btn-lo disabled:text-faint;
+	}
+	/* 圖示在上、文字在下（主工具列） */
+	.tool-button.under {
+		@apply min-w-[68px] flex-col gap-1 px-2.5 pb-1.5 pt-[7px];
+	}
+	/* 圖示在左、文字在右（實例工具列） */
+	.tool-button.beside {
+		@apply w-full gap-2.5 px-2.5 py-2 text-left;
+	}
+	/* 目前顯示中的分頁 */
+	.tool-button.active {
+		@apply bg-brand-soft text-brand hover:bg-brand-soft-hi hover:text-brand;
+	}
+
+	/* ---------- 標籤藥丸 ---------- */
+
+	.pill {
+		@apply inline-flex items-center gap-[5px] whitespace-nowrap rounded-full
+			bg-btn px-2.5 py-[3px] text-[11.5px] font-medium text-muted;
+	}
+	.pill.accent {
+		@apply bg-brand-soft text-brand;
+	}
+
+	/* ---------- 搜尋框（藥丸狀） ---------- */
+
+	.qt-search {
+		@apply flex items-center gap-[9px] rounded-full border border-transparent
+			px-3 py-1.5 text-muted transition-[border-color,box-shadow] duration-150
+			focus-within:border-brand-line focus-within:shadow-[0_0_0_3px_var(--color-brand-soft)];
+	}
+	.qt-search > input {
+		@apply min-w-0 flex-1 border-0 bg-transparent text-ink outline-none placeholder:text-faint;
+	}
+}

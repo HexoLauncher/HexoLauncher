@@ -2,7 +2,9 @@
 
 mod commands;
 mod error;
+mod nbt;
 mod state;
+mod store;
 
 use state::AppState;
 
@@ -10,33 +12,56 @@ fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
-            commands::misc::default_base_dir,
+            store::launcher::get_launcher_config,
+            store::launcher::save_launcher_config,
+            store::launcher::resolve_paths,
             commands::misc::prepare_base_dir,
             commands::misc::open_external,
+            commands::misc::open_launcher_folder,
+            store::accounts::list_accounts,
+            store::accounts::add_offline_account,
+            store::accounts::remove_account,
+            store::accounts::select_account,
+            store::accounts::refresh_account,
+            commands::auth::ms_login_start,
+            commands::auth::ms_login_poll,
+            commands::auth::ms_login_cancel,
             commands::version::list_versions,
             commands::version::list_loader_versions,
             commands::install::install_instance,
+            commands::install::repair_instance,
             commands::instance::list_instances,
+            commands::instance::create_instance,
             commands::instance::get_instance,
+            commands::instance::save_instance_meta,
             commands::instance::delete_instance,
+            commands::instance::duplicate_instance,
+            commands::instance::suggest_instance_id,
             commands::instance::open_instance_folder,
+            commands::export::export_instance,
+            commands::export::import_instance,
             commands::java::detect_java,
+            commands::java::detect_java_candidates,
+            commands::java::test_java,
             commands::java::install_java,
             commands::java::ensure_java,
             commands::launch::launch_instance,
             commands::launch::stop_instance,
             commands::launch::running_instances,
-            commands::auth::ms_login_start,
-            commands::auth::ms_login_poll,
-            commands::auth::ms_login_cancel,
-            commands::auth::ms_login_refresh,
+            commands::launch::game_log,
+            commands::launch::clear_game_log,
             commands::mods::list_mods,
+            commands::mods::set_mod_enabled,
             commands::mods::check_mod_updates,
             commands::mods::apply_mod_update,
             commands::mods::delete_mod,
             commands::assets::list_resource_packs,
             commands::assets::list_shader_packs,
             commands::assets::list_worlds,
+            commands::assets::list_servers,
+            commands::assets::list_screenshots,
+            commands::assets::list_instance_logs,
+            commands::assets::read_instance_log,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

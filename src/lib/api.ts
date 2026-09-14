@@ -3,20 +3,130 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
-/** 後端丟出來的錯誤（invoke 的 reject 值） */
 export interface HexoCmdError {
-	/** network / io / javaNotFound / instanceNotFound / alreadyRunning / authError … */
 	kind: string;
 	message: string;
 }
 
-export interface BaseDirInfo {
-	path: string;
-	exists: boolean;
+export function errorMessage(error: unknown): string {
+	if (error && typeof error === 'object' && 'message' in error) {
+		return String((error as HexoCmdError).message);
+	}
+	return String(error);
 }
+
+export interface UiConfig {
+	instanceToolbar: boolean;
+	statusBar: boolean;
+	runningBadge: boolean;
+	includeSnapshots: boolean;
+}
+
+export interface GameConfig {
+	minMemoryMb: number;
+	maxMemoryMb: number;
+	jvmArgs: string;
+	recordPlayTime: boolean;
+
+	showProgressWindow: boolean;
+
+	closeProgressWhenDone: boolean;
+
+	keepLogLines: number;
+}
+
+export interface JavaConfig {
+	path: string;
+	autoDownload: boolean;
+}
+
+export interface CommandsConfig {
+	preLaunch: string;
+	postExit: string;
+}
+
+export interface ApiConfig {
+	curseforgeApiKey: string;
+}
+
+export interface LauncherConfig {
+	formatVersion: number;
+
+	baseDir: string;
+	ui: UiConfig;
+	game: GameConfig;
+	java: JavaConfig;
+	commands: CommandsConfig;
+	api: ApiConfig;
+}
+
+export interface Paths {
+	baseDir: string;
+	defaultBaseDir: string;
+	storeDir: string;
+}
+
+export const resolvePaths = () => invoke<Paths>('resolve_paths');
+
+export const getLauncherConfig = () => invoke<LauncherConfig>('get_launcher_config');
+
+export const saveLauncherConfig = (config: LauncherConfig) =>
+	invoke<LauncherConfig>('save_launcher_config', { config });
+
+export const prepareBaseDir = (baseDir: string) => invoke<void>('prepare_base_dir', { baseDir });
+
+export type LauncherFolder = 'base' | 'instances' | 'libraries' | 'assets' | 'java' | 'store';
+
+export const openLauncherFolder = (target: LauncherFolder) =>
+	invoke<void>('open_launcher_folder', { target });
+
+export const openExternal = (url: string) => invoke<void>('open_external', { url });
+
+export type AccountKind = 'microsoft' | 'offline';
+
+export interface AccountView {
+	id: string;
+	kind: AccountKind;
+	playerName: string;
+	uuid: string;
+
+	expiresAt: number;
+	expired: boolean;
+	selected: boolean;
+}
+
+export const listAccounts = () => invoke<AccountView[]>('list_accounts');
+
+export const addOfflineAccount = (playerName: string) =>
+	invoke<AccountView[]>('add_offline_account', { playerName });
+
+export const removeAccount = (accountId: string) =>
+	invoke<AccountView[]>('remove_account', { accountId });
+
+export const selectAccount = (accountId: string) =>
+	invoke<AccountView[]>('select_account', { accountId });
+
+export const refreshAccount = (accountId: string) =>
+	invoke<AccountView[]>('refresh_account', { accountId });
+
+export interface DeviceCode {
+	sessionId: string;
+	userCode: string;
+	verificationUri: string;
+	message: string;
+	expiresIn: number;
+}
+
+export const msLoginStart = () => invoke<DeviceCode>('ms_login_start');
+
+export const msLoginPoll = (sessionId: string) =>
+	invoke<AccountView[]>('ms_login_poll', { sessionId });
+
+export const msLoginCancel = (sessionId: string) => invoke<void>('ms_login_cancel', { sessionId });
 
 export interface VersionSummary {
 	id: string;
+
 	versionType: string;
 	releaseTime: string;
 }
@@ -27,47 +137,173 @@ export interface VersionList {
 	versions: VersionSummary[];
 }
 
-export interface InstanceSummary {
+export const listVersions = (includeSnapshots = false) =>
+	invoke<VersionList>('list_versions', { includeSnapshots });
+
+export const listLoaderVersions = (loader: LoaderKind, mcVersion: string) =>
+	invoke<string[]>('list_loader_versions', { loader, mcVersion });
+
+export interface InstanceSettings {
+	overrideMemory: boolean;
+	minMemoryMb: number;
+	maxMemoryMb: number;
+	overrideJvmArgs: boolean;
+	jvmArgs: string;
+	overrideCommands: boolean;
+	preLaunch: string;
+	postExit: string;
+}
+
+export interface InstanceView {
+	id: string;
 	name: string;
+	icon: string;
+
+	group: string;
+	notes: string;
 	versionId: string;
 	loader: LoaderKind;
-	mainClass: string;
+	loaderVersion: string;
 	javaVersion: number;
 	assetsId: string;
+	mainClass: string;
 	dir: string;
 	minecraftDir: string;
+	modCount: number;
+
+	lastPlayed: number;
+	playTimeSeconds: number;
+	launchCount: number;
+	installed: boolean;
+
+	healthy: boolean;
+	javaPath: string;
+	settings: InstanceSettings;
 }
+
+export interface MetaPatch {
+	name?: string;
+	icon?: string;
+	group?: string;
+	notes?: string;
+	settings?: InstanceSettings;
+
+	javaPath?: string;
+}
+
+export const listInstances = (baseDir: string) =>
+	invoke<InstanceView[]>('list_instances', { baseDir });
+
+export const getInstance = (baseDir: string, instanceName: string) =>
+	invoke<InstanceView>('get_instance', { baseDir, instanceName });
+
+export const saveInstanceMeta = (baseDir: string, instanceName: string, patch: MetaPatch) =>
+	invoke<InstanceView>('save_instance_meta', { baseDir, instanceName, patch });
+
+export const deleteInstance = (baseDir: string, instanceName: string) =>
+	invoke<void>('delete_instance', { baseDir, instanceName });
+
+export const duplicateInstance = (baseDir: string, instanceName: string, newName: string) =>
+	invoke<InstanceView>('duplicate_instance', { baseDir, instanceName, newName });
+
+export const suggestInstanceId = (baseDir: string, name: string) =>
+	invoke<string>('suggest_instance_id', { baseDir, name });
+
+export type InstanceFolder =
+	| 'instance'
+	| 'minecraft'
+	| 'mods'
+	| 'resourcepacks'
+	| 'shaderpacks'
+	| 'saves'
+	| 'screenshots'
+	| 'logs'
+	| 'config';
+
+export const openInstanceFolder = (
+	baseDir: string,
+	instanceName: string,
+	target: InstanceFolder = 'minecraft'
+) => invoke<void>('open_instance_folder', { baseDir, instanceName, target });
+
+export interface CreateRequest {
+	baseDir: string;
+
+	name: string;
+	icon?: string | null;
+	group?: string | null;
+	mcVersion: string;
+	loader: LoaderKind;
+	loaderVersion?: string | null;
+}
+
+export const createInstance = (request: CreateRequest) =>
+	invoke<InstanceView>('create_instance', { request });
+
+export interface ExportRequest {
+	baseDir: string;
+	instanceName: string;
+
+	targetPath: string;
+	includeSaves: boolean;
+	includeScreenshots: boolean;
+}
+
+export interface ExportResult {
+	path: string;
+	fileCount: number;
+	bytes: number;
+}
+
+export const exportInstance = (request: ExportRequest) =>
+	invoke<ExportResult>('export_instance', { request });
+
+export const importInstance = (baseDir: string, zipPath: string, name?: string | null) =>
+	invoke<InstanceView>('import_instance', { baseDir, zipPath, name });
+
+export interface InstallRequest {
+	baseDir: string;
+
+	instanceName: string;
+
+	name?: string | null;
+	icon?: string | null;
+	group?: string | null;
+	mcVersion: string;
+	loader: LoaderKind;
+	loaderVersion?: string | null;
+	javaPath?: string | null;
+}
+
+export const installInstance = (request: InstallRequest) =>
+	invoke<InstanceView>('install_instance', { request });
+
+export const repairInstance = (baseDir: string, instanceName: string) =>
+	invoke<InstanceView>('repair_instance', { baseDir, instanceName });
 
 export interface JavaInfo {
 	path: string;
 	version: number;
 }
 
-export interface Account {
-	playerName: string;
-	uuid: string;
-	accessToken: string;
-	refreshToken: string;
-	xuid: string;
-	expiresAt: number;
-}
+export const detectJava = (requiredVersion = 21) =>
+	invoke<JavaInfo | null>('detect_java', { requiredVersion });
 
-/** 啟動用的帳號；只給 playerName 就是離線模式 */
-export interface LaunchAccount {
-	playerName: string;
-	accessToken?: string | null;
-	uuid?: string | null;
-	xuid?: string | null;
-}
+export const detectJavaCandidates = () => invoke<JavaInfo[]>('detect_java_candidates');
+
+export const testJava = (path: string) => invoke<JavaInfo>('test_java', { path });
+
+export const installJava = (baseDir: string, version: number) =>
+	invoke<JavaInfo>('install_java', { baseDir, version });
+
+export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = true) =>
+	invoke<JavaInfo>('ensure_java', { baseDir, requiredVersion, allowDownload });
 
 export interface LaunchRequest {
 	baseDir: string;
 	instanceName: string;
-	account: LaunchAccount;
-	javaPath?: string | null;
-	jvmArgs?: string[] | null;
-	maxMemoryMb?: number | null;
-	minMemoryMb?: number | null;
+
+	accountId?: string | null;
 	autoDownloadJava?: boolean | null;
 }
 
@@ -76,16 +312,38 @@ export interface LaunchInfo {
 	pid: number;
 	javaPath: string;
 	javaVersion: number;
+	playerName: string;
 	online: boolean;
 }
 
-export interface DeviceCode {
-	sessionId: string;
-	userCode: string;
-	verificationUri: string;
-	message: string;
-	expiresIn: number;
+export interface RunningGame {
+	instanceName: string;
+	pid: number;
+
+	startedAt: number;
+	playerName: string;
+	online: boolean;
 }
+
+export interface GameLogLine {
+	seq: number;
+	kind: 'stdout' | 'stderr';
+	line: string;
+}
+
+export const launchInstance = (options: LaunchRequest) =>
+	invoke<LaunchInfo>('launch_instance', { options });
+
+export const stopInstance = (instanceName: string) =>
+	invoke<boolean>('stop_instance', { instanceName });
+
+export const runningInstances = () => invoke<RunningGame[]>('running_instances');
+
+export const gameLog = (instanceName: string) =>
+	invoke<GameLogLine[]>('game_log', { instanceName });
+
+export const clearGameLog = (instanceName: string) =>
+	invoke<void>('clear_game_log', { instanceName });
 
 export interface ModEntry {
 	fileName: string;
@@ -95,6 +353,7 @@ export interface ModEntry {
 	version: string;
 	loader: string;
 	description: string | null;
+	enabled: boolean;
 }
 
 export interface ModUpdateEntry {
@@ -116,115 +375,35 @@ export interface PackEntry {
 export interface WorldEntry {
 	name: string;
 	path: string;
-	/** icon.png 的 data URI */
+
 	icon: string | null;
 }
 
-export interface InstallProgress {
-	instanceName: string;
-	done: number;
-	total: number;
-	message: string;
+export interface ServerEntry {
+	name: string;
+	address: string;
+
+	icon: string | null;
+	acceptTextures: boolean;
 }
 
-export interface GameExit {
-	instanceName: string;
-	exitCode: number | null;
+export interface FileEntry {
+	name: string;
+	path: string;
+	size: number;
+
+	modified: number;
 }
-
-/** 遊戲的一行輸出 */
-export interface GameOutput {
-	instanceName: string;
-	kind: 'stdout' | 'stderr';
-	line: string;
-}
-
-export const defaultBaseDir = () => invoke<BaseDirInfo>('default_base_dir');
-
-/** 建立 base_dir 底下的 assets / libraries / instance / java */
-export const prepareBaseDir = (baseDir: string) =>
-	invoke<BaseDirInfo>('prepare_base_dir', { baseDir });
-
-export const openExternal = (url: string) => invoke<void>('open_external', { url });
-
-export const listVersions = (includeSnapshots = false) =>
-	invoke<VersionList>('list_versions', { includeSnapshots });
-
-/** 某個 MC 版本可用的 loader 版本（vanilla 回空陣列） */
-export const listLoaderVersions = (loader: LoaderKind, mcVersion: string) =>
-	invoke<string[]>('list_loader_versions', { loader, mcVersion });
-
-/**
- * 安裝 instance。過程中持續發出 install-progress 事件，用 `onInstallProgress` 訂閱。
- * `instanceName` 由前端決定（同版本不同 loader 才不會撞資料夾）。
- */
-export const installInstance = (args: {
-	baseDir: string;
-	mcVersion: string;
-	instanceName: string;
-	loader: LoaderKind;
-	loaderVersion?: string | null;
-	javaPath?: string | null;
-}) => invoke<InstanceSummary>('install_instance', args);
-
-export const onInstallProgress = (
-	handler: (progress: InstallProgress) => void
-): Promise<UnlistenFn> =>
-	listen<InstallProgress>('hexo://install-progress', (event) => handler(event.payload));
-
-// ---------- instance ----------
-
-export const listInstances = (baseDir: string) =>
-	invoke<InstanceSummary[]>('list_instances', { baseDir });
-
-export const getInstance = (baseDir: string, instanceName: string) =>
-	invoke<InstanceSummary>('get_instance', { baseDir, instanceName });
-
-export const deleteInstance = (baseDir: string, instanceName: string) =>
-	invoke<void>('delete_instance', { baseDir, instanceName });
-
-export const openInstanceFolder = (baseDir: string, instanceName: string) =>
-	invoke<void>('open_instance_folder', { baseDir, instanceName });
-
-export const detectJava = (requiredVersion = 21) =>
-	invoke<JavaInfo | null>('detect_java', { requiredVersion });
-
-export const installJava = (baseDir: string, version: number) =>
-	invoke<JavaInfo>('install_java', { baseDir, version });
-
-/** 先找系統的，找不到再下載 */
-export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = true) =>
-	invoke<JavaInfo>('ensure_java', { baseDir, requiredVersion, allowDownload });
-
-export const launchInstance = (options: LaunchRequest) =>
-	invoke<LaunchInfo>('launch_instance', { options });
-
-export const stopInstance = (instanceName: string) =>
-	invoke<boolean>('stop_instance', { instanceName });
-
-export const runningInstances = () => invoke<string[]>('running_instances');
-
-export const onGameExit = (handler: (exit: GameExit) => void): Promise<UnlistenFn> =>
-	listen<GameExit>('hexo://game-exit', (event) => handler(event.payload));
-
-/**
- * 遊戲 stdout / stderr，每行一次事件。
- * 啟動後就會開始收，Minecraft 的輸出量不小，訂閱端請自己限制保留行數。
- */
-export const onGameOutput = (handler: (output: GameOutput) => void): Promise<UnlistenFn> =>
-	listen<GameOutput>('hexo://game-output', (event) => handler(event.payload));
-
-export const msLoginStart = () => invoke<DeviceCode>('ms_login_start');
-
-/** 會一直等到使用者在瀏覽器完成授權才 resolve */
-export const msLoginPoll = (sessionId: string) => invoke<Account>('ms_login_poll', { sessionId });
-
-export const msLoginCancel = (sessionId: string) => invoke<void>('ms_login_cancel', { sessionId });
-
-export const msLoginRefresh = (refresh: string) => invoke<Account>('ms_login_refresh', { refresh });
 
 export const listMods = (baseDir: string, instanceName: string) =>
 	invoke<ModEntry[]>('list_mods', { baseDir, instanceName });
+
+export const setModEnabled = (
+	baseDir: string,
+	instanceName: string,
+	fileName: string,
+	enabled: boolean
+) => invoke<void>('set_mod_enabled', { baseDir, instanceName, fileName, enabled });
 
 export const checkModUpdates = (args: {
 	baseDir: string;
@@ -248,3 +427,49 @@ export const listShaderPacks = (baseDir: string, instanceName: string) =>
 
 export const listWorlds = (baseDir: string, instanceName: string) =>
 	invoke<WorldEntry[]>('list_worlds', { baseDir, instanceName });
+
+export const listServers = (baseDir: string, instanceName: string) =>
+	invoke<ServerEntry[]>('list_servers', { baseDir, instanceName });
+
+export const listScreenshots = (baseDir: string, instanceName: string) =>
+	invoke<FileEntry[]>('list_screenshots', { baseDir, instanceName });
+
+export const listInstanceLogs = (baseDir: string, instanceName: string) =>
+	invoke<FileEntry[]>('list_instance_logs', { baseDir, instanceName });
+
+export const readInstanceLog = (baseDir: string, instanceName: string, fileName: string) =>
+	invoke<string>('read_instance_log', { baseDir, instanceName, fileName });
+
+export interface InstallProgress {
+	instanceName: string;
+	done: number;
+	total: number;
+	message: string;
+}
+
+export interface GameExit {
+	instanceName: string;
+	exitCode: number | null;
+	seconds: number;
+}
+
+export interface GameOutput extends GameLogLine {
+	instanceName: string;
+}
+
+export const onInstallProgress = (
+	handler: (progress: InstallProgress) => void
+): Promise<UnlistenFn> =>
+	listen<InstallProgress>('hexo://install-progress', (event) => handler(event.payload));
+
+export const onGameStart = (handler: (info: RunningGame) => void): Promise<UnlistenFn> =>
+	listen<RunningGame>('hexo://game-start', (event) => handler(event.payload));
+
+export const onGameExit = (handler: (exit: GameExit) => void): Promise<UnlistenFn> =>
+	listen<GameExit>('hexo://game-exit', (event) => handler(event.payload));
+
+export const onGameOutput = (handler: (output: GameOutput) => void): Promise<UnlistenFn> =>
+	listen<GameOutput>('hexo://game-output', (event) => handler(event.payload));
+
+export const onInstancesChanged = (handler: () => void): Promise<UnlistenFn> =>
+	listen('hexo://instances-changed', () => handler());

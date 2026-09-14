@@ -17,15 +17,31 @@ tauri-build = { version = "1.5.6", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.8.3", features = ["dialog-open"] }
+tauri = { version = "1.8.3", features = [
+    "dialog-save",
+    "window-unminimize",
+    "window-close",
+    "window-set-title",
+    "window-set-focus",
+    "window-create",
+    "window-center",
+    "dialog-open",
+] }
 
 
 hexomc-lib = "0.1.1"
-tokio = { version = "1", features = ["rt-multi-thread", "fs", "time"] }
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "fs",
+    "time",
+    "process",
+] }
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 open = "5"
 dirs = "5"
+zip = "2"
+flate2 = "1"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod auth;
+pub mod export;
 pub mod install;
 pub mod instance;
 pub mod java;
@@ -17,6 +18,8 @@ use crate::error::{CmdError, CmdResult};
 
 /// 安裝進度事件：`{ instanceName, done, total, message }`
 pub const EVENT_INSTALL_PROGRESS: &str = "hexo://install-progress";
+/// 遊戲開始事件：內容是 RunningInfo。
+pub const EVENT_GAME_START: &str = "hexo://game-start";
 /// 遊戲結束事件：`{ instanceName, exitCode }`
 pub const EVENT_GAME_EXIT: &str = "hexo://game-exit";
 /// 遊戲輸出事件（每行一次）：`{ instanceName, kind: "stdout" | "stderr", line }`

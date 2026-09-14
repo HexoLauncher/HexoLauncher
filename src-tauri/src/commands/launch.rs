@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,35 +6,25 @@ use hexomc_lib::{launch_with_output, LaunchOptions, OutputFn, OutputKind, Output
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
-use super::instance::load_config;
+use super::instance::{load_config, record_play};
 use super::java::resolve_java;
-use super::{path_string, EVENT_GAME_EXIT, EVENT_GAME_OUTPUT};
+use super::{
+    instance_dir, minecraft_dir, path_string, EVENT_GAME_EXIT, EVENT_GAME_OUTPUT, EVENT_GAME_START,
+};
 use crate::error::{CmdError, CmdResult};
-use crate::state::AppState;
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AccountInput {
-    pub player_name: String,
-    pub access_token: Option<String>,
-    pub uuid: Option<String>,
-    pub xuid: Option<String>,
-}
+use crate::state::{AppState, GameLogLine, RunningInfo};
+use crate::store::instance_meta::{InstanceMeta, InstanceSettings, LocalStore};
+use crate::store::launcher::LauncherConfig;
+use crate::store::{accounts, now_secs};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
-    /// 啟動器根目錄
     pub base_dir: String,
     pub instance_name: String,
-    pub account: AccountInput,
-    /// 指定 java 執行檔；不給就自動偵測（必要時下載）
-    pub java_path: Option<String>,
-    /// 額外的 JVM 參數
-    pub jvm_args: Option<Vec<String>>,
-    pub max_memory_mb: Option<u32>,
-    pub min_memory_mb: Option<u32>,
-    /// 找不到合適的 Java 時是否自動下載（預設 true）
+
+    pub account_id: Option<String>,
+
     pub auto_download_java: Option<bool>,
 }
 
@@ -45,6 +35,7 @@ pub struct LaunchInfo {
     pub pid: u32,
     pub java_path: String,
     pub java_version: u32,
+    pub player_name: String,
     pub online: bool,
 }
 
@@ -52,9 +43,8 @@ pub struct LaunchInfo {
 #[serde(rename_all = "camelCase")]
 pub struct GameOutput {
     pub instance_name: String,
-    /// "stdout" | "stderr"
-    pub kind: &'static str,
-    pub line: String,
+    #[serde(flatten)]
+    pub line: GameLogLine,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -62,6 +52,7 @@ pub struct GameOutput {
 pub struct GameExit {
     pub instance_name: String,
     pub exit_code: Option<i32>,
+    pub seconds: u64,
 }
 
 #[tauri::command]
@@ -73,17 +64,10 @@ pub async fn launch_instance(
     let LaunchRequest {
         base_dir,
         instance_name,
-        account,
-        java_path,
-        jvm_args,
-        max_memory_mb,
-        min_memory_mb,
+        account_id,
         auto_download_java,
     } = options;
 
-    if account.player_name.trim().is_empty() {
-        return Err(CmdError::launcher("玩家名稱不可為空"));
-    }
     if state.is_running(&instance_name)? {
         return Err(CmdError::new(
             "alreadyRunning",
@@ -92,26 +76,41 @@ pub async fn launch_instance(
     }
 
     let base = Path::new(&base_dir);
+    let dir = instance_dir(base, &instance_name)?;
     let config = load_config(base, &instance_name).await?;
+
+    let launcher = LauncherConfig::load().await?;
+    let meta = InstanceMeta::load(&dir, &instance_name).await?;
+    let local = LocalStore::load().await?.get(base, &instance_name);
+    let account = accounts::resolve(account_id.as_deref()).await?;
+
+    let explicit_java = [local.java_path.as_str(), launcher.java.path.as_str()]
+        .into_iter()
+        .find(|p| !p.trim().is_empty());
 
     let java = resolve_java(
         base,
         config.java_version,
-        java_path.as_deref(),
-        auto_download_java.unwrap_or(true),
+        explicit_java,
+        auto_download_java.unwrap_or(launcher.java.auto_download),
     )
     .await?;
 
-    let mut jvm_extra_args = vec![
-        format!("-Xmx{}M", max_memory_mb.unwrap_or(4096)),
-        format!("-Xms{}M", min_memory_mb.unwrap_or(512)),
-        "-Dfile.encoding=UTF-8".to_string(),
-        "-Dstdout.encoding=UTF-8".to_string(),
-        "-Dstderr.encoding=UTF-8".to_string(),
-    ];
-    jvm_extra_args.extend(jvm_args.unwrap_or_default());
+    let hook_vars = HookVars {
+        instance_name: instance_name.clone(),
+        display_name: meta.name.clone(),
+        instance_dir: path_string(&dir),
+        minecraft_dir: path_string(&minecraft_dir(base, &instance_name)?),
+        java_path: path_string(&java.path),
+    };
+
+    let commands = effective_commands(&launcher, &meta.settings);
+    if !commands.0.is_empty() {
+        run_hook(&commands.0, &hook_vars, "啟動前指令").await?;
+    }
 
     let online = account.access_token.is_some();
+    let player_name = account.player_name.clone();
     let options = LaunchOptions {
         instance_id: instance_name.clone(),
         java_path: java.path.clone(),
@@ -119,33 +118,152 @@ pub async fn launch_instance(
         auth_token: account.access_token,
         auth_uuid: account.uuid,
         xuid: account.xuid,
-        jvm_extra_args,
+        jvm_extra_args: jvm_args(&launcher, &meta.settings),
     };
+
+    state.clear_log(&instance_name)?;
 
     let process = launch_with_output(&options, base, output_sink(&app, &instance_name)).await?;
     let pid = process.id().unwrap_or_default();
-    state.add_running(&instance_name, process)?;
-    watch_process(app, instance_name.clone());
+
+    let info = RunningInfo {
+        instance_name: instance_name.clone(),
+        pid,
+        started_at: now_secs(),
+        player_name: player_name.clone(),
+        online,
+    };
+    state.add_running(process, info.clone())?;
+
+    let _ = app.emit_all(EVENT_GAME_START, info);
+
+    record_play(base, &instance_name, 0, true).await;
+    let _ = app.emit_all(super::instance::EVENT_INSTANCES_CHANGED, ());
+
+    watch_process(
+        app,
+        Watch {
+            instance_name: instance_name.clone(),
+            base_dir: base.to_path_buf(),
+            record_play_time: launcher.game.record_play_time,
+            post_exit: commands.1,
+            hook_vars,
+        },
+    );
 
     Ok(LaunchInfo {
         instance_name,
         pid,
         java_path: path_string(&java.path),
         java_version: java.version,
+        player_name,
         online,
     })
 }
 
-/// 強制結束遊戲
+fn jvm_args(launcher: &LauncherConfig, settings: &InstanceSettings) -> Vec<String> {
+    let (min, max) = if settings.override_memory {
+        (settings.min_memory_mb, settings.max_memory_mb)
+    } else {
+        (launcher.game.min_memory_mb, launcher.game.max_memory_mb)
+    };
+
+    let extra = if settings.override_jvm_args {
+        settings.jvm_args.as_str()
+    } else {
+        launcher.game.jvm_args.as_str()
+    };
+
+    let mut args = vec![
+        format!("-Xmx{}M", max.max(512)),
+        format!("-Xms{}M", min.max(256)),
+        "-Dfile.encoding=UTF-8".to_string(),
+        "-Dstdout.encoding=UTF-8".to_string(),
+        "-Dstderr.encoding=UTF-8".to_string(),
+    ];
+    args.extend(extra.split_whitespace().map(str::to_string));
+    args
+}
+
+fn effective_commands(launcher: &LauncherConfig, settings: &InstanceSettings) -> (String, String) {
+    if settings.override_commands {
+        (settings.pre_launch.clone(), settings.post_exit.clone())
+    } else {
+        (
+            launcher.commands.pre_launch.clone(),
+            launcher.commands.post_exit.clone(),
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+struct HookVars {
+    instance_name: String,
+    display_name: String,
+    instance_dir: String,
+    minecraft_dir: String,
+    java_path: String,
+}
+
+fn expand(command: &str, vars: &HookVars) -> String {
+    command
+        .replace("$INST_ID", &vars.instance_name)
+        .replace("$INST_NAME", &vars.display_name)
+        .replace("$INST_DIR", &vars.instance_dir)
+        .replace("$INST_MC_DIR", &vars.minecraft_dir)
+        .replace("$INST_JAVA", &vars.java_path)
+}
+
+async fn run_hook(command: &str, vars: &HookVars, label: &str) -> CmdResult<()> {
+    let line = expand(command, vars);
+    let mut child = if cfg!(windows) {
+        let mut cmd = tokio::process::Command::new("cmd");
+        cmd.args(["/C", &line]);
+        cmd
+    } else {
+        let mut cmd = tokio::process::Command::new("sh");
+        cmd.args(["-c", &line]);
+        cmd
+    };
+    child.current_dir(&vars.minecraft_dir);
+
+    let status = child
+        .status()
+        .await
+        .map_err(|e| CmdError::launcher(format!("{}執行失敗: {}", label, e)))?;
+
+    if !status.success() {
+        return Err(CmdError::launcher(format!(
+            "{}以錯誤結束（{}）: {}",
+            label,
+            status.code().unwrap_or(-1),
+            line
+        )));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn stop_instance(state: tauri::State<'_, AppState>, instance_name: String) -> CmdResult<bool> {
     state.kill(&instance_name)
 }
 
-/// 目前正在執行的 instance 名稱
 #[tauri::command]
-pub fn running_instances(state: tauri::State<'_, AppState>) -> CmdResult<Vec<String>> {
-    state.running_names()
+pub fn running_instances(state: tauri::State<'_, AppState>) -> CmdResult<Vec<RunningInfo>> {
+    state.running_list()
+}
+
+#[tauri::command]
+pub fn game_log(
+    state: tauri::State<'_, AppState>,
+    instance_name: String,
+) -> CmdResult<Vec<GameLogLine>> {
+    state.game_log(&instance_name)
+}
+
+#[tauri::command]
+pub fn clear_game_log(state: tauri::State<'_, AppState>, instance_name: String) -> CmdResult<()> {
+    state.clear_log(&instance_name)
 }
 
 fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
@@ -153,41 +271,61 @@ fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
     let instance_name = instance_name.to_string();
 
     Arc::new(move |OutputLine { kind, line }| {
-        let _ = app.emit_all(
-            EVENT_GAME_OUTPUT,
-            GameOutput {
-                instance_name: instance_name.clone(),
-                kind: match kind {
-                    OutputKind::Stdout => "stdout",
-                    OutputKind::Stderr => "stderr",
+        let state = app.state::<AppState>();
+        let kind = match kind {
+            OutputKind::Stdout => "stdout",
+            OutputKind::Stderr => "stderr",
+        };
+
+        if let Ok(entry) = state.push_log(&instance_name, kind, line) {
+            let _ = app.emit_all(
+                EVENT_GAME_OUTPUT,
+                GameOutput {
+                    instance_name: instance_name.clone(),
+                    line: entry,
                 },
-                line,
-            },
-        );
+            );
+        }
     })
 }
 
-/// 背景輪詢遊戲行程；結束後發事件通知前端。
-fn watch_process(app: tauri::AppHandle, instance_name: String) {
+struct Watch {
+    instance_name: String,
+    base_dir: PathBuf,
+    record_play_time: bool,
+    post_exit: String,
+    hook_vars: HookVars,
+}
+
+fn watch_process(app: tauri::AppHandle, watch: Watch) {
     tauri::async_runtime::spawn(async move {
-        loop {
+        let ended = loop {
             tokio::time::sleep(Duration::from_millis(800)).await;
 
             let state = app.state::<AppState>();
-            match state.reap(&instance_name) {
-                Ok(Some(exit_code)) => {
-                    let _ = app.emit_all(
-                        EVENT_GAME_EXIT,
-                        GameExit {
-                            instance_name,
-                            exit_code,
-                        },
-                    );
-                    break;
-                }
+            match state.reap(&watch.instance_name) {
+                Ok(Some(ended)) => break ended,
                 Ok(None) => continue,
-                Err(_) => break,
+                Err(_) => return,
             }
+        };
+
+        if watch.record_play_time {
+            record_play(&watch.base_dir, &watch.instance_name, ended.seconds, false).await;
+        }
+
+        let _ = app.emit_all(
+            EVENT_GAME_EXIT,
+            GameExit {
+                instance_name: watch.instance_name.clone(),
+                exit_code: ended.exit_code,
+                seconds: ended.seconds,
+            },
+        );
+        let _ = app.emit_all(super::instance::EVENT_INSTANCES_CHANGED, ());
+
+        if !watch.post_exit.is_empty() {
+            let _ = run_hook(&watch.post_exit, &watch.hook_vars, "結束後指令").await;
         }
     });
 }

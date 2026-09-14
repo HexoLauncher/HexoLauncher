@@ -20,9 +20,11 @@ pub struct ModDto {
     pub mod_id: String,
     pub name: String,
     pub version: String,
-    /// "fabric" | "forge" | "neoforge" | "quilt" | "unknown"
+
     pub loader: String,
     pub description: Option<String>,
+
+    pub enabled: bool,
 }
 
 impl From<ModInfo> for ModDto {
@@ -35,9 +37,28 @@ impl From<ModInfo> for ModDto {
             version: info.version,
             loader: loader_label(&info.loader).to_string(),
             description: info.description,
+            enabled: true,
         }
     }
 }
+
+fn disabled_mod(path: &std::path::Path) -> Option<ModDto> {
+    let file_name = path.file_name()?.to_string_lossy().to_string();
+    let stem = file_name.trim_end_matches(DISABLED_SUFFIX).to_string();
+
+    Some(ModDto {
+        file_path: path_string(path),
+        mod_id: stem.clone(),
+        name: stem.trim_end_matches(".jar").to_string(),
+        version: String::new(),
+        loader: "unknown".to_string(),
+        description: None,
+        enabled: false,
+        file_name,
+    })
+}
+
+const DISABLED_SUFFIX: &str = ".disabled";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,7 +69,7 @@ pub struct ModUpdateDto {
     pub current_version: String,
     pub new_version: String,
     pub new_file_name: Option<String>,
-    /// "modrinth" | "curseforge"
+
     pub source: String,
 }
 
@@ -84,10 +105,58 @@ fn to_update_dto(id: String, update: &ModUpdate) -> ModUpdateDto {
 #[tauri::command]
 pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec<ModDto>> {
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
-    Ok(detect_mods(&mods_dir)
+
+    let mut mods: Vec<ModDto> = detect_mods(&mods_dir)
         .into_iter()
         .map(ModDto::from)
-        .collect())
+        .collect();
+
+    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.to_string_lossy().ends_with(DISABLED_SUFFIX) {
+                mods.extend(disabled_mod(&path));
+            }
+        }
+    }
+
+    mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(mods)
+}
+
+#[tauri::command]
+pub async fn set_mod_enabled(
+    base_dir: String,
+    instance_name: String,
+    file_name: String,
+    enabled: bool,
+) -> CmdResult<()> {
+    let mods_dir = mods_dir(&base_dir, &instance_name, &file_name)?;
+    let from = mods_dir.join(&file_name);
+    if !from.exists() {
+        return Err(CmdError::launcher(format!("找不到模組: {}", file_name)));
+    }
+
+    let target = if enabled {
+        file_name.trim_end_matches(DISABLED_SUFFIX).to_string()
+    } else if file_name.ends_with(DISABLED_SUFFIX) {
+        return Ok(());
+    } else {
+        format!("{}{}", file_name, DISABLED_SUFFIX)
+    };
+
+    if target == file_name {
+        return Ok(());
+    }
+    tokio::fs::rename(&from, mods_dir.join(target)).await?;
+    Ok(())
+}
+
+fn mods_dir(base_dir: &str, instance_name: &str, file_name: &str) -> CmdResult<std::path::PathBuf> {
+    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
+        return Err(CmdError::launcher(format!("檔名不合法: {}", file_name)));
+    }
+    Ok(minecraft_dir(Path::new(base_dir), instance_name)?.join("mods"))
 }
 
 #[tauri::command]
@@ -114,9 +183,17 @@ pub async fn check_mod_updates(
     let mc_version = mc_version.unwrap_or(config.version_id);
 
     let modrinth = ModrinthClient::new();
-    let curseforge = curseforge_api_key
-        .filter(|k| !k.is_empty())
-        .map(CurseForgeClient::new);
+    let api_key = match curseforge_api_key.filter(|k| !k.is_empty()) {
+        Some(key) => Some(key),
+        None => Some(
+            crate::store::launcher::LauncherConfig::load()
+                .await?
+                .api
+                .curseforge_api_key,
+        )
+        .filter(|k| !k.is_empty()),
+    };
+    let curseforge = api_key.map(CurseForgeClient::new);
     let id_map = mod_id_map.unwrap_or_default();
 
     let updates = check_updates(
@@ -159,13 +236,7 @@ pub async fn delete_mod(
     instance_name: String,
     file_name: String,
 ) -> CmdResult<()> {
-    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
-        return Err(CmdError::launcher(format!("檔名不合法: {}", file_name)));
-    }
-
-    let path = minecraft_dir(Path::new(&base_dir), &instance_name)?
-        .join("mods")
-        .join(&file_name);
+    let path = mods_dir(&base_dir, &instance_name, &file_name)?.join(&file_name);
     if !path.exists() {
         return Err(CmdError::launcher(format!("找不到模組: {}", file_name)));
     }

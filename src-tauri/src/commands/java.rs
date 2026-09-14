@@ -89,10 +89,38 @@ pub async fn resolve_java(
     }))
 }
 
-/// 給 Forge / NeoForge installer 用的 java：它們的 processor 要跑 Java，
-/// 版本要求比遊戲本身寬鬆，所以由新往舊找。
 pub fn pick_java_for_tools() -> Option<JavaInfo> {
     find_java(21)
         .or_else(|| find_java(17))
         .or_else(|| find_java(8))
+}
+
+#[tauri::command]
+pub fn detect_java_candidates() -> Vec<JavaDto> {
+    let mut found: Vec<JavaInfo> = Vec::new();
+
+    for required in [21, 17, 11, 8] {
+        if let Some(info) = find_java(required) {
+            if !found.iter().any(|j| j.path == info.path) {
+                found.push(info);
+            }
+        }
+    }
+
+    found.sort_by(|a, b| b.version.cmp(&a.version));
+    found.into_iter().map(JavaDto::from).collect()
+}
+
+#[tauri::command]
+pub fn test_java(path: String) -> CmdResult<JavaDto> {
+    let path = PathBuf::from(&path);
+    if !path.exists() {
+        return Err(CmdError::launcher(format!(
+            "檔案不存在: {}",
+            path.display()
+        )));
+    }
+    probe_java(&path)
+        .map(JavaDto::from)
+        .ok_or_else(|| CmdError::launcher("這個檔案不是可用的 java 執行檔"))
 }

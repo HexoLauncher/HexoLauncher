@@ -1,16 +1,57 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
+use std::time::Instant;
 
 use hexomc_lib::auth::microsoft::MsDeviceCodeResponse;
 use hexomc_lib::{GameProcess, ModUpdate};
+use serde::Serialize;
 
 use crate::error::CmdError;
 
+const MAX_LOG_LINES: usize = 10_000;
+
+struct RunningGame {
+    process: GameProcess,
+    started: Instant,
+    info: RunningInfo,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunningInfo {
+    pub instance_name: String,
+    pub pid: u32,
+    pub started_at: u64,
+    pub player_name: String,
+    pub online: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GameLogLine {
+    pub seq: u64,
+    pub kind: &'static str,
+    pub line: String,
+}
+
+#[derive(Default)]
+struct LogBuffer {
+    lines: VecDeque<GameLogLine>,
+    next_seq: u64,
+}
+
 #[derive(Default)]
 pub struct AppState {
-    running: Mutex<HashMap<String, GameProcess>>,
+    running: Mutex<HashMap<String, RunningGame>>,
+    logs: Mutex<HashMap<String, LogBuffer>>,
     login_sessions: Mutex<HashMap<String, MsDeviceCodeResponse>>,
     mod_updates: Mutex<HashMap<String, ModUpdate>>,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct GameEnded {
+    pub exit_code: Option<i32>,
+    pub seconds: u64,
 }
 
 fn poisoned(what: &str) -> CmdError {
@@ -18,9 +59,16 @@ fn poisoned(what: &str) -> CmdError {
 }
 
 impl AppState {
-    pub fn add_running(&self, instance_name: &str, process: GameProcess) -> Result<(), CmdError> {
+    pub fn add_running(&self, process: GameProcess, info: RunningInfo) -> Result<(), CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
-        map.insert(instance_name.to_string(), process);
+        map.insert(
+            info.instance_name.clone(),
+            RunningGame {
+                process,
+                started: Instant::now(),
+                info,
+            },
+        );
         Ok(())
     }
 
@@ -29,41 +77,84 @@ impl AppState {
         Ok(map.contains_key(instance_name))
     }
 
-    pub fn running_names(&self) -> Result<Vec<String>, CmdError> {
+    pub fn running_list(&self) -> Result<Vec<RunningInfo>, CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
-        map.retain(|_, process| !matches!(process.try_wait(), Ok(Some(_))));
-        Ok(map.keys().cloned().collect())
+        map.retain(|_, game| !matches!(game.process.try_wait(), Ok(Some(_))));
+        Ok(map.values().map(|game| game.info.clone()).collect())
     }
 
-    pub fn reap(&self, instance_name: &str) -> Result<Option<Option<i32>>, CmdError> {
+    pub fn reap(&self, instance_name: &str) -> Result<Option<GameEnded>, CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
-        let Some(process) = map.get_mut(instance_name) else {
-            // 已經被別人收走。
-            return Ok(Some(None));
+        let Some(game) = map.get_mut(instance_name) else {
+            return Ok(Some(GameEnded::default()));
         };
-        match process.try_wait() {
+
+        let seconds = game.started.elapsed().as_secs();
+        match game.process.try_wait() {
             Ok(Some(status)) => {
                 map.remove(instance_name);
-                Ok(Some(status.code()))
+                Ok(Some(GameEnded {
+                    exit_code: status.code(),
+                    seconds,
+                }))
             }
             Ok(None) => Ok(None),
             Err(_) => {
                 map.remove(instance_name);
-                Ok(Some(None))
+                Ok(Some(GameEnded {
+                    exit_code: None,
+                    seconds,
+                }))
             }
         }
     }
 
-    /// 要求結束遊戲
     pub fn kill(&self, instance_name: &str) -> Result<bool, CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
         match map.get_mut(instance_name) {
-            Some(process) => {
-                let _ = process.child_mut().start_kill();
+            Some(game) => {
+                let _ = game.process.child_mut().start_kill();
                 Ok(true)
             }
             None => Ok(false),
         }
+    }
+
+    pub fn push_log(
+        &self,
+        instance_name: &str,
+        kind: &'static str,
+        line: String,
+    ) -> Result<GameLogLine, CmdError> {
+        let mut map = self.logs.lock().map_err(|_| poisoned("logs"))?;
+        let buffer = map.entry(instance_name.to_string()).or_default();
+
+        buffer.next_seq += 1;
+        let entry = GameLogLine {
+            seq: buffer.next_seq,
+            kind,
+            line,
+        };
+
+        buffer.lines.push_back(entry.clone());
+        while buffer.lines.len() > MAX_LOG_LINES {
+            buffer.lines.pop_front();
+        }
+        Ok(entry)
+    }
+
+    pub fn game_log(&self, instance_name: &str) -> Result<Vec<GameLogLine>, CmdError> {
+        let map = self.logs.lock().map_err(|_| poisoned("logs"))?;
+        Ok(map
+            .get(instance_name)
+            .map(|buffer| buffer.lines.iter().cloned().collect())
+            .unwrap_or_default())
+    }
+
+    pub fn clear_log(&self, instance_name: &str) -> Result<(), CmdError> {
+        let mut map = self.logs.lock().map_err(|_| poisoned("logs"))?;
+        map.remove(instance_name);
+        Ok(())
     }
 
     pub fn put_login_session(&self, id: &str, resp: MsDeviceCodeResponse) -> Result<(), CmdError> {
@@ -75,7 +166,6 @@ impl AppState {
         Ok(())
     }
 
-    /// 取出並移除登入 session
     pub fn take_login_session(&self, id: &str) -> Result<Option<MsDeviceCodeResponse>, CmdError> {
         let mut map = self
             .login_sessions
@@ -84,7 +174,6 @@ impl AppState {
         Ok(map.remove(id))
     }
 
-    /// 覆寫某個 instance 的更新清單，回傳 (id, ModUpdate 參照) 供組 DTO。
     pub fn set_mod_updates(
         &self,
         instance_name: &str,
