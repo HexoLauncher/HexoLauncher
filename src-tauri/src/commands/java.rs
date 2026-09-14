@@ -23,13 +23,11 @@ impl From<JavaInfo> for JavaDto {
     }
 }
 
-/// 偵測系統上的 Java。`requiredVersion` 預設 21（近期版本 MC 需要的）。
 #[tauri::command]
 pub fn detect_java(required_version: Option<u32>) -> Option<JavaDto> {
     find_java(required_version.unwrap_or(21)).map(JavaDto::from)
 }
 
-/// 下載 Temurin JRE 到 `{baseDir}/java/{version}/`。
 #[tauri::command]
 pub async fn install_java(base_dir: String, version: u32) -> CmdResult<JavaDto> {
     let path = download_java(version, Path::new(&base_dir)).await?;
@@ -39,7 +37,6 @@ pub async fn install_java(base_dir: String, version: u32) -> CmdResult<JavaDto> 
     })
 }
 
-/// 取得可用的 Java：先找系統的，找不到且 `allowDownload` 為 true 就下載。
 #[tauri::command]
 pub async fn ensure_java(
     base_dir: String,
@@ -56,10 +53,6 @@ pub async fn ensure_java(
     Ok(info.into())
 }
 
-/// 決定要用哪個 java 執行檔：
-/// 1. 前端明確指定的路徑（驗證版本後採用）
-/// 2. 系統偵測
-/// 3. 允許的話，下載 Temurin
 pub async fn resolve_java(
     base_dir: &Path,
     required_version: u32,
@@ -71,7 +64,7 @@ pub async fn resolve_java(
         if !path.exists() {
             return Err(CmdError::launcher(format!("指定的 Java 不存在: {}", raw)));
         }
-        // 探測失敗（例如 `java -version` 跑不起來）時仍照用，把判斷權留給使用者。
+
         return Ok(probe_java(&path).unwrap_or(JavaInfo {
             path,
             version: required_version,

@@ -12,7 +12,7 @@ use crate::error::CmdResult;
 pub struct PackDto {
     pub name: String,
     pub path: String,
-    /// true = 資料夾形式，false = .zip
+    /// true = folder，false = .zip
     pub is_folder: bool,
 }
 
@@ -21,7 +21,6 @@ pub struct PackDto {
 pub struct WorldDto {
     pub name: String,
     pub path: String,
-    /// 存檔縮圖（icon.png）轉成 data URI，可直接餵給 <img src>
     pub icon: Option<String>,
 }
 

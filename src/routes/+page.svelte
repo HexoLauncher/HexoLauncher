@@ -7,6 +7,7 @@
 		InstanceSummary,
 		JavaInfo,
 		LoaderKind,
+		GameOutput,
 		ModEntry,
 		PackEntry,
 		VersionSummary,
@@ -60,10 +61,21 @@
 	let running = $state<string[]>([]);
 	let progress = $state('');
 
+	// 遊戲輸出：量很大，只留最近 MAX_GAME_LINES 行
+	const MAX_GAME_LINES = 500;
+	let gameLines = $state<GameOutput[]>([]);
+	let onlyStderr = $state(false);
+	let autoScroll = $state(true);
+	let gameLogEl = $state<HTMLPreElement | null>(null);
+
 	let mods = $state<ModEntry[]>([]);
 	let resourcePacks = $state<PackEntry[]>([]);
 	let shaderPacks = $state<PackEntry[]>([]);
 	let worlds = $state<WorldEntry[]>([]);
+
+	const visibleGameLines = $derived(
+		onlyStderr ? gameLines.filter((l) => l.kind === 'stderr') : gameLines
+	);
 
 	onMount(() => {
 		const unlisteners: Array<() => void> = [];
@@ -75,6 +87,17 @@
 		api.onGameExit((e) => {
 			log('遊戲結束', e);
 			refreshRunning();
+		}).then((un) => unlisteners.push(un));
+
+		api.onGameOutput((out) => {
+			gameLines.push(out);
+			if (gameLines.length > MAX_GAME_LINES) {
+				gameLines = gameLines.slice(-MAX_GAME_LINES);
+			}
+			if (autoScroll && gameLogEl) {
+				// 等 DOM 更新完再捲到底
+				queueMicrotask(() => gameLogEl?.scrollTo(0, gameLogEl.scrollHeight));
+			}
 		}).then((un) => unlisteners.push(un));
 
 		// 進來先抓預設目錄 + 版本列表
@@ -149,6 +172,7 @@
 	}
 
 	async function launch() {
+		gameLines = [];
 		const info = await run('launch_instance', () =>
 			api.launchInstance({
 				baseDir,
@@ -280,6 +304,17 @@ instance 名稱:
 </button>
 <button onclick={refreshRunning}>執行中清單</button>
 <p>執行中: {running.join(', ') || '—'}</p>
+
+<h4>遊戲輸出 ({visibleGameLines.length}/{gameLines.length} 行)</h4>
+<label><input type="checkbox" bind:checked={onlyStderr} /> 只看 stderr</label>
+<label><input type="checkbox" bind:checked={autoScroll} /> 自動捲動</label>
+<button onclick={() => (gameLines = [])}>清空</button>
+<pre
+	bind:this={gameLogEl}
+	style="white-space:pre-wrap;max-height:20em;overflow:auto;border:1px solid #ccc;font-size:12px"
+>{#each visibleGameLines as l, i (i)}<div
+		style={l.kind === 'stderr' ? 'color:#c00' : ''}
+	>{l.line}</div>{/each}</pre>
 
 <h2>7. 模組</h2>
 <button onclick={() => run('list_mods', () => api.listMods(baseDir, selected)).then((m) => m && (mods = m))} disabled={!selected}>

@@ -22,11 +22,6 @@ pub struct InstallProgress {
     pub message: String,
 }
 
-/// 安裝一個 instance（vanilla 或 vanilla + loader）。
-///
-/// `baseDir` 為啟動器根目錄，`instanceName` 由前端決定 —— 同一個 MC 版本可以有
-/// 多個不同 loader 的 instance，所以名稱不從版本推導。
-/// 安裝過程會持續發出 `hexo://install-progress` 事件。
 #[tauri::command]
 pub async fn install_instance(
     app: tauri::AppHandle,
@@ -88,11 +83,7 @@ pub async fn install_instance(
     InstanceSummary::build(base, &instance_name, &config)
 }
 
-/// 給 Forge / NeoForge processor 用的 java 路徑：指定 > 系統偵測 > 下載 Java 17。
-async fn tool_java(
-    base_dir: &Path,
-    java_path: Option<&str>,
-) -> CmdResult<std::path::PathBuf> {
+async fn tool_java(base_dir: &Path, java_path: Option<&str>) -> CmdResult<std::path::PathBuf> {
     if let Some(path) = java_path.filter(|p| !p.is_empty()) {
         return Ok(resolve_java(base_dir, 17, Some(path), false).await?.path);
     }

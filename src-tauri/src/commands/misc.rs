@@ -12,7 +12,6 @@ pub struct BaseDirInfo {
     pub exists: bool,
 }
 
-/// 建議的預設啟動器根目錄（前端仍可讓使用者改成別的資料夾）。
 /// Windows: `%APPDATA%\HexoLauncher`、macOS: `~/Library/Application Support/HexoLauncher`、
 /// Linux: `~/.local/share/HexoLauncher`
 #[tauri::command]
@@ -28,7 +27,6 @@ pub fn default_base_dir() -> CmdResult<BaseDirInfo> {
     })
 }
 
-/// 建立啟動器根目錄（含 assets / libraries / instance 子目錄）。
 #[tauri::command]
 pub async fn prepare_base_dir(base_dir: String) -> CmdResult<BaseDirInfo> {
     let base = PathBuf::from(&base_dir);
@@ -41,7 +39,7 @@ pub async fn prepare_base_dir(base_dir: String) -> CmdResult<BaseDirInfo> {
     })
 }
 
-/// 用系統瀏覽器開啟網址（Microsoft 登入頁用）。
+/// 用系統瀏覽器開啟網址
 #[tauri::command]
 pub fn open_external(url: String) -> CmdResult<()> {
     if !url.starts_with("https://") && !url.starts_with("http://") {

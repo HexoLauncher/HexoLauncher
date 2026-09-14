@@ -38,7 +38,6 @@ impl InstanceSummary {
     }
 }
 
-/// 讀取單一 instance 的 `instance_config.json`。
 pub async fn load_config(base_dir: &Path, name: &str) -> CmdResult<InstanceConfig> {
     let dir = instance_dir(base_dir, name)?;
     if !InstanceConfig::save_path(&dir).exists() {
@@ -50,14 +49,12 @@ pub async fn load_config(base_dir: &Path, name: &str) -> CmdResult<InstanceConfi
     Ok(InstanceConfig::load(&dir).await?)
 }
 
-/// 掃描 `{baseDir}/instance/` 底下所有已安裝的 instance。
 #[tauri::command]
 pub async fn list_instances(base_dir: String) -> CmdResult<Vec<InstanceSummary>> {
     let base = Path::new(&base_dir);
     let root = base.join("instance");
 
     let Ok(mut entries) = tokio::fs::read_dir(&root).await else {
-        // 還沒安裝過任何東西：回空陣列而不是錯誤。
         return Ok(Vec::new());
     };
 
@@ -85,7 +82,6 @@ pub async fn get_instance(base_dir: String, instance_name: String) -> CmdResult<
     InstanceSummary::build(base, &instance_name, &config)
 }
 
-/// 刪除整個 instance 資料夾（共用的 assets / libraries 不動）。
 #[tauri::command]
 pub async fn delete_instance(base_dir: String, instance_name: String) -> CmdResult<()> {
     let dir = instance_dir(Path::new(&base_dir), &instance_name)?;
@@ -99,7 +95,6 @@ pub async fn delete_instance(base_dir: String, instance_name: String) -> CmdResu
     Ok(())
 }
 
-/// 用系統檔案管理員開啟 instance 的遊戲資料夾。
 #[tauri::command]
 pub fn open_instance_folder(base_dir: String, instance_name: String) -> CmdResult<()> {
     let dir = minecraft_dir(Path::new(&base_dir), &instance_name)?;

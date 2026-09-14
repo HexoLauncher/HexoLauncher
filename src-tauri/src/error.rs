@@ -1,8 +1,8 @@
 use hexomc_lib::HexoError;
 use serde::Serialize;
 
-/// 傳給前端的錯誤。`kind` 供前端做分支處理（例如 javaNotFound 時跳出下載 Java 的提示），
-/// `message` 是可直接顯示的訊息。
+/// `kind` 供前端做分支處理
+/// `message` 顯示的訊息。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CmdError {
@@ -18,7 +18,6 @@ impl CmdError {
         }
     }
 
-    /// 啟動器自身的錯誤（不是 hexomc-lib 丟出來的）。
     pub fn launcher(message: impl Into<String>) -> Self {
         Self::new("launcher", message)
     }

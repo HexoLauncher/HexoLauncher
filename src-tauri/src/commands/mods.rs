@@ -42,7 +42,6 @@ impl From<ModInfo> for ModDto {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModUpdateDto {
-    /// 套用更新時要帶回來的 id（`ModUpdate` 本身無法序列化給前端，故留在後端）
     pub id: String,
     pub mod_id: String,
     pub name: String,
@@ -82,16 +81,15 @@ fn to_update_dto(id: String, update: &ModUpdate) -> ModUpdateDto {
     }
 }
 
-/// 掃描 instance 的 `.minecraft/mods/`。
 #[tauri::command]
 pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec<ModDto>> {
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
-    Ok(detect_mods(&mods_dir).into_iter().map(ModDto::from).collect())
+    Ok(detect_mods(&mods_dir)
+        .into_iter()
+        .map(ModDto::from)
+        .collect())
 }
 
-/// 檢查模組更新。先查 Modrinth（以檔案雜湊比對，不需要對照表）；
-/// 有給 `curseforgeApiKey` 與 `modIdMap`（mod_id -> CurseForge project id）時，
-/// Modrinth 查不到的模組會再問 CurseForge。
 #[tauri::command]
 pub async fn check_mod_updates(
     state: tauri::State<'_, AppState>,
@@ -138,7 +136,6 @@ pub async fn check_mod_updates(
         .collect())
 }
 
-/// 套用一筆 `check_mod_updates` 找到的更新：下載新檔並刪掉舊檔。
 #[tauri::command]
 pub async fn apply_mod_update(
     state: tauri::State<'_, AppState>,
@@ -146,9 +143,9 @@ pub async fn apply_mod_update(
     instance_name: String,
     update_id: String,
 ) -> CmdResult<()> {
-    let update = state.get_mod_update(&update_id)?.ok_or_else(|| {
-        CmdError::launcher("更新項目不存在，請重新執行 check_mod_updates")
-    })?;
+    let update = state
+        .get_mod_update(&update_id)?
+        .ok_or_else(|| CmdError::launcher("更新項目不存在，請重新執行 check_mod_updates"))?;
 
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
     update_mod(&update, &mods_dir).await?;
@@ -156,7 +153,6 @@ pub async fn apply_mod_update(
     Ok(())
 }
 
-/// 刪除 mods 資料夾內的某個檔案。
 #[tauri::command]
 pub async fn delete_mod(
     base_dir: String,

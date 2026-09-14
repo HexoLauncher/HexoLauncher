@@ -1,16 +1,5 @@
-/**
- * HexoLauncher 後端（src-tauri）的型別化介面。
- *
- * 實際的 Minecraft 邏輯都在 hexomc-lib（crates.io）裡，這層只負責把
- * 資料夾等資訊傳進去，並把結果 / 進度事件帶回前端。
- *
- * 所有 API 的第一個資訊都是 `baseDir` —— 啟動器根目錄由前端決定並傳入，
- * 後端不會自己記住。用 `defaultBaseDir()` 取得建議值。
- */
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-
-// ---------- 型別 ----------
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
@@ -143,7 +132,12 @@ export interface GameExit {
 	exitCode: number | null;
 }
 
-// ---------- 目錄 ----------
+/** 遊戲的一行輸出 */
+export interface GameOutput {
+	instanceName: string;
+	kind: 'stdout' | 'stderr';
+	line: string;
+}
 
 export const defaultBaseDir = () => invoke<BaseDirInfo>('default_base_dir');
 
@@ -153,16 +147,12 @@ export const prepareBaseDir = (baseDir: string) =>
 
 export const openExternal = (url: string) => invoke<void>('open_external', { url });
 
-// ---------- 版本 ----------
-
 export const listVersions = (includeSnapshots = false) =>
 	invoke<VersionList>('list_versions', { includeSnapshots });
 
 /** 某個 MC 版本可用的 loader 版本（vanilla 回空陣列） */
 export const listLoaderVersions = (loader: LoaderKind, mcVersion: string) =>
 	invoke<string[]>('list_loader_versions', { loader, mcVersion });
-
-// ---------- 安裝 ----------
 
 /**
  * 安裝 instance。過程中持續發出 install-progress 事件，用 `onInstallProgress` 訂閱。
@@ -177,7 +167,9 @@ export const installInstance = (args: {
 	javaPath?: string | null;
 }) => invoke<InstanceSummary>('install_instance', args);
 
-export const onInstallProgress = (handler: (progress: InstallProgress) => void): Promise<UnlistenFn> =>
+export const onInstallProgress = (
+	handler: (progress: InstallProgress) => void
+): Promise<UnlistenFn> =>
 	listen<InstallProgress>('hexo://install-progress', (event) => handler(event.payload));
 
 // ---------- instance ----------
@@ -194,8 +186,6 @@ export const deleteInstance = (baseDir: string, instanceName: string) =>
 export const openInstanceFolder = (baseDir: string, instanceName: string) =>
 	invoke<void>('open_instance_folder', { baseDir, instanceName });
 
-// ---------- Java ----------
-
 export const detectJava = (requiredVersion = 21) =>
 	invoke<JavaInfo | null>('detect_java', { requiredVersion });
 
@@ -205,8 +195,6 @@ export const installJava = (baseDir: string, version: number) =>
 /** 先找系統的，找不到再下載 */
 export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = true) =>
 	invoke<JavaInfo>('ensure_java', { baseDir, requiredVersion, allowDownload });
-
-// ---------- 啟動 ----------
 
 export const launchInstance = (options: LaunchRequest) =>
 	invoke<LaunchInfo>('launch_instance', { options });
@@ -219,7 +207,12 @@ export const runningInstances = () => invoke<string[]>('running_instances');
 export const onGameExit = (handler: (exit: GameExit) => void): Promise<UnlistenFn> =>
 	listen<GameExit>('hexo://game-exit', (event) => handler(event.payload));
 
-// ---------- Microsoft 登入 ----------
+/**
+ * 遊戲 stdout / stderr，每行一次事件。
+ * 啟動後就會開始收，Minecraft 的輸出量不小，訂閱端請自己限制保留行數。
+ */
+export const onGameOutput = (handler: (output: GameOutput) => void): Promise<UnlistenFn> =>
+	listen<GameOutput>('hexo://game-output', (event) => handler(event.payload));
 
 export const msLoginStart = () => invoke<DeviceCode>('ms_login_start');
 
@@ -229,8 +222,6 @@ export const msLoginPoll = (sessionId: string) => invoke<Account>('ms_login_poll
 export const msLoginCancel = (sessionId: string) => invoke<void>('ms_login_cancel', { sessionId });
 
 export const msLoginRefresh = (refresh: string) => invoke<Account>('ms_login_refresh', { refresh });
-
-// ---------- 模組 ----------
 
 export const listMods = (baseDir: string, instanceName: string) =>
 	invoke<ModEntry[]>('list_mods', { baseDir, instanceName });
@@ -248,8 +239,6 @@ export const applyModUpdate = (baseDir: string, instanceName: string, updateId: 
 
 export const deleteMod = (baseDir: string, instanceName: string, fileName: string) =>
 	invoke<void>('delete_mod', { baseDir, instanceName, fileName });
-
-// ---------- 資源包 / 光影 / 存檔 ----------
 
 export const listResourcePacks = (baseDir: string, instanceName: string) =>
 	invoke<PackEntry[]>('list_resource_packs', { baseDir, instanceName });

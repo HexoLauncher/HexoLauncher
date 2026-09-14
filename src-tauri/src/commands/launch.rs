@@ -1,18 +1,17 @@
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 
-use hexomc_lib::{launch, LaunchOptions};
+use hexomc_lib::{launch_with_output, LaunchOptions, OutputFn, OutputKind, OutputLine};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use super::instance::load_config;
 use super::java::resolve_java;
-use super::{path_string, EVENT_GAME_EXIT};
+use super::{path_string, EVENT_GAME_EXIT, EVENT_GAME_OUTPUT};
 use crate::error::{CmdError, CmdResult};
 use crate::state::AppState;
 
-/// 要用哪個帳號進遊戲。`accessToken` 為 null 就是離線模式，
-/// UUID 由 hexomc-lib 依玩家名稱自動生成。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AccountInput {
@@ -22,8 +21,6 @@ pub struct AccountInput {
     pub xuid: Option<String>,
 }
 
-/// 啟動一次遊戲需要的全部資訊。除了 `baseDir` / `instanceName` / `account`
-/// 之外都可省略：Java 自動偵測、記憶體用預設值。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
@@ -53,12 +50,20 @@ pub struct LaunchInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GameOutput {
+    pub instance_name: String,
+    /// "stdout" | "stderr"
+    pub kind: &'static str,
+    pub line: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GameExit {
     pub instance_name: String,
     pub exit_code: Option<i32>,
 }
 
-/// 啟動遊戲。回傳時遊戲已經是獨立行程，結束時會發出 `hexo://game-exit` 事件。
 #[tauri::command]
 pub async fn launch_instance(
     app: tauri::AppHandle,
@@ -100,7 +105,6 @@ pub async fn launch_instance(
     let mut jvm_extra_args = vec![
         format!("-Xmx{}M", max_memory_mb.unwrap_or(4096)),
         format!("-Xms{}M", min_memory_mb.unwrap_or(512)),
-        // 中文玩家名 / 路徑在非 UTF-8 預設編碼下會變亂碼。
         "-Dfile.encoding=UTF-8".to_string(),
         "-Dstdout.encoding=UTF-8".to_string(),
         "-Dstderr.encoding=UTF-8".to_string(),
@@ -118,9 +122,9 @@ pub async fn launch_instance(
         jvm_extra_args,
     };
 
-    let child = launch(&options, base).await?;
-    let pid = child.id();
-    state.add_running(&instance_name, child)?;
+    let process = launch_with_output(&options, base, output_sink(&app, &instance_name)).await?;
+    let pid = process.id().unwrap_or_default();
+    state.add_running(&instance_name, process)?;
     watch_process(app, instance_name.clone());
 
     Ok(LaunchInfo {
@@ -132,40 +136,58 @@ pub async fn launch_instance(
     })
 }
 
-/// 強制結束遊戲。回傳 false 表示本來就沒在跑。
+/// 強制結束遊戲
 #[tauri::command]
 pub fn stop_instance(state: tauri::State<'_, AppState>, instance_name: String) -> CmdResult<bool> {
     state.kill(&instance_name)
 }
 
-/// 目前正在執行的 instance 名稱。
+/// 目前正在執行的 instance 名稱
 #[tauri::command]
 pub fn running_instances(state: tauri::State<'_, AppState>) -> CmdResult<Vec<String>> {
     state.running_names()
 }
 
-/// 背景輪詢遊戲行程；結束後發事件通知前端。
-///
-/// 用獨立 thread 而不是 `child.wait()`：wait 需要 `&mut Child`，而 Child 存在
-/// state 裡才能被 `stop_instance` 中止，所以改成定期 `try_wait`。
-fn watch_process(app: tauri::AppHandle, instance_name: String) {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_millis(800));
+fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
+    let app = app.clone();
+    let instance_name = instance_name.to_string();
 
-        let state = app.state::<AppState>();
-        match state.reap(&instance_name) {
-            Ok(Some(exit_code)) => {
-                let _ = app.emit_all(
-                    EVENT_GAME_EXIT,
-                    GameExit {
-                        instance_name,
-                        exit_code,
-                    },
-                );
-                break;
+    Arc::new(move |OutputLine { kind, line }| {
+        let _ = app.emit_all(
+            EVENT_GAME_OUTPUT,
+            GameOutput {
+                instance_name: instance_name.clone(),
+                kind: match kind {
+                    OutputKind::Stdout => "stdout",
+                    OutputKind::Stderr => "stderr",
+                },
+                line,
+            },
+        );
+    })
+}
+
+/// 背景輪詢遊戲行程；結束後發事件通知前端。
+fn watch_process(app: tauri::AppHandle, instance_name: String) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(800)).await;
+
+            let state = app.state::<AppState>();
+            match state.reap(&instance_name) {
+                Ok(Some(exit_code)) => {
+                    let _ = app.emit_all(
+                        EVENT_GAME_EXIT,
+                        GameExit {
+                            instance_name,
+                            exit_code,
+                        },
+                    );
+                    break;
+                }
+                Ok(None) => continue,
+                Err(_) => break,
             }
-            Ok(None) => continue,
-            Err(_) => break,
         }
     });
 }

@@ -24,7 +24,6 @@ pub struct VersionList {
     pub versions: Vec<VersionSummary>,
 }
 
-/// Mojang 版本清單。`includeSnapshots` 為 false 時只留正式版。
 #[tauri::command]
 pub async fn list_versions(include_snapshots: Option<bool>) -> CmdResult<VersionList> {
     let manifest = fetch_version_manifest().await?;
@@ -48,11 +47,11 @@ pub async fn list_versions(include_snapshots: Option<bool>) -> CmdResult<Version
     })
 }
 
-/// 某個 MC 版本可用的 loader 版本清單（vanilla 回空陣列）。
 #[tauri::command]
-pub async fn list_loader_versions(loader: LoaderKind, mc_version: String) -> CmdResult<Vec<String>> {
-    // Forge / NeoForge 的 installer 建構需要 java 路徑，但查版本清單用不到，
-    // 抓不到 java 也不該讓查詢失敗，所以這裡允許沒有。
+pub async fn list_loader_versions(
+    loader: LoaderKind,
+    mc_version: String,
+) -> CmdResult<Vec<String>> {
     let installer: Box<dyn LoaderInstaller> = match loader {
         LoaderKind::Forge => Box::new(ForgeInstaller::new(
             pick_java_for_tools().map(|j| j.path).unwrap_or_default(),

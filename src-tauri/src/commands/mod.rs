@@ -19,8 +19,9 @@ use crate::error::{CmdError, CmdResult};
 pub const EVENT_INSTALL_PROGRESS: &str = "hexo://install-progress";
 /// 遊戲結束事件：`{ instanceName, exitCode }`
 pub const EVENT_GAME_EXIT: &str = "hexo://game-exit";
+/// 遊戲輸出事件（每行一次）：`{ instanceName, kind: "stdout" | "stderr", line }`
+pub const EVENT_GAME_OUTPUT: &str = "hexo://game-output";
 
-/// 前端傳進來的 loader 種類。
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LoaderKind {
@@ -53,7 +54,6 @@ impl From<&LoaderType> for LoaderKind {
 }
 
 impl LoaderKind {
-    /// 對應到模組偵測/更新用的 loader。Vanilla 沒有模組概念，回 Unknown。
     pub fn mod_loader(self) -> ModLoader {
         match self {
             LoaderKind::Vanilla => ModLoader::Unknown,
@@ -64,7 +64,6 @@ impl LoaderKind {
     }
 }
 
-/// instance 名稱由前端決定，這裡擋掉會跳出 base_dir 的名稱。
 pub fn validate_instance_name(name: &str) -> CmdResult<()> {
     let bad = name.is_empty()
         || name == "."
@@ -83,13 +82,11 @@ pub fn validate_instance_name(name: &str) -> CmdResult<()> {
     Ok(())
 }
 
-/// `{base_dir}/instance/{name}`
 pub fn instance_dir(base_dir: &Path, name: &str) -> CmdResult<PathBuf> {
     validate_instance_name(name)?;
     Ok(base_dir.join("instance").join(name))
 }
 
-/// `{base_dir}/instance/{name}/.minecraft` —— 遊戲資料目錄（mods、saves…）
 pub fn minecraft_dir(base_dir: &Path, name: &str) -> CmdResult<PathBuf> {
     Ok(instance_dir(base_dir, name)?.join(".minecraft"))
 }
