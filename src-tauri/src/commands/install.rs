@@ -9,7 +9,7 @@ use serde::Serialize;
 use tauri::Manager;
 
 use super::instance::{build_view, InstanceView, EVENT_INSTANCES_CHANGED};
-use super::java::{pick_java_for_tools, resolve_java};
+use super::java::{java_not_found, pick_java_for_tools, resolve_java};
 use super::{instance_dir, validate_instance_name, LoaderKind, EVENT_INSTALL_PROGRESS};
 use crate::error::{CmdError, CmdResult};
 use crate::store::instance_meta::{InstanceMeta, LocalStore};
@@ -63,11 +63,8 @@ pub async fn install_instance(
     let dir = instance_dir(base, &instance_name)?;
     tokio::fs::create_dir_all(&dir).await?;
 
-    // 先把 loader 版本定下來再安裝：meta 裡記到確切版本，換一台電腦才裝得出同一份。
     let tool_java = match loader {
-        LoaderKind::Forge | LoaderKind::NeoForge => {
-            Some(tool_java(base, java_path.as_deref()).await?)
-        }
+        LoaderKind::Forge | LoaderKind::NeoForge => Some(tool_java(java_path.as_deref()).await?),
         _ => None,
     };
     let loader_version = resolve_loader_version(loader, &mc_version, loader_version, &tool_java)
@@ -76,21 +73,7 @@ pub async fn install_instance(
 
     let installer = build_installer(loader, &loader_version, tool_java);
 
-    let progress: ProgressFn = {
-        let app = app.clone();
-        let name = instance_name.clone();
-        Arc::new(move |done, total, message| {
-            let _ = app.emit_all(
-                EVENT_INSTALL_PROGRESS,
-                InstallProgress {
-                    instance_name: name.clone(),
-                    done,
-                    total,
-                    message: message.to_string(),
-                },
-            );
-        })
-    };
+    let progress = progress_emitter(&app, &instance_name);
 
     let mut meta = InstanceMeta::load(&dir, &instance_name).await?;
     if let Some(name) = name {
@@ -218,12 +201,30 @@ async fn resolve_loader_version(
     })
 }
 
-async fn tool_java(base_dir: &Path, java_path: Option<&str>) -> CmdResult<PathBuf> {
+async fn tool_java(java_path: Option<&str>) -> CmdResult<PathBuf> {
     if let Some(path) = java_path.filter(|p| !p.is_empty()) {
-        return Ok(resolve_java(base_dir, 17, Some(path), false).await?.path);
+        if let Some(info) = resolve_java(17, Some(path)).await? {
+            return Ok(info.path);
+        }
     }
-    if let Some(info) = pick_java_for_tools() {
-        return Ok(info.path);
-    }
-    Ok(resolve_java(base_dir, 17, None, true).await?.path)
+    pick_java_for_tools()
+        .await
+        .map(|info| info.path)
+        .ok_or_else(|| java_not_found(21))
+}
+
+pub(super) fn progress_emitter(app: &tauri::AppHandle, instance_name: &str) -> ProgressFn {
+    let app = app.clone();
+    let name = instance_name.to_string();
+    Arc::new(move |done, total, message| {
+        let _ = app.emit_all(
+            EVENT_INSTALL_PROGRESS,
+            InstallProgress {
+                instance_name: name.clone(),
+                done,
+                total,
+                message: message.to_string(),
+            },
+        );
+    })
 }

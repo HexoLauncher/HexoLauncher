@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use super::{minecraft_dir, path_string};
 use crate::error::CmdResult;
-use crate::nbt::Nbt;
+use hexomc_lib::assets::nbt::{self, Nbt};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -180,7 +180,7 @@ pub async fn list_servers(base_dir: String, instance_name: String) -> CmdResult<
     let Ok(bytes) = tokio::fs::read(&path).await else {
         return Ok(Vec::new());
     };
-    let Some(root) = crate::nbt::parse(&bytes) else {
+    let Some(root) = nbt::parse(&bytes) else {
         return Ok(Vec::new());
     };
     let Some(servers) = root.get("servers").and_then(Nbt::as_list) else {

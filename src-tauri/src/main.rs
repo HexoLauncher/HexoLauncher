@@ -2,7 +2,6 @@
 
 mod commands;
 mod error;
-mod nbt;
 mod state;
 mod store;
 
@@ -40,12 +39,18 @@ fn main() {
             commands::instance::open_instance_folder,
             commands::export::export_instance,
             commands::export::import_instance,
+            commands::modpack::inspect_modpack,
+            commands::modpack::install_modpack_file,
+            commands::modpack_browse::search_modpacks,
+            commands::modpack_browse::list_modpack_versions,
+            commands::modpack_browse::install_remote_modpack,
             commands::java::detect_java,
             commands::java::detect_java_candidates,
             commands::java::test_java,
             commands::java::install_java,
             commands::java::ensure_java,
             commands::launch::launch_instance,
+            commands::launch::check_instance_java,
             commands::launch::stop_instance,
             commands::launch::running_instances,
             commands::launch::game_log,

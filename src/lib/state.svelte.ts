@@ -30,7 +30,7 @@ export function defaultConfig(): LauncherConfig {
 			closeProgressWhenDone: true,
 			keepLogLines: 5000
 		},
-		java: { path: '', autoDownload: true },
+		java: { path: '' },
 		commands: { preLaunch: '', postExit: '' },
 		api: { curseforgeApiKey: '' }
 	};

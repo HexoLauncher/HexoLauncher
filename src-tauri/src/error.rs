@@ -56,4 +56,10 @@ impl From<serde_json::Error> for CmdError {
     }
 }
 
+impl From<reqwest::Error> for CmdError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::new("network", err.to_string())
+    }
+}
+
 pub type CmdResult<T> = std::result::Result<T, CmdError>;

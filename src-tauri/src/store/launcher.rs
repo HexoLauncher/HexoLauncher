@@ -53,8 +53,6 @@ pub struct GameConfig {
 #[serde(rename_all = "camelCase", default)]
 pub struct JavaConfig {
     pub path: String,
-
-    pub auto_download: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -113,7 +111,6 @@ impl Default for JavaConfig {
     fn default() -> Self {
         Self {
             path: String::new(),
-            auto_download: true,
         }
     }
 }

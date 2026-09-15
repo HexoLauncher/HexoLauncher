@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use super::instance::{load_config, record_play};
-use super::java::resolve_java;
+use super::java::{java_not_found, resolve_instance_java, JavaDto};
 use super::{
     instance_dir, minecraft_dir, path_string, EVENT_GAME_EXIT, EVENT_GAME_OUTPUT, EVENT_GAME_START,
 };
@@ -24,8 +24,28 @@ pub struct LaunchRequest {
     pub instance_name: String,
 
     pub account_id: Option<String>,
+}
 
-    pub auto_download_java: Option<bool>,
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaCheck {
+    pub required: u32,
+    pub java: Option<JavaDto>,
+}
+
+#[tauri::command]
+pub async fn check_instance_java(base_dir: String, instance_name: String) -> CmdResult<JavaCheck> {
+    let base = Path::new(&base_dir);
+    let config = load_config(base, &instance_name).await?;
+    let launcher = LauncherConfig::load().await?;
+    let local = LocalStore::load().await?.get(base, &instance_name);
+
+    Ok(JavaCheck {
+        required: config.java_version,
+        java: resolve_instance_java(config.java_version, &local.java_path, &launcher.java.path)
+            .await?
+            .map(JavaDto::from),
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -65,7 +85,6 @@ pub async fn launch_instance(
         base_dir,
         instance_name,
         account_id,
-        auto_download_java,
     } = options;
 
     if state.is_running(&instance_name)? {
@@ -84,17 +103,9 @@ pub async fn launch_instance(
     let local = LocalStore::load().await?.get(base, &instance_name);
     let account = accounts::resolve(account_id.as_deref()).await?;
 
-    let explicit_java = [local.java_path.as_str(), launcher.java.path.as_str()]
-        .into_iter()
-        .find(|p| !p.trim().is_empty());
-
-    let java = resolve_java(
-        base,
-        config.java_version,
-        explicit_java,
-        auto_download_java.unwrap_or(launcher.java.auto_download),
-    )
-    .await?;
+    let java = resolve_instance_java(config.java_version, &local.java_path, &launcher.java.path)
+        .await?
+        .ok_or_else(|| java_not_found(config.java_version))?;
 
     let hook_vars = HookVars {
         instance_name: instance_name.clone(),

@@ -54,10 +54,10 @@ pub async fn list_loader_versions(
 ) -> CmdResult<Vec<String>> {
     let installer: Box<dyn LoaderInstaller> = match loader {
         LoaderKind::Forge => Box::new(ForgeInstaller::new(
-            pick_java_for_tools().map(|j| j.path).unwrap_or_default(),
+            pick_java_for_tools().await.map(|j| j.path).unwrap_or_default(),
         )),
         LoaderKind::NeoForge => Box::new(NeoForgeInstaller::new(
-            pick_java_for_tools().map(|j| j.path).unwrap_or_default(),
+            pick_java_for_tools().await.map(|j| j.path).unwrap_or_default(),
         )),
         other => create_loader(other.into(), None),
     };

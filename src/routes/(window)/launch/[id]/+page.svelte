@@ -6,7 +6,7 @@
 	import WindowShell from '$lib/components/WindowShell.svelte';
 	import * as api from '$lib/api';
 	import type { InstanceView, LauncherConfig } from '$lib/api';
-	import { loaderLabel } from '$lib/format';
+	import { formatSize, loaderLabel } from '$lib/format';
 	import { closeSelf } from '$lib/windows';
 
 	/** 啟動流程圖：一步一步顯示檢查與下載的進度，遊戲輸出不在這裡。 */
@@ -38,6 +38,66 @@
 	const unlisteners: Array<() => void> = [];
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
 	let started = false;
+
+
+	const TOOL_JAVA_VERSION = 21;
+
+
+	let javaPrompt = $state<{ version: number; answer: (download: boolean) => void } | null>(null);
+
+	function askDownloadJava(version: number) {
+		return new Promise<boolean>((resolve) => {
+			javaPrompt = {
+				version,
+				answer: (download) => {
+					javaPrompt = null;
+					resolve(download);
+				}
+			};
+		});
+	}
+
+
+	let javaDownload = $state<{ label: string; percent: number | null } | null>(null);
+
+	function describeJavaProgress(p: api.JavaProgress) {
+		switch (p.message) {
+			case 'Fetching Java release':
+				return { label: `取得 Java ${p.version} 的下載資訊…`, percent: null };
+			case 'Downloading Java':
+				return p.total > 0
+					? {
+							label: `下載 Java ${p.version}：${formatSize(p.done)} / ${formatSize(p.total)}`,
+							percent: Math.min(100, Math.round((p.done / p.total) * 100))
+						}
+					: { label: `下載 Java ${p.version}：${formatSize(p.done)}`, percent: null };
+			case 'Extracting Java':
+				return { label: `解壓縮 Java ${p.version}…`, percent: null };
+			default:
+				return { label: `準備 Java ${p.version}…`, percent: null };
+		}
+	}
+
+	async function downloadJava(baseDir: string, version: number, stage: StageId) {
+		if (!(await askDownloadJava(version))) {
+			throw new Error(`找不到 Java ${version}，已取消。可以到「設定」指定已安裝的 Java。`);
+		}
+		javaDownload = { label: `準備下載 Java ${version}…`, percent: null };
+		const unlisten = await api.onJavaProgress((p) => {
+			if (p.version === version) javaDownload = describeJavaProgress(p);
+		});
+		try {
+			await api.installJava(baseDir, version);
+		} finally {
+			unlisten();
+			javaDownload = null;
+		}
+		detail[stage] = '';
+	}
+
+	function isJavaMissing(e: unknown) {
+		return !!e && typeof e === 'object' && (e as api.HexoCmdError).kind === 'javaNotFound';
+	}
 
 	const failed = $derived(Object.values(stageState).includes('failed'));
 	const percent = $derived.by(() => {
@@ -109,7 +169,13 @@
 						track(p.message, p.done, p.total);
 					})
 				);
-				instance = await api.repairInstance(baseDir, instanceName);
+				const repair = () => api.repairInstance(baseDir, instanceName);
+				instance = await repair().catch(async (e) => {
+					if (!isJavaMissing(e)) throw e;
+
+					await downloadJava(baseDir, TOOL_JAVA_VERSION, 'download');
+					return repair();
+				});
 				for (const task of tasks) task.finished = true;
 				stageState.download = 'done';
 				detail.download = `${tasks.length} 個步驟`;
@@ -120,6 +186,9 @@
 
 			stage = 'java';
 			stageState.java = 'active';
+
+			const check = await api.checkInstanceJava(baseDir, instanceName);
+			if (!check.java) await downloadJava(baseDir, check.required, 'java');
 			const info = await api.launchInstance({ baseDir, instanceName });
 
 			stageState.java = 'done';
@@ -263,6 +332,46 @@
 										{/if}
 									</div>
 								{/each}
+							</div>
+						{/if}
+
+						{#if current === 'active' && javaPrompt}
+							{@const prompt = javaPrompt}
+							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2.5">
+								<p class="leading-[1.7] text-ink">找不到 Java {prompt.version}。</p>
+								<p class="leading-[1.7] text-muted">
+									要從 Adoptium 下載 Temurin {prompt.version} 嗎？也可以取消，到「設定」指定已安裝的 Java。
+								</p>
+								<div class="mt-2 flex gap-1.75">
+									<button class="qt-button primary" onclick={() => prompt.answer(true)}>
+										<Icon name="download" size={13} />下載 Java {prompt.version}
+									</button>
+									<button class="qt-button" onclick={() => prompt.answer(false)}>取消</button>
+								</div>
+							</div>
+						{/if}
+
+						{#if current === 'active' && javaDownload}
+							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2">
+								{#if javaDownload.percent !== null}
+									<div class="mb-2 h-1.5 overflow-hidden rounded-full bg-window">
+										<span
+											class="block h-full rounded-full bg-brand transition-[width] duration-100 ease-linear"
+											style:width={`${javaDownload.percent}%`}
+										></span>
+									</div>
+								{/if}
+								<div class="flex items-center gap-2 text-ink">
+									<span
+										class="size-2.5 shrink-0 animate-spin rounded-full border-[1.5px] border-line border-t-brand"
+									></span>
+									<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
+										{javaDownload.label}
+									</span>
+									{#if javaDownload.percent !== null}
+										<span class="shrink-0 tabular-nums text-faint">{javaDownload.percent}%</span>
+									{/if}
+								</div>
 							</div>
 						{/if}
 

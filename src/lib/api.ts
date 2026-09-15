@@ -37,7 +37,6 @@ export interface GameConfig {
 
 export interface JavaConfig {
 	path: string;
-	autoDownload: boolean;
 }
 
 export interface CommandsConfig {
@@ -261,6 +260,108 @@ export const exportInstance = (request: ExportRequest) =>
 export const importInstance = (baseDir: string, zipPath: string, name?: string | null) =>
 	invoke<InstanceView>('import_instance', { baseDir, zipPath, name });
 
+export type ModpackFormat = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
+
+export interface ModpackPreview {
+	format: ModpackFormat;
+	name: string;
+	version: string | null;
+	mcVersion: string;
+	loader: LoaderKind;
+
+	loaderVersion: string | null;
+	fileCount: number;
+}
+
+export interface PackTarget {
+	baseDir: string;
+
+	name?: string | null;
+	icon?: string | null;
+	group?: string | null;
+}
+
+export interface ManualDownload {
+	name: string;
+	fileName: string;
+	website: string | null;
+
+	dest: string;
+	folder: InstanceFolder;
+}
+
+export interface ModpackInstallResult {
+	instance: InstanceView;
+	manualDownloads: ManualDownload[];
+	skipped: string[];
+}
+
+export const inspectModpack = (packPath: string) =>
+	invoke<ModpackPreview>('inspect_modpack', { packPath });
+
+export const installModpackFile = (target: PackTarget, packPath: string) =>
+	invoke<ModpackInstallResult>('install_modpack_file', { target, packPath });
+
+export type ModpackPlatform = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
+
+export type ModpackSort = 'relevance' | 'downloads' | 'updated' | 'name';
+
+export interface ModpackSearchRequest {
+	platform: ModpackPlatform;
+	query: string;
+	sort: ModpackSort;
+	mcVersion?: string | null;
+	offset: number;
+}
+
+export interface PackHit {
+	id: string;
+	name: string;
+	author: string;
+	summary: string;
+	iconUrl: string | null;
+
+	downloads: number;
+	website: string | null;
+}
+
+export interface SearchPage {
+	hits: PackHit[];
+	total: number;
+	nextOffset: number | null;
+}
+
+export interface RemoteVersion {
+	id: string;
+	name: string;
+	mcVersion: string;
+
+	kind: string;
+
+	published: number;
+}
+
+export const searchModpacks = (request: ModpackSearchRequest) =>
+	invoke<SearchPage>('search_modpacks', { request });
+
+export const listModpackVersions = (platform: ModpackPlatform, packId: string) =>
+	invoke<RemoteVersion[]>('list_modpack_versions', { platform, packId });
+
+export const installRemoteModpack = (
+	target: PackTarget,
+	platform: ModpackPlatform,
+	packId: string,
+	versionId: string,
+	includeOptional: boolean
+) =>
+	invoke<ModpackInstallResult>('install_remote_modpack', {
+		target,
+		platform,
+		packId,
+		versionId,
+		includeOptional
+	});
+
 export interface InstallRequest {
 	baseDir: string;
 
@@ -289,22 +390,37 @@ export interface JavaInfo {
 export const detectJava = (requiredVersion = 21) =>
 	invoke<JavaInfo | null>('detect_java', { requiredVersion });
 
-export const detectJavaCandidates = () => invoke<JavaInfo[]>('detect_java_candidates');
+export interface JavaCandidate extends JavaInfo {
+	fullVersion: string;
+	vendor: string;
+
+	arch: string;
+}
+
+export const detectJavaCandidates = () => invoke<JavaCandidate[]>('detect_java_candidates');
 
 export const testJava = (path: string) => invoke<JavaInfo>('test_java', { path });
 
 export const installJava = (baseDir: string, version: number) =>
 	invoke<JavaInfo>('install_java', { baseDir, version });
 
-export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = true) =>
+export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = false) =>
 	invoke<JavaInfo>('ensure_java', { baseDir, requiredVersion, allowDownload });
+
+export interface JavaCheck {
+	required: number;
+
+	java: JavaInfo | null;
+}
+
+export const checkInstanceJava = (baseDir: string, instanceName: string) =>
+	invoke<JavaCheck>('check_instance_java', { baseDir, instanceName });
 
 export interface LaunchRequest {
 	baseDir: string;
 	instanceName: string;
 
 	accountId?: string | null;
-	autoDownloadJava?: boolean | null;
 }
 
 export interface LaunchInfo {
@@ -473,3 +589,16 @@ export const onGameOutput = (handler: (output: GameOutput) => void): Promise<Unl
 
 export const onInstancesChanged = (handler: () => void): Promise<UnlistenFn> =>
 	listen('hexo://instances-changed', () => handler());
+
+export interface JavaProgress {
+	version: number;
+
+	done: number;
+
+	total: number;
+
+	message: string;
+}
+
+export const onJavaProgress = (handler: (progress: JavaProgress) => void): Promise<UnlistenFn> =>
+	listen<JavaProgress>('hexo://java-progress', (event) => handler(event.payload));

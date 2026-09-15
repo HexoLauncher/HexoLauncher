@@ -4,7 +4,7 @@
 	import Window from './Window.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import * as api from '$lib/api';
-	import type { AccountView, DeviceCode, JavaInfo, LauncherConfig, Paths } from '$lib/api';
+	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
 	import type { Page } from '$lib/ui';
 
 	let {
@@ -39,7 +39,7 @@
 	// svelte-ignore state_referenced_locally
 	let page = $state(initialPage);
 
-	let javaList = $state<JavaInfo[]>([]);
+	let javaList = $state<JavaCandidate[]>([]);
 	let javaLoaded = false;
 	let javaBusy = $state('');
 
@@ -55,6 +55,11 @@
 		}
 	});
 
+	/** 32 位元的 Java 記憶體上限很低，在清單上標出來 */
+	function is32bit(arch: string) {
+		return !!arch && !['amd64', 'x86_64', 'aarch64', 'arm64'].includes(arch);
+	}
+
 	async function detectJava() {
 		javaBusy = '正在尋找已安裝的 Java…';
 		try {
@@ -69,6 +74,15 @@
 
 	async function downloadJava(version: number) {
 		javaBusy = `正在下載 Java ${version}…`;
+		const unlisten = await api.onJavaProgress((p) => {
+			if (p.version !== version || !javaBusy) return;
+			javaBusy =
+				p.message === 'Downloading Java' && p.total > 0
+					? `正在下載 Java ${version}（${Math.min(100, Math.round((p.done / p.total) * 100))}%）`
+					: p.message === 'Extracting Java'
+						? `正在解壓縮 Java ${version}…`
+						: `正在下載 Java ${version}…`;
+		});
 		try {
 			const java = await api.installJava(paths.baseDir, version);
 			report(`已下載 Java ${java.version}`);
@@ -76,6 +90,7 @@
 		} catch (e) {
 			report(`下載失敗：${api.errorMessage(e)}`);
 		} finally {
+			unlisten();
 			javaBusy = '';
 		}
 	}
@@ -325,7 +340,11 @@
 					<div class="qt-table-wrap max-h-40">
 						<table class="qt-table">
 							<thead>
-								<tr><th style="width:90px">版本</th><th>路徑</th></tr>
+								<tr>
+									<th style="width:90px">版本</th>
+									<th style="width:140px">廠商</th>
+									<th>路徑</th>
+								</tr>
 							</thead>
 							<tbody>
 								{#each javaList as java (java.path)}
@@ -336,8 +355,11 @@
 											save(true);
 										}}
 									>
-										<td>Java {java.version}</td>
-										<td class="font-mono text-[11.5px]">{java.path}</td>
+										<td title={java.fullVersion}>
+											Java {java.version}{is32bit(java.arch) ? `（${java.arch}）` : ''}
+										</td>
+										<td class="truncate" title={java.vendor}>{java.vendor || '—'}</td>
+										<td class="font-mono text-[11.5px]" title={java.path}>{java.path}</td>
 									</tr>
 								{/each}
 							</tbody>
@@ -364,23 +386,31 @@
 				</div>
 
 				<div class="qt-field">
-					<label for="java-path">指定路徑</label>
+					<label for="java-path">預設 Java</label>
 					<div class="flex items-center gap-1.75">
 						<input
 							id="java-path"
 							class="qt-input min-w-0 flex-1"
 							bind:value={config.java.path}
 							oninput={() => save()}
-							placeholder="（自動偵測）"
+							placeholder="（依實例需要的版本自動挑選）"
 						/>
 						<button class="qt-button" onclick={pickJavaPath}>瀏覽…</button>
+						<button
+							class="qt-button"
+							disabled={!config.java.path}
+							onclick={() => {
+								config.java.path = '';
+								save(true);
+							}}
+						>
+							自動挑選
+						</button>
 					</div>
 				</div>
-				<Toggle
-					label="找不到需要的版本時自動下載"
-					bind:checked={config.java.autoDownload}
-					onchange={() => save(true)}
-				/>
+				<p class="px-0.5 leading-[1.8] text-faint">
+					點選清單中的 Java 會設為所有實例的預設；版本不夠的實例會自動改用合適的 Java。個別實例可以在「編輯實例」裡另外指定。
+				</p>
 				{#if javaBusy}
 					<p class="px-0.5 py-1 text-muted">{javaBusy}</p>
 				{/if}

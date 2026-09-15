@@ -6,6 +6,8 @@ pub mod instance;
 pub mod java;
 pub mod launch;
 pub mod misc;
+pub mod modpack;
+pub mod modpack_browse;
 pub mod mods;
 pub mod version;
 
@@ -24,6 +26,8 @@ pub const EVENT_GAME_START: &str = "hexo://game-start";
 pub const EVENT_GAME_EXIT: &str = "hexo://game-exit";
 /// 遊戲輸出事件（每行一次）：`{ instanceName, kind: "stdout" | "stderr", line }`
 pub const EVENT_GAME_OUTPUT: &str = "hexo://game-output";
+/// Java 下載進度事件：`{ version, done, total, message }`；下載階段 done / total 是位元組。
+pub const EVENT_JAVA_PROGRESS: &str = "hexo://java-progress";
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

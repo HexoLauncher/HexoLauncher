@@ -64,15 +64,17 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "dirs",
- "flate2",
+ "futures",
  "hexomc-lib",
  "open",
+ "reqwest",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tokio",
  "uuid",
+ "winreg 0.56.0",
  "zip",
 ]
 
@@ -771,7 +773,7 @@ dependencies = [
  "rustc_version",
  "toml 0.8.23",
  "vswhom",
- "winreg",
+ "winreg 0.52.0",
 ]
 
 [[package]]
@@ -1396,9 +1398,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexomc-lib"
-version = "0.1.1"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46b0fd3afc242840a8baba8d2e34186ffd103378484b039422c2a9468478fb24"
+checksum = "a09d6105ce018c55e0c1590eb0f88ffb07c0937aa645baddda8f49556b17ef40"
 dependencies = [
  "async-trait",
  "digest",
@@ -1407,11 +1409,13 @@ dependencies = [
  "futures",
  "hex",
  "lzma-rs",
+ "md-5",
  "open",
  "reqwest",
  "serde",
  "serde_json",
  "sha1",
+ "sha2",
  "tar",
  "thiserror 1.0.69",
  "tokio",
@@ -5005,6 +5009,16 @@ checksum = "a277a57398d4bfa075df44f501a17cfdf8542d224f0d36095a2adc7aee4ef0a5"
 dependencies = [
  "cfg-if",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "winreg"
+version = "0.56.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d6f32a0ff4a9f6f01231eb2059cc85479330739333e0e58cadf03b6af2cca10"
+dependencies = [
+ "cfg-if",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
