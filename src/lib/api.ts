@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/tauri';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { RichTextFormat } from '$lib/richtext';
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
@@ -361,6 +362,95 @@ export const installRemoteModpack = (
 		versionId,
 		includeOptional
 	});
+
+export type ContentKind = 'mod' | 'resourcepack' | 'shader';
+
+export type ContentPlatform = 'modrinth' | 'curseforge';
+
+export interface ContentSearchRequest {
+	platform: ContentPlatform;
+	kind: ContentKind;
+	query: string;
+	sort: ModpackSort;
+	mcVersion?: string | null;
+	loader?: LoaderKind | null;
+	offset: number;
+}
+
+export interface ContentVersion {
+	id: string;
+	name: string;
+	mcVersion: string;
+
+	kind: string;
+
+	published: number;
+	fileName: string;
+	loaders: string[];
+	/** false = 作者不允許第三方下載 */
+	downloadable: boolean;
+}
+
+export interface InstalledContent {
+	fileName: string;
+	path: string;
+}
+
+export interface GalleryImage {
+	url: string;
+	title: string;
+}
+
+export interface ContentLink {
+	label: string;
+	url: string;
+}
+
+export interface ContentDetail {
+	id: string;
+	name: string;
+	summary: string;
+	description: string;
+	descriptionFormat: RichTextFormat;
+	iconUrl: string | null;
+
+	downloads: number;
+	follows: number;
+	categories: string[];
+	gameVersions: string[];
+	loaders: string[];
+	license: string | null;
+
+	updated: number;
+	gallery: GalleryImage[];
+	links: ContentLink[];
+}
+
+export const getContentDetail = (args: {
+	platform: ContentPlatform;
+	kind: ContentKind;
+	projectId: string;
+}) => invoke<ContentDetail>('get_content_detail', args);
+
+export const searchContent = (request: ContentSearchRequest) =>
+	invoke<SearchPage>('search_content', { request });
+
+export const listContentVersions = (args: {
+	platform: ContentPlatform;
+	kind: ContentKind;
+	projectId: string;
+	mcVersion?: string | null;
+	loader?: LoaderKind | null;
+}) => invoke<ContentVersion[]>('list_content_versions', args);
+
+export const installContent = (args: {
+	baseDir: string;
+	instanceName: string;
+	platform: ContentPlatform;
+	kind: ContentKind;
+	projectId: string;
+	versionId: string;
+}) => invoke<InstalledContent>('install_content', args);
 
 export interface InstallRequest {
 	baseDir: string;

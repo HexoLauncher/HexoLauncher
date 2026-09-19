@@ -1,8 +1,4 @@
 <script lang="ts">
-	/**
-	 * 實例圖示：用 8x8 的像素圖模仿 Prism Launcher 內建的方塊圖示。
-	 * 每個圖示是一組調色盤 + 8 行、每行 8 個字元的地圖，'.' 代表透明。
-	 */
 	let { name = 'grass', size = 48 }: { name?: string; size?: number } = $props();
 
 	type PixelIcon = { palette: string[]; rows: string[] };

@@ -19,19 +19,19 @@ use super::modpack::{
 use crate::error::{CmdError, CmdResult};
 use crate::store::launcher::LauncherConfig;
 
-const PAGE_SIZE: usize = 20;
+pub(super) const PAGE_SIZE: usize = 20;
 const CACHE_TTL: Duration = Duration::from_secs(30 * 60);
 const USER_AGENT: &str = concat!("HexoLauncher/", env!("CARGO_PKG_VERSION"));
 
-const MODRINTH_API: &str = "https://api.modrinth.com/v2";
+pub(super) const MODRINTH_API: &str = "https://api.modrinth.com/v2";
 const CURSEFORGE_API: &str = "https://api.curseforge.com/v1";
 const ATL_API: &str = "https://api.atlauncher.com/v1";
 const FTB_API: &str = "https://api.feed-the-beast.com/v1/modpacks/public";
 
-const CF_GAME_MINECRAFT: &str = "432";
+pub(super) const CF_GAME_MINECRAFT: &str = "432";
 const CF_CLASS_MODPACKS: &str = "4471";
 
-const CF_MAX_RESULTS: usize = 10_000;
+pub(super) const CF_MAX_RESULTS: usize = 10_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -203,7 +203,7 @@ pub async fn install_remote_modpack(
     }
 }
 
-fn http() -> &'static reqwest::Client {
+pub(super) fn http() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
     CLIENT.get_or_init(|| {
@@ -214,11 +214,13 @@ fn http() -> &'static reqwest::Client {
     })
 }
 
-async fn get_json<T: DeserializeOwned>(request: reqwest::RequestBuilder) -> CmdResult<T> {
+pub(super) async fn get_json<T: DeserializeOwned>(
+    request: reqwest::RequestBuilder,
+) -> CmdResult<T> {
     Ok(request.send().await?.error_for_status()?.json().await?)
 }
 
-fn nullable<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+pub(super) fn nullable<'de, D, T>(deserializer: D) -> Result<T, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Default + Deserialize<'de>,
@@ -252,7 +254,7 @@ async fn install_downloaded(
     result
 }
 
-fn segment(value: &str) -> CmdResult<&str> {
+pub(super) fn segment(value: &str) -> CmdResult<&str> {
     let value = value.trim();
     let ok = !value.is_empty()
         && !value.contains("..")
@@ -266,7 +268,7 @@ fn segment(value: &str) -> CmdResult<&str> {
     }
 }
 
-fn numeric_id(value: &str) -> CmdResult<u64> {
+pub(super) fn numeric_id(value: &str) -> CmdResult<u64> {
     value
         .trim()
         .parse()
@@ -284,7 +286,7 @@ fn safe_name(value: &str) -> CmdResult<&str> {
     Ok(value)
 }
 
-fn iso_to_unix(text: &str) -> i64 {
+pub(super) fn iso_to_unix(text: &str) -> i64 {
     let part = |range: std::ops::Range<usize>| text.get(range).and_then(|s| s.parse::<i64>().ok());
     let (Some(year), Some(month), Some(day)) = (part(0..4), part(5..7), part(8..10)) else {
         return 0;
@@ -574,7 +576,7 @@ struct CfHash {
     algo: u32,
 }
 
-async fn curseforge_get(path: &str) -> CmdResult<reqwest::RequestBuilder> {
+pub(super) async fn curseforge_get(path: &str) -> CmdResult<reqwest::RequestBuilder> {
     Ok(http()
         .get(format!("{}{}", CURSEFORGE_API, path))
         .header("x-api-key", curseforge_key().await?))

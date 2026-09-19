@@ -45,7 +45,9 @@
 		"vitest-browser-svelte": "^0.1.0"
 	},
 	"dependencies": {
-		"@tauri-apps/api": "^1.6.0"
+		"@tauri-apps/api": "^1.6.0",
+		"dompurify": "^3.4.15",
+		"marked": "^18.0.13"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [

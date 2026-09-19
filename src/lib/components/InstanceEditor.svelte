@@ -6,8 +6,10 @@
 	import Toggle from './Toggle.svelte';
 	import Window from './Window.svelte';
 	import VersionPicker from './VersionPicker.svelte';
+	import ContentBrowser from './ContentBrowser.svelte';
 	import * as api from '$lib/api';
 	import type {
+		ContentKind,
 		FileEntry,
 		GameLogLine,
 		InstanceSettings,
@@ -53,6 +55,18 @@
 		{ id: 'logs', label: '日誌檔', icon: 'list' },
 		{ id: 'settings', label: '設定', icon: 'settings' }
 	];
+
+	const BROWSE_TITLES: Record<ContentKind, string> = {
+		mod: '下載模組',
+		resourcepack: '下載資源包',
+		shader: '下載光影包'
+	};
+
+	const BROWSE_PAGES: Record<ContentKind, string> = {
+		mod: 'mods',
+		resourcepack: 'resourcepacks',
+		shader: 'shaderpacks'
+	};
 
 	let page = $state('general');
 	let status = $state('');
@@ -116,6 +130,9 @@
 		loader: LoaderKind;
 		loaderVersion: string;
 	} | null>(null);
+
+
+	let browse = $state<ContentKind | null>(null);
 
 	const title = $derived(pages.find((p) => p.id === page)?.label ?? '');
 
@@ -678,6 +695,7 @@
 							{/if}
 						</div>
 						{@render sideButtons([
+							{ label: '下載模組…', action: () => (browse = 'mod') },
 							{ label: '檢查更新', disabled: mods.length === 0, action: checkUpdates },
 							{
 								label: '移除',
@@ -716,6 +734,10 @@
 							{/if}
 						</div>
 						{@render sideButtons([
+							{
+								label: page === 'resourcepacks' ? '下載資源包…' : '下載光影包…',
+								action: () => (browse = page === 'resourcepacks' ? 'resourcepack' : 'shader')
+							},
 							{ label: '重新載入', action: () => load(page, true) },
 							{
 								label: '開啟資料夾',
@@ -1029,6 +1051,23 @@
 			</button>
 			<button class="qt-button" onclick={() => (versionDialog = null)}>取消</button>
 		{/snippet}
+	</Window>
+{/if}
+
+{#if browse}
+	{@const kind = browse}
+	<Window title={BROWSE_TITLES[kind]} width="940px" height="660px" onclose={() => (browse = null)}>
+		<div class="flex min-h-0 flex-1 flex-col px-4.5 py-4">
+			<ContentBrowser
+				{baseDir}
+				{instance}
+				{kind}
+				oninstalled={(fileName) => {
+					load(BROWSE_PAGES[kind], true);
+					report(`已加入 ${fileName}`);
+				}}
+			/>
+		</div>
 	</Window>
 {/if}
 

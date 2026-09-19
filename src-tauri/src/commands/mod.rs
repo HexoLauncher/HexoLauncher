@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod auth;
+pub mod content;
 pub mod export;
 pub mod install;
 pub mod instance;

@@ -1,14 +1,5 @@
 @import 'tailwindcss';
 
-/* =============================================================
-   Hexo Launcher — 設計 token
-   版面沿用 Prism Launcher，視覺質感取自 Modrinth App。
-   這裡的每個值都會變成 Tailwind utility：
-   --color-window → bg-window / text-window / border-window
-   --radius-lg    → rounded-lg
-   --shadow-md    → shadow-md
-   ============================================================= */
-
 @theme {
 	/* 表面：由深到淺堆疊，靠層次而不是框線分隔 */
 	--color-deep: #16181c; /* 最深的背景、內容視圖 */
@@ -88,10 +79,6 @@
 	}
 }
 
-/* =============================================================
-   Base
-   ============================================================= */
-
 @layer base {
 	:root {
 		color-scheme: dark;
@@ -115,7 +102,7 @@
 	h3,
 	h4,
 	p {
-		@apply m-0 text-[length:inherit] font-[inherit];
+		@apply m-0 font-[inherit] text-[length:inherit];
 	}
 
 	a {
@@ -182,52 +169,28 @@
 	}
 }
 
-/* =============================================================
-   重複度高的元件類別。
-   這些在整個 app 裡出現上百次，寫成 class 比每次貼十幾個
-   utility 好讀；其餘一次性的版面一律寫在 markup 的 utility 裡。
-   ============================================================= */
-
-@layer components {
-	/* ---------- 按鈕 ---------- */
-
+======================================================= */ @layer components {
 	.qt-button {
-		@apply inline-flex min-h-[30px] items-center justify-center gap-[7px]
-			whitespace-nowrap rounded-md border border-transparent bg-btn px-3.5 py-[5px]
-			font-medium transition-[background-color,color,box-shadow] duration-150
-			not-disabled:hover:bg-btn-hi not-disabled:active:bg-btn-lo
-			disabled:bg-btn-off disabled:text-faint;
+		@apply inline-flex min-h-[30px] items-center justify-center gap-[7px] rounded-md border border-transparent bg-btn px-3.5 py-[5px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 not-disabled:hover:bg-btn-hi not-disabled:active:bg-btn-lo disabled:bg-btn-off disabled:text-faint;
 	}
 
 	/* 主要動作：Modrinth 的綠色實心按鈕 */
 	.qt-button.primary {
-		@apply bg-brand font-semibold text-brand-ink
-			not-disabled:hover:bg-brand-hi not-disabled:hover:shadow-[0_0_0_4px_var(--color-brand-soft)]
-			not-disabled:active:bg-brand-lo
-			disabled:bg-btn-off disabled:text-faint disabled:shadow-none;
+		@apply bg-brand font-semibold text-brand-ink not-disabled:hover:bg-brand-hi not-disabled:hover:shadow-[0_0_0_4px_var(--color-brand-soft)] not-disabled:active:bg-brand-lo disabled:bg-btn-off disabled:text-faint disabled:shadow-none;
 	}
 
 	.qt-button.destructive {
-		@apply bg-danger font-semibold text-danger-ink
-			not-disabled:hover:bg-danger-hi
-			not-disabled:hover:shadow-[0_0_0_4px_var(--color-danger-soft)];
+		@apply bg-danger font-semibold text-danger-ink not-disabled:hover:bg-danger-hi not-disabled:hover:shadow-[0_0_0_4px_var(--color-danger-soft)];
 	}
 
 	.qt-button.danger {
 		@apply not-disabled:hover:bg-danger not-disabled:hover:text-danger-ink;
 	}
 
-	/* ---------- 輸入 ---------- */
-
 	.qt-input,
 	.qt-select,
 	.qt-textarea {
-		@apply min-h-[30px] rounded-md border border-line bg-deep px-[9px] py-[5px]
-			outline-none transition-[border-color,box-shadow] duration-150
-			not-disabled:hover:border-line-hi
-			focus:border-brand-line focus:shadow-[0_0_0_3px_var(--color-brand-soft)]
-			disabled:bg-[#1a1c20] disabled:text-faint
-			placeholder:text-faint;
+		@apply min-h-[30px] rounded-md border border-line bg-deep px-[9px] py-[5px] transition-[border-color,box-shadow] duration-150 outline-none placeholder:text-faint not-disabled:hover:border-line-hi focus:border-brand-line focus:shadow-[0_0_0_3px_var(--color-brand-soft)] disabled:bg-[#1a1c20] disabled:text-faint;
 	}
 
 	.qt-textarea {
@@ -248,7 +211,7 @@
 	/* ---------- 群組方塊 ---------- */
 
 	.qt-group {
-		@apply relative mt-4 rounded-lg border border-line bg-[#212329] px-3.5 pb-3 pt-3.5;
+		@apply relative mt-4 rounded-lg border border-line bg-[#212329] px-3.5 pt-3.5 pb-3;
 	}
 	.qt-group > .qt-group-title {
 		@apply mb-2.5 flex items-center gap-[9px] font-semibold text-ink;
@@ -257,16 +220,12 @@
 		@apply pointer-events-none opacity-40;
 	}
 
-	/* ---------- 表單列（右對齊標籤 + 欄位） ---------- */
-
 	.qt-field {
 		@apply mb-2 grid grid-cols-[132px_1fr] items-center gap-2.5;
 	}
 	.qt-field > label {
 		@apply text-right text-muted;
 	}
-
-	/* ---------- 表格 ---------- */
 
 	.qt-table-wrap {
 		@apply min-h-0 flex-1 overflow-auto rounded-lg border border-line bg-deep p-1;
@@ -275,11 +234,10 @@
 		@apply w-full border-separate border-spacing-0 text-left;
 	}
 	.qt-table th {
-		@apply sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-deep
-			px-2.5 py-[7px] font-medium text-muted;
+		@apply sticky top-0 z-[1] border-b border-line bg-deep px-2.5 py-[7px] font-medium whitespace-nowrap text-muted;
 	}
 	.qt-table td {
-		@apply overflow-hidden text-ellipsis whitespace-nowrap px-2.5 py-[7px];
+		@apply overflow-hidden px-2.5 py-[7px] text-ellipsis whitespace-nowrap;
 	}
 	.qt-table tbody tr {
 		@apply transition-colors duration-150;
@@ -303,20 +261,14 @@
 		@apply text-muted;
 	}
 
-	/* ---------- 下拉選單 ---------- */
-
 	.qt-menu {
-		@apply absolute top-[calc(100%+1px)] z-[200] min-w-[200px] rounded-lg
-			border border-line bg-raised p-1.5 shadow-md;
+		@apply absolute top-[calc(100%+1px)] z-[200] min-w-[200px] rounded-lg border border-line bg-raised p-1.5 shadow-md;
 	}
 	.qt-menu-scrim {
 		@apply fixed inset-0 z-[199] cursor-default;
 	}
 	.qt-menu-item {
-		@apply flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-left
-			transition-colors duration-150
-			not-disabled:hover:bg-brand-soft not-disabled:hover:text-brand
-			disabled:text-faint;
+		@apply flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-left transition-colors duration-150 not-disabled:hover:bg-brand-soft not-disabled:hover:text-brand disabled:text-faint;
 	}
 	.qt-menu-item.danger {
 		@apply not-disabled:hover:bg-danger-soft not-disabled:hover:text-danger;
@@ -328,23 +280,18 @@
 		@apply w-[13px] shrink-0 text-center text-brand;
 	}
 	.qt-menu-label {
-		@apply px-2.5 pb-1 pt-[7px] text-[11px] font-semibold uppercase tracking-[0.4px] text-faint;
+		@apply px-2.5 pt-[7px] pb-1 text-[11px] font-semibold tracking-[0.4px] text-faint uppercase;
 	}
 	.qt-menu hr {
 		@apply mx-1.5 my-[5px] h-px border-0 bg-line;
 	}
 
-	/* ---------- 工具列按鈕 ---------- */
-
 	.tool-button {
-		@apply flex items-center rounded-md border border-transparent text-muted
-			transition-colors duration-150
-			not-disabled:hover:bg-btn-hi not-disabled:hover:text-ink
-			not-disabled:active:bg-btn-lo disabled:text-faint;
+		@apply flex items-center rounded-md border border-transparent text-muted transition-colors duration-150 not-disabled:hover:bg-btn-hi not-disabled:hover:text-ink not-disabled:active:bg-btn-lo disabled:text-faint;
 	}
 	/* 圖示在上、文字在下（主工具列） */
 	.tool-button.under {
-		@apply min-w-[68px] flex-col gap-1 px-2.5 pb-1.5 pt-[7px];
+		@apply min-w-[68px] flex-col gap-1 px-2.5 pt-[7px] pb-1.5;
 	}
 	/* 圖示在左、文字在右（實例工具列） */
 	.tool-button.beside {
@@ -355,24 +302,111 @@
 		@apply bg-brand-soft text-brand hover:bg-brand-soft-hi hover:text-brand;
 	}
 
-	/* ---------- 標籤藥丸 ---------- */
-
 	.pill {
-		@apply inline-flex items-center gap-[5px] whitespace-nowrap rounded-full
-			bg-btn px-2.5 py-[3px] text-[11.5px] font-medium text-muted;
+		@apply inline-flex items-center gap-[5px] rounded-full bg-btn px-2.5 py-[3px] text-[11.5px] font-medium whitespace-nowrap text-muted;
 	}
 	.pill.accent {
 		@apply bg-brand-soft text-brand;
 	}
 
-	/* ---------- 搜尋框（藥丸狀） ---------- */
-
 	.qt-search {
-		@apply flex items-center gap-[9px] rounded-full border border-transparent
-			px-3 py-1.5 text-muted transition-[border-color,box-shadow] duration-150
-			focus-within:border-brand-line focus-within:shadow-[0_0_0_3px_var(--color-brand-soft)];
+		@apply flex items-center gap-[9px] rounded-full border border-transparent px-3 py-1.5 text-muted transition-[border-color,box-shadow] duration-150 focus-within:border-brand-line focus-within:shadow-[0_0_0_3px_var(--color-brand-soft)];
 	}
 	.qt-search > input {
 		@apply min-w-0 flex-1 border-0 bg-transparent text-ink outline-none placeholder:text-faint;
+	}
+
+	.rich-text {
+		@apply leading-[1.75] text-muted;
+	}
+	.rich-text > :first-child {
+		@apply mt-0;
+	}
+	.rich-text > :last-child {
+		@apply mb-0;
+	}
+	.rich-text p,
+	.rich-text ul,
+	.rich-text ol,
+	.rich-text dl,
+	.rich-text blockquote,
+	.rich-text pre,
+	.rich-text table,
+	.rich-text details {
+		@apply my-2.5;
+	}
+	.rich-text h1,
+	.rich-text h2,
+	.rich-text h3,
+	.rich-text h4,
+	.rich-text h5,
+	.rich-text h6 {
+		@apply mt-4 mb-1.5 font-semibold text-ink;
+	}
+	.rich-text h1 {
+		@apply text-[17px];
+	}
+	.rich-text h2 {
+		@apply text-[15px];
+	}
+	.rich-text h3 {
+		@apply text-[14px];
+	}
+	.rich-text h1,
+	.rich-text h2 {
+		@apply border-b border-line pb-1;
+	}
+	.rich-text strong,
+	.rich-text b {
+		@apply font-semibold text-ink;
+	}
+	.rich-text ul {
+		@apply list-disc pl-5;
+	}
+	.rich-text ol {
+		@apply list-decimal pl-5;
+	}
+	.rich-text li {
+		@apply my-1;
+	}
+	.rich-text li > ul,
+	.rich-text li > ol {
+		@apply my-1;
+	}
+	.rich-text dd {
+		@apply pl-5;
+	}
+	.rich-text blockquote {
+		@apply border-l-2 border-line-hi pl-3 text-faint;
+	}
+	.rich-text hr {
+		@apply my-3 h-px border-0 bg-line;
+	}
+	/* 徽章跟截圖都是別人的圖，寬度一律收在容器裡 */
+	.rich-text img {
+		@apply my-0.5 inline-block max-w-full rounded-sm align-middle;
+	}
+	.rich-text code {
+		@apply rounded-sm bg-card px-1 py-px font-mono text-[12px] text-ink;
+	}
+	.rich-text pre {
+		@apply overflow-x-auto rounded-md border border-line bg-window p-2.5;
+	}
+	.rich-text pre code {
+		@apply bg-transparent p-0;
+	}
+	/* 表格常常比欄位還寬，讓它自己橫捲，不要撐破版面 */
+	.rich-text table {
+		@apply block max-w-full border-collapse overflow-x-auto text-left;
+	}
+	.rich-text th,
+	.rich-text td {
+		@apply border border-line px-2 py-1 align-top;
+	}
+	.rich-text th {
+		@apply bg-window font-semibold text-ink;
+	}
+	.rich-text summary {
+		@apply cursor-pointer font-medium text-ink;
 	}
 }
