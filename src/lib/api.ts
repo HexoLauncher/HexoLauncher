@@ -300,8 +300,16 @@ export interface ModpackInstallResult {
 export const inspectModpack = (packPath: string) =>
 	invoke<ModpackPreview>('inspect_modpack', { packPath });
 
+export interface ModpackUpdateResult extends ModpackInstallResult {
+	/** 舊版模組包帶進來、這次更新之後被刪掉的檔案（相對 .minecraft）。 */
+	removedFiles: string[];
+}
+
 export const installModpackFile = (target: PackTarget, packPath: string) =>
 	invoke<ModpackInstallResult>('install_modpack_file', { target, packPath });
+
+export const updateModpackFile = (baseDir: string, instanceName: string, packPath: string) =>
+	invoke<ModpackUpdateResult>('update_modpack_file', { baseDir, instanceName, packPath });
 
 export type ModpackPlatform = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
 

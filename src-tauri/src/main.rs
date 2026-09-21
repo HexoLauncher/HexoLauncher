@@ -41,6 +41,7 @@ fn main() {
             commands::export::import_instance,
             commands::modpack::inspect_modpack,
             commands::modpack::install_modpack_file,
+            commands::modpack::update_modpack_file,
             commands::modpack_browse::search_modpacks,
             commands::modpack_browse::list_modpack_versions,
             commands::modpack_browse::install_remote_modpack,

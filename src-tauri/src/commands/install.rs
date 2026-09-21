@@ -201,7 +201,7 @@ async fn resolve_loader_version(
     })
 }
 
-async fn tool_java(java_path: Option<&str>) -> CmdResult<PathBuf> {
+pub(super) async fn tool_java(java_path: Option<&str>) -> CmdResult<PathBuf> {
     if let Some(path) = java_path.filter(|p| !p.is_empty()) {
         if let Some(info) = resolve_java(17, Some(path)).await? {
             return Ok(info.path);

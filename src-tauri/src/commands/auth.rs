@@ -1,9 +1,8 @@
-use hexomc_lib::{poll_device_code, request_device_code};
 use serde::Serialize;
 
 use crate::error::{CmdError, CmdResult};
 use crate::state::AppState;
-use crate::store::accounts::{from_auth, store_account, AccountView};
+use crate::store::accounts::{from_auth, ms_auth, store_account, AccountView};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -17,7 +16,7 @@ pub struct DeviceCodeDto {
 
 #[tauri::command]
 pub async fn ms_login_start(state: tauri::State<'_, AppState>) -> CmdResult<DeviceCodeDto> {
-    let (info, raw) = request_device_code().await?;
+    let (info, raw) = ms_auth()?.request_device_code().await?;
     let session_id = uuid::Uuid::new_v4().to_string();
     let expires_in = raw.expires_in;
     state.put_login_session(&session_id, raw)?;
@@ -40,7 +39,7 @@ pub async fn ms_login_poll(
         .take_login_session(&session_id)?
         .ok_or_else(|| CmdError::new("authError", "登入 session 不存在或已使用，請重新登入"))?;
 
-    let auth = poll_device_code(&session).await?;
+    let auth = ms_auth()?.poll_device_code(&session).await?;
     store_account(from_auth(auth)).await
 }
 

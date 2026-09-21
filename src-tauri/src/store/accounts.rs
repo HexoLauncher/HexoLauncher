@@ -1,3 +1,4 @@
+use hexomc_lib::MicrosoftAuth;
 use serde::{Deserialize, Serialize};
 
 use super::{now_secs, read_json, store_file, write_json};
@@ -6,6 +7,21 @@ use crate::error::{CmdError, CmdResult};
 const FILE: &str = "accounts.json";
 
 const REFRESH_MARGIN: u64 = 120;
+
+/// 打包時用 `HEXO_MS_CLIENT_ID` 帶進來的 Azure 應用程式 (client) ID。
+/// hexomc-lib 0.1.5 起不再內建，登入流程要自己給一組。
+const MS_CLIENT_ID: Option<&str> = option_env!("HEXO_MS_CLIENT_ID");
+
+pub fn ms_auth() -> CmdResult<MicrosoftAuth> {
+    let client_id = MS_CLIENT_ID.unwrap_or_default().trim();
+    if client_id.is_empty() {
+        return Err(CmdError::new(
+            "authError",
+            "這個組建沒有內建 Microsoft 應用程式 ID，無法使用 Microsoft 登入",
+        ));
+    }
+    Ok(MicrosoftAuth::new(client_id)?)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -129,7 +145,7 @@ pub async fn resolve(account_id: Option<&str>) -> CmdResult<ResolvedAccount> {
                 format!("{} 的登入已過期，請重新登入", account.player_name),
             ));
         }
-        let refreshed = hexomc_lib::refresh_token(&account.refresh_token).await?;
+        let refreshed = ms_auth()?.refresh_token(&account.refresh_token).await?;
         let updated = from_auth(refreshed);
         let selected = store.selected.clone();
         store.upsert(updated.clone());
@@ -239,6 +255,6 @@ pub async fn refresh_account(account_id: String) -> CmdResult<Vec<AccountView>> 
         ));
     }
 
-    let refreshed = hexomc_lib::refresh_token(&account.refresh_token).await?;
+    let refreshed = ms_auth()?.refresh_token(&account.refresh_token).await?;
     store_account(from_auth(refreshed)).await
 }

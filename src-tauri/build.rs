@@ -1,3 +1,4 @@
 fn main() {
+  println!("cargo:rerun-if-env-changed=HEXO_MS_CLIENT_ID");
   tauri_build::build()
 }

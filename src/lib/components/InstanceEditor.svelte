@@ -17,6 +17,7 @@
 		JavaInfo,
 		LoaderKind,
 		ModEntry,
+		ModpackUpdateResult,
 		ModUpdateEntry,
 		PackEntry,
 		RunningGame,
@@ -130,6 +131,9 @@
 		loader: LoaderKind;
 		loaderVersion: string;
 	} | null>(null);
+
+	/** 模組包更新完的結果，拿來提示刪掉了什麼、還有哪些要手動下載。 */
+	let packUpdate = $state<ModpackUpdateResult | null>(null);
 
 
 	let browse = $state<ContentKind | null>(null);
@@ -415,6 +419,46 @@
 		}
 	}
 
+	async function pickPack() {
+		try {
+			const { open } = await import('@tauri-apps/api/dialog');
+			const picked = await open({ filters: [{ name: '模組包', extensions: ['mrpack', 'zip'] }] });
+			return typeof picked === 'string' ? picked : null;
+		} catch {
+			status = '這個環境沒有系統對話框，無法選擇模組包檔案';
+			return null;
+		}
+	}
+
+	/**
+	 * 用另一個版本的模組包就地覆蓋這個實例；上一版帶進來、新版沒有的檔案會被刪掉，
+	 * 自己另外丟進去的檔案不會動到。
+	 */
+	async function updatePack() {
+		const packPath = await pickPack();
+		if (!packPath) return;
+
+		busy = '正在更新模組包…';
+		let unlisten: (() => void) | undefined;
+		try {
+			unlisten = await api.onInstallProgress((p) => {
+				if (p.instanceName === instance.id) {
+					busy = p.total > 1 ? `${p.message}（${p.done} / ${p.total}）` : p.message;
+				}
+			});
+
+			const result = await api.updateModpackFile(baseDir, instance.id, packPath);
+			onchanged(result.instance);
+			packUpdate = result;
+			report('模組包已更新');
+		} catch (e) {
+			fail('更新模組包失敗', e);
+		} finally {
+			unlisten?.();
+			busy = '';
+		}
+	}
+
 	const versionRows = $derived([
 		{ name: 'Minecraft', version: instance.versionId || '未知', note: '必要' },
 		...(instance.loader !== 'vanilla'
@@ -628,6 +672,7 @@
 									})
 							},
 							{ label: '修復／重新安裝', action: () => reinstall() },
+							{ label: '更新模組包…', action: updatePack },
 							{ label: '實例資料夾', action: () => openFolder('instance') }
 						])}
 					</div>
@@ -1050,6 +1095,68 @@
 				安裝
 			</button>
 			<button class="qt-button" onclick={() => (versionDialog = null)}>取消</button>
+		{/snippet}
+	</Window>
+{/if}
+
+{#if packUpdate}
+	{@const result = packUpdate}
+	<Window title="模組包已更新" width="560px" height="480px" onclose={() => (packUpdate = null)}>
+		<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4.5 py-4">
+			<p>
+				已更新為 <b>{result.instance.versionId || instance.versionId}</b>
+				{#if result.instance.loader !== 'vanilla'}
+					／ {loaderLabel(result.instance.loader)} {result.instance.loaderVersion}
+				{/if}
+			</p>
+
+			{#if result.manualDownloads.length > 0}
+				<div class="flex flex-col gap-1">
+					<p class="font-medium text-danger">
+						這 {result.manualDownloads.length} 個檔案作者不允許第三方下載，請自己抓回來放進對應資料夾：
+					</p>
+					{#each result.manualDownloads as item (item.dest)}
+						<div class="flex items-center gap-2.5">
+							<span class="min-w-0 flex-1 truncate">{item.name}</span>
+							<span class="font-mono text-[11px] text-muted">{item.dest}</span>
+							{#if item.website}
+								<button class="qt-button" onclick={() => api.openExternal(item.website!)}>
+									開啟頁面
+								</button>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if result.removedFiles.length > 0}
+				<details>
+					<summary class="cursor-pointer">已移除 {result.removedFiles.length} 個舊版檔案</summary>
+					<ul class="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-muted">
+						{#each result.removedFiles as file (file)}
+							<li>{file}</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+
+			{#if result.skipped.length > 0}
+				<details>
+					<summary class="cursor-pointer">有 {result.skipped.length} 個檔案被跳過</summary>
+					<ul class="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-muted">
+						{#each result.skipped as file (file)}
+							<li>{file}</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+
+			{#if result.manualDownloads.length === 0 && result.removedFiles.length === 0 && result.skipped.length === 0}
+				<p class="text-muted">沒有需要手動處理的檔案。</p>
+			{/if}
+		</div>
+		{#snippet footer()}
+			<button class="qt-button primary" onclick={() => (packUpdate = null)}>關閉</button>
 		{/snippet}
 	</Window>
 {/if}

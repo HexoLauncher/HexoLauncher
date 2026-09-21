@@ -1398,9 +1398,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexomc-lib"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a09d6105ce018c55e0c1590eb0f88ffb07c0937aa645baddda8f49556b17ef40"
+checksum = "1ab695234c19fdd0a0b72b6ddde8e2806d389deec6ba9e078d0f6fe13a095dfd"
 dependencies = [
  "async-trait",
  "digest",
