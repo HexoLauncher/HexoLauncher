@@ -261,6 +261,56 @@ export const exportInstance = (request: ExportRequest) =>
 export const importInstance = (baseDir: string, zipPath: string, name?: string | null) =>
 	invoke<InstanceView>('import_instance', { baseDir, zipPath, name });
 
+export type ImportMode = 'copy' | 'link';
+
+
+export interface ForeignLauncher {
+	kind: string;
+	name: string;
+	path: string;
+	instanceCount: number;
+}
+
+export interface ForeignInstance {
+	path: string;
+	name: string;
+	notes: string;
+	mcVersion: string;
+	loader: LoaderKind;
+	loaderVersion: string;
+	modCount: number;
+	lastPlayed: number;
+	playTimeSeconds: number;
+	/** 我們不支援的模組載入器，匯入後要自己換掉。 */
+	unsupportedLoader: string | null;
+}
+
+export interface ForeignImportRequest {
+	baseDir: string;
+	paths: string[];
+	mode: ImportMode;
+	group?: string | null;
+}
+
+export interface ForeignImportFailure {
+	path: string;
+	name: string;
+	message: string;
+}
+
+export interface ForeignImportResult {
+	imported: InstanceView[];
+	failed: ForeignImportFailure[];
+}
+
+export const detectForeignLaunchers = () => invoke<ForeignLauncher[]>('detect_foreign_launchers');
+
+export const listForeignInstances = (path: string) =>
+	invoke<ForeignInstance[]>('list_foreign_instances', { path });
+
+export const importForeignInstances = (request: ForeignImportRequest) =>
+	invoke<ForeignImportResult>('import_foreign_instances', { request });
+
 export type ModpackFormat = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
 
 export interface ModpackPreview {

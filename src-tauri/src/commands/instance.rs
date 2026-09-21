@@ -345,6 +345,14 @@ pub async fn delete_instance(
             format!("找不到 instance: {}", instance_name),
         ));
     }
+    // 從別的啟動器連結進來的遊戲目錄要先拆掉連結本身，
+    // 不然 remove_dir_all 有機會順著連結把人家的存檔一起刪掉。
+    let mc = minecraft_dir(base, &instance_name)?;
+    if let Ok(meta) = tokio::fs::symlink_metadata(&mc).await {
+        if super::foreign::is_link(&meta) {
+            super::foreign::unlink(&mc).await?;
+        }
+    }
     tokio::fs::remove_dir_all(&dir).await?;
 
     let mut local = LocalStore::load().await?;

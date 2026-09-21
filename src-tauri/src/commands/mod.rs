@@ -2,6 +2,7 @@ pub mod assets;
 pub mod auth;
 pub mod content;
 pub mod export;
+pub mod foreign;
 pub mod install;
 pub mod instance;
 pub mod java;
@@ -14,7 +15,7 @@ pub mod version;
 
 use std::path::{Path, PathBuf};
 
-use hexomc_lib::{LoaderType, ModLoader};
+use hexomc_lib::{resolve_forge_version, LoaderType, ModLoader};
 use serde::{Deserialize, Serialize};
 
 use crate::error::{CmdError, CmdResult};
@@ -30,9 +31,10 @@ pub const EVENT_GAME_OUTPUT: &str = "hexo://game-output";
 /// Java 下載進度事件：`{ version, done, total, message }`；下載階段 done / total 是位元組。
 pub const EVENT_JAVA_PROGRESS: &str = "hexo://java-progress";
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LoaderKind {
+    #[default]
     Vanilla,
     Fabric,
     Forge,
@@ -70,6 +72,20 @@ impl LoaderKind {
             LoaderKind::NeoForge => ModLoader::NeoForge,
         }
     }
+}
+
+
+pub async fn full_loader_version(
+    loader: LoaderKind,
+    mc_version: &str,
+    loader_version: &str,
+) -> String {
+    if loader != LoaderKind::Forge || loader_version.is_empty() {
+        return loader_version.to_string();
+    }
+    resolve_forge_version(mc_version, loader_version)
+        .await
+        .unwrap_or_else(|_| format!("{}-{}", mc_version, loader_version))
 }
 
 pub fn validate_instance_name(name: &str) -> CmdResult<()> {

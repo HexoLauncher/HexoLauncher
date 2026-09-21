@@ -169,7 +169,12 @@
 	}
 }
 
-======================================================= */ @layer components {
+/* 重複度高的元件類別。這些在整個 app 裡出現上百次，寫成 class 比每次貼十幾個
+   utility 好讀；其餘一次性的版面一律寫在 markup 的 utility 裡。 */
+
+@layer components {
+	/* ---------- 按鈕 ---------- */
+
 	.qt-button {
 		@apply inline-flex min-h-[30px] items-center justify-center gap-[7px] rounded-md border border-transparent bg-btn px-3.5 py-[5px] font-medium whitespace-nowrap transition-[background-color,color,box-shadow] duration-150 not-disabled:hover:bg-btn-hi not-disabled:active:bg-btn-lo disabled:bg-btn-off disabled:text-faint;
 	}
