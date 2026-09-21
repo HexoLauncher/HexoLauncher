@@ -74,7 +74,6 @@ impl LoaderKind {
     }
 }
 
-
 pub async fn full_loader_version(
     loader: LoaderKind,
     mc_version: &str,

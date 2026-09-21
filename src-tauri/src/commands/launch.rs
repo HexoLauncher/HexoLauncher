@@ -17,6 +17,9 @@ use crate::store::instance_meta::{InstanceMeta, InstanceSettings, LocalStore};
 use crate::store::launcher::LauncherConfig;
 use crate::store::{accounts, now_secs};
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LaunchRequest {
@@ -124,7 +127,7 @@ pub async fn launch_instance(
     let player_name = account.player_name.clone();
     let options = LaunchOptions {
         instance_id: instance_name.clone(),
-        java_path: java.path.clone(),
+        java_path: windowless_java(&java.path),
         player_name: account.player_name,
         auth_token: account.access_token,
         auth_uuid: account.uuid,
@@ -170,6 +173,32 @@ pub async fn launch_instance(
         player_name,
         online,
     })
+}
+
+/// GUI 程式沒有主控台可以繼承，Windows 會幫主控台程式另外開一個視窗。
+/// `javaw.exe` 是同一個 JVM 的無視窗版本，輸出導向管線一樣收得到，
+/// 所以啟動遊戲時改用它，才不會多跳一個 cmd 視窗出來。
+#[cfg(windows)]
+fn windowless_java(path: &Path) -> PathBuf {
+    let is_java = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("java.exe"));
+
+    if !is_java {
+        return path.to_path_buf();
+    }
+    let javaw = path.with_file_name("javaw.exe");
+    if javaw.is_file() {
+        javaw
+    } else {
+        path.to_path_buf()
+    }
+}
+
+#[cfg(not(windows))]
+fn windowless_java(path: &Path) -> PathBuf {
+    path.to_path_buf()
 }
 
 fn jvm_args(launcher: &LauncherConfig, settings: &InstanceSettings) -> Vec<String> {
@@ -237,6 +266,8 @@ async fn run_hook(command: &str, vars: &HookVars, label: &str) -> CmdResult<()> 
         cmd
     };
     child.current_dir(&vars.minecraft_dir);
+    #[cfg(windows)]
+    child.creation_flags(CREATE_NO_WINDOW);
 
     let status = child
         .status()
