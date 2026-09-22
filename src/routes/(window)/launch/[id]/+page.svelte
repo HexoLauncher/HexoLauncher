@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { Button, Pill } from '$lib/ui';
 	import { onDestroy } from 'svelte';
 	import { page } from '$app/state';
-	import Icon from '$lib/Icon.svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import WindowShell from '$lib/components/WindowShell.svelte';
 	import * as api from '$lib/api';
@@ -9,7 +10,7 @@
 	import { formatSize, loaderLabel } from '$lib/format';
 	import { closeSelf } from '$lib/windows';
 
-	/** 啟動流程圖：一步一步顯示檢查與下載的進度，遊戲輸出不在這裡。 */
+
 	const id = $derived(page.params.id ?? '');
 
 	type StageId = 'read' | 'check' | 'download' | 'java' | 'launch';
@@ -23,7 +24,7 @@
 		{ id: 'launch', label: '啟動遊戲', icon: 'play' }
 	];
 
-	/** 下載清單的一列；同一個訊息會更新既有的那列，不會一直往下長 */
+
 	type Task = { message: string; done: number; total: number; finished: boolean };
 
 	let instance = $state<InstanceView | null>(null);
@@ -111,7 +112,7 @@
 	}
 
 	$effect(() => {
-		// 路由參數要等 SvelteKit 準備好才有值，所以在 effect 裡起跑，而且只跑一次。
+
 		if (!id || started) return;
 		started = true;
 		run(id);
@@ -124,7 +125,7 @@
 			existing.total = total;
 			return;
 		}
-		// 新的階段開始，前面的就算做完了。
+
 		for (const task of tasks) task.finished = true;
 		tasks.push({ message, done: count, total, finished: false });
 	}
@@ -253,18 +254,18 @@
 					{instance?.name ?? '正在讀取…'}
 				</h1>
 				<div class="mt-1.5 flex gap-1.25">
-					<span class="pill accent">{instance?.versionId ?? '—'}</span>
-					<span class="pill">{instance ? loaderLabel(instance.loader) : '—'}</span>
+					<Pill accent>{instance?.versionId ?? '—'}</Pill>
+					<Pill>{instance ? loaderLabel(instance.loader) : '—'}</Pill>
 				</div>
 			</div>
 			{#if done}
-				<span class="pill accent">已啟動</span>
+				<Pill accent>已啟動</Pill>
 			{:else if failed}
-				<span class="pill">失敗</span>
+				<Pill>失敗</Pill>
 			{/if}
 		</header>
 
-		<!-- 流程圖：左邊是節點與連接線，右邊是每一步的細節 -->
+
 		<ol class="min-h-0 flex-1 list-none overflow-y-auto pr-1">
 			{#each STAGES as stage, i (stage.id)}
 				{@const current = stageState[stage.id]}
@@ -343,10 +344,10 @@
 									要從 Adoptium 下載 Temurin {prompt.version} 嗎？也可以取消，到「設定」指定已安裝的 Java。
 								</p>
 								<div class="mt-2 flex gap-1.75">
-									<button class="qt-button primary" onclick={() => prompt.answer(true)}>
+									<Button variant="primary" onclick={() => prompt.answer(true)}>
 										<Icon name="download" size={13} />下載 Java {prompt.version}
-									</button>
-									<button class="qt-button" onclick={() => prompt.answer(false)}>取消</button>
+									</Button>
+									<Button onclick={() => prompt.answer(false)}>取消</Button>
 								</div>
 							</div>
 						{/if}
@@ -388,12 +389,12 @@
 
 	{#snippet footer()}
 		{#if failed}
-			<button class="qt-button primary" onclick={() => run(id)}>重試</button>
-			<button class="qt-button" onclick={closeSelf}>關閉</button>
+			<Button variant="primary" onclick={() => run(id)}>重試</Button>
+			<Button onclick={closeSelf}>關閉</Button>
 		{:else if done}
-			<button class="qt-button primary" onclick={closeSelf}>關閉</button>
+			<Button variant="primary" onclick={closeSelf}>關閉</Button>
 		{:else}
-			<button class="qt-button" onclick={closeSelf}>在背景繼續</button>
+			<Button onclick={closeSelf}>在背景繼續</Button>
 		{/if}
 	{/snippet}
 </WindowShell>

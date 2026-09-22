@@ -1,10 +1,11 @@
 <script lang="ts">
-	import Icon from '$lib/Icon.svelte';
+	import { Button, CheckRow, Field, Group, Menu, Pill, SearchField, Select, Table, TableBox, TextInput, Textarea } from '$lib/ui';
+	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import WindowShell from './WindowShell.svelte';
-	import PageList from './PageList.svelte';
-	import Toggle from './Toggle.svelte';
-	import Window from './Window.svelte';
+	import NavList from '$lib/ui/NavList.svelte';
+	import Switch from '$lib/ui/Switch.svelte';
+	import Dialog from '$lib/ui/Dialog.svelte';
 	import VersionPicker from './VersionPicker.svelte';
 	import ContentBrowser from './ContentBrowser.svelte';
 	import * as api from '$lib/api';
@@ -86,7 +87,6 @@
 
 	let saved = $state(snapshot());
 	const dirty = $derived(snapshot() !== saved);
-	let iconMenu = $state(false);
 
 	function snapshot() {
 		return JSON.stringify({
@@ -479,16 +479,16 @@
 {#snippet sideButtons(items: { label: string; disabled?: boolean; action: () => void }[])}
 	<div class="flex w-34.5 shrink-0 flex-col gap-1 [&>button]:justify-start">
 		{#each items as item (item.label)}
-			<button class="qt-button" disabled={item.disabled} onclick={item.action}>
+			<Button disabled={item.disabled} onclick={item.action}>
 				{item.label}
-			</button>
+			</Button>
 		{/each}
 	</div>
 {/snippet}
 
 <WindowShell>
 	<div class="flex min-h-0 flex-1">
-		<PageList {pages} selected={page} onselect={(id) => (page = id)} />
+		<NavList {pages} selected={page} onselect={(id) => (page = id)} />
 
 		<div class="flex min-w-0 flex-1 flex-col">
 			<div
@@ -506,102 +506,75 @@
 			<div class="flex min-h-0 flex-1 flex-col gap-2.5 px-4.5 pb-4.5 pt-3.5">
 				{#if page === 'general'}
 					<div class="flex items-start gap-3">
-						<div class="relative">
-							<button
-								class="qt-button size-14.5 rounded-lg p-0"
-								aria-label="選擇圖示"
-								onclick={() => (iconMenu = !iconMenu)}
-							>
-								<InstanceIcon name={form.icon} size={34} />
-							</button>
-							{#if iconMenu}
-								<button
-									type="button"
-									class="qt-menu-scrim"
-									aria-label="關閉選單"
-									onclick={() => (iconMenu = false)}
-								></button>
-								<div class="qt-menu" style:min-width="228px">
-									<div class="grid grid-cols-5 gap-0.75 p-0.75">
-										{#each ICON_CHOICES as choice (choice)}
-											<button
-												class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-white/10 {form.icon ===
-												choice
-													? 'border-brand bg-brand-soft'
-													: ''}"
-												aria-label={choice}
-												onclick={() => {
-													form.icon = choice;
-													iconMenu = false;
-												}}
-											>
-												<InstanceIcon name={choice} size={30} />
-											</button>
-										{/each}
-									</div>
-								</div>
-							{/if}
-						</div>
+						<Menu width="228px">
+							{#snippet trigger(attrs)}
+								<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label="選擇圖示">
+									<InstanceIcon name={form.icon} size={34} />
+								</Button>
+							{/snippet}
+							<div class="grid grid-cols-5 gap-0.75 p-0.75">
+								{#each ICON_CHOICES as choice (choice)}
+									<button
+										class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-hover {form.icon ===
+										choice
+											? 'border-brand bg-brand-soft'
+											: ''}"
+										aria-label={choice}
+										onclick={() => (form.icon = choice)}
+									>
+										<InstanceIcon name={choice} size={30} />
+									</button>
+								{/each}
+							</div>
+						</Menu>
 
-						<div class="min-w-0 flex-1 [&_.qt-field]:grid-cols-[64px_1fr]">
-							<div class="qt-field">
-								<label for="edit-name">名稱</label>
-								<input
-									id="edit-name"
-									class="qt-input"
-									bind:value={form.name}
-								/>
-							</div>
-							<div class="qt-field">
-								<label for="edit-group">群組</label>
-								<input
-									id="edit-group"
-									class="qt-input"
-									bind:value={form.group}
-									placeholder="（未分組）"
-								/>
-							</div>
+						<div class="min-w-0 flex-1 [--field-label:64px]">
+							<Field label="名稱" for="edit-name">
+								<TextInput id="edit-name" bind:value={form.name} />
+							</Field>
+							<Field label="群組" for="edit-group">
+								<TextInput id="edit-group" bind:value={form.group} placeholder="（未分組）" />
+							</Field>
 						</div>
 					</div>
 
-					<div class="qt-group">
-						<span class="qt-group-title">狀態</span>
-						<div class="qt-field"><label for="s1">資料夾名稱</label><span id="s1">{instance.id}</span></div>
-						<div class="qt-field">
-							<label for="s2">位置</label>
+					<Group title="狀態">
+						<Field label="資料夾名稱" for="s1">
+<span id="s1">{instance.id}</span>
+						</Field>
+						<Field label="位置" for="s2">
 							<span id="s2" class="overflow-hidden text-ellipsis font-mono text-[11.5px] text-muted"
 								>{instance.dir}</span
 							>
-						</div>
-						<div class="qt-field">
-							<label for="s3">上次遊玩</label><span id="s3">{formatTime(instance.lastPlayed)}</span>
-						</div>
-						<div class="qt-field">
-							<label for="s4">總時數</label>
+						</Field>
+						<Field label="上次遊玩" for="s3">
+<span id="s3">{formatTime(instance.lastPlayed)}</span>
+						</Field>
+						<Field label="總時數" for="s4">
 							<span id="s4">
 								{formatDuration(instance.playTimeSeconds)}（啟動 {instance.launchCount} 次）
 							</span>
-						</div>
-						<div class="qt-field">
-							<label for="s5">模組</label><span id="s5">{instance.modCount} 個</span>
-						</div>
-					</div>
+						</Field>
+						<Field label="模組" for="s5">
+<span id="s5">{instance.modCount} 個</span>
+						</Field>
+					</Group>
 
 				{:else if page === 'console'}
 					<div class="flex shrink-0 items-center gap-2.5">
 						{#if running}
-							<span class="pill accent">執行中 · PID {running.pid}</span>
+							<Pill accent>執行中 · PID {running.pid}</Pill>
 							<span class="text-muted">
 								{running.online ? '正版登入' : '離線模式'} · {running.playerName} ·
 								{formatTime(running.startedAt)} 起
 							</span>
 						{:else}
-							<span class="pill">未執行</span>
+							<Pill>未執行</Pill>
 						{/if}
 						<span class="flex-1"></span>
-						<button class="qt-button destructive" disabled={!running} onclick={stopGame}>
+						<Button variant="destructive" disabled={!running} onclick={stopGame}>
 							終止遊戲
-						</button>
+						</Button>
 					</div>
 
 					<div
@@ -620,33 +593,23 @@
 					</div>
 
 					<div class="flex shrink-0 items-center gap-4.5">
-						<label class="qt-check compact"
-							><input type="checkbox" bind:checked={autoScroll} />自動捲動</label
-						>
-						<label class="qt-check compact"
-							><input type="checkbox" bind:checked={onlyErrors} />只看 stderr</label
-						>
-						<label class="qt-check compact"
-							><input type="checkbox" bind:checked={wrapLines} />自動換行</label
-						>
+						<CheckRow compact><input type="checkbox" bind:checked={autoScroll} />自動捲動</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={onlyErrors} />只看 stderr</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />自動換行</CheckRow>
 						<span class="flex-1"></span>
 						<span class="text-faint">{visibleOutput.length} / {output.length} 行</span>
-						<button
-							class="qt-button"
-							disabled={output.length === 0}
-							onclick={copyOutput}
-						>
+						<Button disabled={output.length === 0} onclick={copyOutput}>
 							複製
-						</button>
-						<button class="qt-button" disabled={!!running || output.length === 0} onclick={clearOutput}>
+						</Button>
+						<Button disabled={!!running || output.length === 0} onclick={clearOutput}>
 							清空
-						</button>
+						</Button>
 					</div>
 
 				{:else if page === 'version'}
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr><th style="width:34%">名稱</th><th>版本</th><th style="width:110px">說明</th></tr>
 								</thead>
@@ -659,8 +622,8 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
-						</div>
+							</Table>
+						</TableBox>
 						{@render sideButtons([
 							{
 								label: '變更版本…',
@@ -689,7 +652,7 @@
 												{update.currentVersion} → {update.newVersion}（{update.source}）
 											</span>
 										</span>
-										<button class="qt-button" onclick={() => applyUpdate(update)}>更新</button>
+										<Button onclick={() => applyUpdate(update)}>更新</Button>
 									</div>
 								{/each}
 							</div>
@@ -697,8 +660,8 @@
 					{/if}
 
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr>
 										<th style="width:28px"></th>
@@ -734,11 +697,11 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</Table>
 							{#if mods.length === 0}
 								<p class="px-3 py-4 text-center text-muted">這個實例還沒有任何模組。</p>
 							{/if}
-						</div>
+						</TableBox>
 						{@render sideButtons([
 							{ label: '下載模組…', action: () => (browse = 'mod') },
 							{ label: '檢查更新', disabled: mods.length === 0, action: checkUpdates },
@@ -755,8 +718,8 @@
 				{:else if page === 'resourcepacks' || page === 'shaderpacks'}
 					{@const packs = page === 'resourcepacks' ? resourcePacks : shaderPacks}
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr><th style="width:45%">名稱</th><th>類型</th><th>位置</th></tr>
 								</thead>
@@ -771,13 +734,13 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</Table>
 							{#if packs.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
 									{page === 'resourcepacks' ? '沒有資源包。' : '沒有光影包。'}
 								</p>
 							{/if}
-						</div>
+						</TableBox>
 						{@render sideButtons([
 							{
 								label: page === 'resourcepacks' ? '下載資源包…' : '下載光影包…',
@@ -793,8 +756,8 @@
 
 				{:else if page === 'worlds'}
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr><th style="width:44px"></th><th style="width:45%">名稱</th><th>資料夾</th></tr>
 								</thead>
@@ -813,11 +776,11 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</Table>
 							{#if worlds.length === 0}
 								<p class="px-3 py-4 text-center text-muted">還沒有任何世界存檔。</p>
 							{/if}
-						</div>
+						</TableBox>
 						{@render sideButtons([
 							{ label: '重新載入', action: () => load('worlds', true) },
 							{ label: '開啟資料夾', action: () => openFolder('saves') }
@@ -826,8 +789,8 @@
 
 				{:else if page === 'servers'}
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr>
 										<th style="width:44px"></th>
@@ -850,13 +813,13 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</Table>
 							{#if servers.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
 									還沒有加過伺服器。
 								</p>
 							{/if}
-						</div>
+						</TableBox>
 						{@render sideButtons([
 							{ label: '重新載入', action: () => load('servers', true) },
 							{ label: '開啟資料夾', action: () => openFolder('minecraft') }
@@ -864,8 +827,8 @@
 					</div>
 				{:else if page === 'screenshots'}
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<div class="qt-table-wrap">
-							<table class="qt-table">
+						<TableBox>
+							<Table>
 								<thead>
 									<tr><th style="width:55%">檔名</th><th>大小</th><th>拍攝時間</th></tr>
 								</thead>
@@ -878,11 +841,11 @@
 										</tr>
 									{/each}
 								</tbody>
-							</table>
+							</Table>
 							{#if screenshots.length === 0}
 								<p class="px-3 py-4 text-center text-muted">還沒有螢幕截圖。</p>
 							{/if}
-						</div>
+						</TableBox>
 						{@render sideButtons([
 							{ label: '重新載入', action: () => load('screenshots', true) },
 							{ label: '開啟資料夾', action: () => openFolder('screenshots') }
@@ -890,36 +853,29 @@
 					</div>
 
 				{:else if page === 'notes'}
-					<textarea
-						class="qt-textarea min-h-0 flex-1 p-2.5"
-						bind:value={form.notes}
-						placeholder="為這個實例寫點筆記…"
-						aria-label="實例記事"
-					></textarea>
+					<Textarea class="min-h-0 flex-1 p-2.5" bind:value={form.notes} placeholder="為這個實例寫點筆記…" aria-label="實例記事" />
 				{:else if page === 'logs'}
 					<div class="flex shrink-0 items-center gap-2.5">
-						<select
-							class="qt-select"
-							value={logFile}
-							onchange={(e) => openLog(e.currentTarget.value)}
-							aria-label="日誌檔案"
-						>
+						<Select value={logFile} onchange={(e) => openLog(e.currentTarget.value)} aria-label="日誌檔案">
 							{#each logFiles as file (file.name)}
 								<option value={file.name}>{file.name}（{formatSize(file.size)}）</option>
 							{:else}
 								<option value="">沒有日誌檔</option>
 							{/each}
-						</select>
-						<label class="qt-search bg-deep">
-							<Icon name="search" size={14} />
-							<input placeholder="搜尋日誌…" bind:value={logSearch} aria-label="搜尋日誌" />
+						</Select>
+						<SearchField
+							class="bg-deep"
+							placeholder="搜尋日誌…"
+							aria-label="搜尋日誌"
+							bind:value={logSearch}
+						>
 							{#if logSearch}
 								<span class="whitespace-nowrap text-faint">{visibleLogLines.length} 行</span>
 							{/if}
-						</label>
+						</SearchField>
 						<span class="flex-1"></span>
-						<button class="qt-button" onclick={() => load('logs', true)}>重新載入</button>
-						<button class="qt-button" onclick={() => openFolder('logs')}>資料夾</button>
+						<Button onclick={() => load('logs', true)}>重新載入</Button>
+						<Button onclick={() => openFolder('logs')}>資料夾</Button>
 					</div>
 
 					<div
@@ -940,25 +896,16 @@
 					</div>
 
 					<div class="flex shrink-0 items-center gap-4.5">
-						<label class="qt-check compact"
-							><input type="checkbox" bind:checked={wrapLines} />自動換行</label
-						>
-						<label class="qt-check compact"
-							><input type="checkbox" bind:checked={colorLog} />彩色輸出</label
-						>
+						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />自動換行</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={colorLog} />彩色輸出</CheckRow>
 					</div>
 
 				{:else}
 					<div class="min-h-0 flex-1 overflow-y-auto pr-1">
-						<div class="qt-group">
-							<span class="qt-group-title">Java</span>
-							<div class="qt-field">
-								<label for="java-path">Java 執行檔</label>
+						<Group title="Java">
+							<Field label="Java 執行檔" for="java-path">
 								<div class="flex items-center gap-1.75">
-									<select
-										class="qt-select min-w-0 flex-1"
-										bind:value={form.javaPath}
-									>
+									<Select class="min-w-0 flex-1" bind:value={form.javaPath}>
 										<option value="">跟隨啟動器設定</option>
 										{#each javaCandidates as java (java.path)}
 											<option value={java.path}>Java {java.version} — {java.path}</option>
@@ -966,100 +913,57 @@
 										{#if form.javaPath && !javaCandidates.some((j) => j.path === form.javaPath)}
 											<option value={form.javaPath}>{form.javaPath}</option>
 										{/if}
-									</select>
-									<button class="qt-button" onclick={() => load('settings', true)}>重新偵測</button>
+									</Select>
+									<Button onclick={() => load('settings', true)}>重新偵測</Button>
 								</div>
-							</div>
+							</Field>
 							<p class="px-0.5 py-1 text-faint">需要 Java {instance.javaVersion} 以上</p>
-						</div>
+						</Group>
 
-						<div class="qt-group" class:checkable-off={!form.settings.overrideMemory}>
-							<span class="qt-group-title">
-								記憶體
+						<Group title="記憶體" disabled={!form.settings.overrideMemory}>
+							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Toggle
-										label="覆寫"
-										bind:checked={form.settings.overrideMemory}
-									/>
+									<Switch label="覆寫" bind:checked={form.settings.overrideMemory} />
 								</span>
-							</span>
-							<div class="qt-field">
-								<label for="mem-min">最小記憶體</label>
+							{/snippet}
+							<Field label="最小記憶體" for="mem-min">
 								<div class="flex items-center gap-1.75">
-									<input
-										id="mem-min"
-										class="qt-input"
-										type="number"
-										style="width:100px"
-										bind:value={form.settings.minMemoryMb}
-									/>
+									<TextInput id="mem-min" type="number" style="width:100px" bind:value={form.settings.minMemoryMb} />
 									<span class="text-muted">MiB</span>
 								</div>
-							</div>
-							<div class="qt-field">
-								<label for="mem-max">最大記憶體</label>
+							</Field>
+							<Field label="最大記憶體" for="mem-max">
 								<div class="flex items-center gap-1.75">
-									<input
-										id="mem-max"
-										class="qt-input"
-										type="number"
-										style="width:100px"
-										bind:value={form.settings.maxMemoryMb}
-									/>
+									<TextInput id="mem-max" type="number" style="width:100px" bind:value={form.settings.maxMemoryMb} />
 									<span class="text-muted">MiB</span>
 								</div>
-							</div>
-						</div>
+							</Field>
+						</Group>
 
-						<div class="qt-group" class:checkable-off={!form.settings.overrideJvmArgs}>
-							<span class="qt-group-title">
-								JVM 參數
+						<Group title="JVM 參數" disabled={!form.settings.overrideJvmArgs}>
+							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Toggle
-										label="覆寫"
-										bind:checked={form.settings.overrideJvmArgs}
-									/>
+									<Switch label="覆寫" bind:checked={form.settings.overrideJvmArgs} />
 								</span>
-							</span>
-							<div class="qt-field">
-								<label for="jvm-args">參數</label>
-								<input
-									id="jvm-args"
-									class="qt-input"
-									bind:value={form.settings.jvmArgs}
-									placeholder="-XX:+UseG1GC"
-								/>
-							</div>
-						</div>
+							{/snippet}
+							<Field label="參數" for="jvm-args">
+								<TextInput id="jvm-args" bind:value={form.settings.jvmArgs} placeholder="-XX:+UseG1GC" />
+							</Field>
+						</Group>
 
-						<div class="qt-group" class:checkable-off={!form.settings.overrideCommands}>
-							<span class="qt-group-title">
-								自訂指令
+						<Group title="自訂指令" disabled={!form.settings.overrideCommands}>
+							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Toggle
-										label="覆寫"
-										bind:checked={form.settings.overrideCommands}
-									/>
+									<Switch label="覆寫" bind:checked={form.settings.overrideCommands} />
 								</span>
-							</span>
-							<div class="qt-field">
-								<label for="pre">啟動前執行</label>
-								<input
-									id="pre"
-									class="qt-input"
-									bind:value={form.settings.preLaunch}
-									placeholder="例如：backup.bat"
-								/>
-							</div>
-							<div class="qt-field">
-								<label for="post">結束後執行</label>
-								<input
-									id="post"
-									class="qt-input"
-									bind:value={form.settings.postExit}
-								/>
-							</div>
-						</div>
+							{/snippet}
+							<Field label="啟動前執行" for="pre">
+								<TextInput id="pre" bind:value={form.settings.preLaunch} placeholder="例如：backup.bat" />
+							</Field>
+							<Field label="結束後執行" for="post">
+								<TextInput id="post" bind:value={form.settings.postExit} />
+							</Field>
+						</Group>
 					</div>
 				{/if}
 			</div>
@@ -1070,13 +974,13 @@
 		{#if status}
 			<span class="mr-auto pl-1 text-muted" role="status">{status}</span>
 		{/if}
-		<button class="qt-button" disabled={!dirty} onclick={save}>儲存</button>
-		<button class="qt-button primary" onclick={saveAndClose}>關閉</button>
+		<Button disabled={!dirty} onclick={save}>儲存</Button>
+		<Button variant="primary" onclick={saveAndClose}>關閉</Button>
 	{/snippet}
 </WindowShell>
 
 {#if versionDialog}
-	<Window title="變更版本" width="720px" height="560px" onclose={() => (versionDialog = null)}>
+	<Dialog title="變更版本" width="720px" height="560px" onclose={() => (versionDialog = null)}>
 		<div class="flex min-h-0 flex-1 flex-col gap-3 px-4.5 py-4">
 			<p class="shrink-0 text-muted">世界與模組留在原地，但模組不一定相容新版本。</p>
 			<VersionPicker
@@ -1087,21 +991,17 @@
 			/>
 		</div>
 		{#snippet footer()}
-			<button
-				class="qt-button primary"
-				disabled={!versionDialog?.mcVersion}
-				onclick={() => versionDialog && reinstall({ ...versionDialog })}
-			>
+			<Button variant="primary" disabled={!versionDialog?.mcVersion} onclick={() => versionDialog && reinstall({ ...versionDialog })}>
 				安裝
-			</button>
-			<button class="qt-button" onclick={() => (versionDialog = null)}>取消</button>
+			</Button>
+			<Button onclick={() => (versionDialog = null)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if packUpdate}
 	{@const result = packUpdate}
-	<Window title="模組包已更新" width="560px" height="480px" onclose={() => (packUpdate = null)}>
+	<Dialog title="模組包已更新" width="560px" height="480px" onclose={() => (packUpdate = null)}>
 		<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4.5 py-4">
 			<p>
 				已更新為 <b>{result.instance.versionId || instance.versionId}</b>
@@ -1120,9 +1020,9 @@
 							<span class="min-w-0 flex-1 truncate">{item.name}</span>
 							<span class="font-mono text-[11px] text-muted">{item.dest}</span>
 							{#if item.website}
-								<button class="qt-button" onclick={() => api.openExternal(item.website!)}>
+								<Button onclick={() => api.openExternal(item.website!)}>
 									開啟頁面
-								</button>
+								</Button>
 							{/if}
 						</div>
 					{/each}
@@ -1156,14 +1056,14 @@
 			{/if}
 		</div>
 		{#snippet footer()}
-			<button class="qt-button primary" onclick={() => (packUpdate = null)}>關閉</button>
+			<Button variant="primary" onclick={() => (packUpdate = null)}>關閉</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if browse}
 	{@const kind = browse}
-	<Window title={BROWSE_TITLES[kind]} width="940px" height="660px" onclose={() => (browse = null)}>
+	<Dialog title={BROWSE_TITLES[kind]} width="940px" height="660px" onclose={() => (browse = null)}>
 		<div class="flex min-h-0 flex-1 flex-col px-4.5 py-4">
 			<ContentBrowser
 				{baseDir}
@@ -1175,7 +1075,7 @@
 				}}
 			/>
 		</div>
-	</Window>
+	</Dialog>
 {/if}
 
 {#if busy}

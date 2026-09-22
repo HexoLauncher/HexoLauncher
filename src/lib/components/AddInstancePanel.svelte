@@ -1,9 +1,9 @@
 <script lang="ts">
-	import Icon from '$lib/Icon.svelte';
+	import { Button, CheckRow, Field, Menu, Select, Table, TableBox, TextInput } from '$lib/ui';
+	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import WindowShell from './WindowShell.svelte';
-	import PageList from './PageList.svelte';
-	import Menu from './Menu.svelte';
+	import NavList from '$lib/ui/NavList.svelte';
 	import ModpackBrowser from './ModpackBrowser.svelte';
 	import VersionPicker from './VersionPicker.svelte';
 	import * as api from '$lib/api';
@@ -65,7 +65,6 @@
 	let loader = $state<LoaderKind>('fabric');
 	let mcVersion = $state('');
 	let loaderVersion = $state('');
-	let iconMenu = $state(false);
 
 	let busy = $state('');
 	let error = $state('');
@@ -341,52 +340,40 @@
 
 {#snippet identity(placeholder: string)}
 	<div class="flex shrink-0 items-start gap-3">
-		<div class="relative">
-			<button
-				class="qt-button size-14.5 rounded-lg p-0"
-				aria-label="選擇圖示"
-				onclick={() => (iconMenu = !iconMenu)}
-			>
-				<InstanceIcon name={icon} size={34} />
-			</button>
-			<Menu open={iconMenu} onclose={() => (iconMenu = false)} width="228px">
-				<div class="grid grid-cols-5 gap-0.75 p-0.75">
-					{#each ICON_CHOICES as choice (choice)}
-						<button
-							class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-white/10 {icon ===
-							choice
-								? 'border-brand bg-brand-soft'
-								: ''}"
-							aria-label={choice}
-							onclick={() => (icon = choice)}
-						>
-							<InstanceIcon name={choice} size={30} />
-						</button>
-					{/each}
-				</div>
-			</Menu>
-		</div>
-
-		<div class="min-w-0 flex-1 [&_.qt-field]:grid-cols-[48px_1fr]">
-			<div class="qt-field">
-				<label for="inst-name">名稱</label>
-				<input id="inst-name" class="qt-input" bind:value={name} {placeholder} />
+		<Menu width="228px">
+			{#snippet trigger(attrs)}
+				<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label="選擇圖示">
+					<InstanceIcon name={icon} size={34} />
+				</Button>
+			{/snippet}
+			<div class="grid grid-cols-5 gap-0.75 p-0.75">
+				{#each ICON_CHOICES as choice (choice)}
+					<button
+						class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-hover {icon ===
+						choice
+							? 'border-brand bg-brand-soft'
+							: ''}"
+						aria-label={choice}
+						onclick={() => (icon = choice)}
+					>
+						<InstanceIcon name={choice} size={30} />
+					</button>
+				{/each}
 			</div>
-			<div class="qt-field">
-				<label for="inst-group">群組</label>
-				<input
-					id="inst-group"
-					class="qt-input"
-					bind:value={group}
-					list="group-suggestions"
-					placeholder="（未分組）"
-				/>
+		</Menu>
+
+		<div class="min-w-0 flex-1 [--field-label:48px]">
+			<Field label="名稱" for="inst-name">
+				<TextInput id="inst-name" bind:value={name} {placeholder} />
+			</Field>
+			<Field label="群組" for="inst-group">
+				<TextInput id="inst-group" bind:value={group} list="group-suggestions" placeholder="（未分組）" />
 				<datalist id="group-suggestions">
 					{#each groups as g (g)}
 						<option value={g}></option>
 					{/each}
 				</datalist>
-			</div>
+			</Field>
 		</div>
 	</div>
 {/snippet}
@@ -417,7 +404,7 @@
 <WindowShell>
 	<div class="flex min-h-0 flex-1">
 		{#if !result && !foreignResult}
-			<PageList {pages} selected={page} onselect={selectPage} width="162px" />
+			<NavList {pages} selected={page} onselect={selectPage} width="162px" />
 		{/if}
 
 		<div class="flex min-w-0 flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 py-4">
@@ -472,17 +459,13 @@
 								</div>
 								{#if file.website}
 									{@const website = file.website}
-									<button class="qt-button" onclick={() => attempt(api.openExternal(website))}>
+									<Button onclick={() => attempt(api.openExternal(website))}>
 										<Icon name="globe" size={13} />下載頁面
-									</button>
+									</Button>
 								{/if}
-								<button
-									class="qt-button"
-									onclick={() =>
-										attempt(api.openInstanceFolder(baseDir, done.instance.id, file.folder))}
-								>
+								<Button onclick={() => attempt(api.openInstanceFolder(baseDir, done.instance.id, file.folder))}>
 									<Icon name="folder" size={13} />資料夾
-								</button>
+								</Button>
 							</li>
 						{/each}
 					</ul>
@@ -518,20 +501,12 @@
 					onError={(message) => (error = message)}
 				/>
 			{:else if page === 'modpack'}
-				<div class="qt-field">
-					<label for="pack-path">模組包</label>
+				<Field label="模組包" for="pack-path">
 					<div class="flex gap-1.75">
-						<input
-							id="pack-path"
-							class="qt-input min-w-0 flex-1"
-							bind:value={packPath}
-							oninput={() => (filePreview = null)}
-							onchange={inspectPack}
-							placeholder="Modrinth 的 .mrpack，或 CurseForge 的 .zip"
-						/>
-						<button class="qt-button" disabled={!!busy} onclick={pickPack}>瀏覽…</button>
+						<TextInput class="min-w-0 flex-1" id="pack-path" bind:value={packPath} oninput={() => (filePreview = null)} onchange={inspectPack} placeholder="Modrinth 的 .mrpack，或 CurseForge 的 .zip" />
+						<Button disabled={!!busy} onclick={pickPack}>瀏覽…</Button>
 					</div>
-				</div>
+				</Field>
 
 				{#if filePreview}
 					{@render identity(filePreview.name)}
@@ -548,16 +523,9 @@
 				{/if}
 			{:else if page === 'launcher'}
 				<div class="flex min-h-0 flex-1 flex-col gap-3">
-					<div class="qt-field">
-						<label for="foreign-src">來源</label>
+					<Field label="來源" for="foreign-src">
 						<div class="flex gap-1.75">
-							<select
-								id="foreign-src"
-								class="qt-select min-w-0 flex-1"
-								disabled={!!busy}
-								value={launcherPath}
-								onchange={(e) => selectLauncher(e.currentTarget.value)}
-							>
+							<Select class="min-w-0 flex-1" id="foreign-src" disabled={!!busy} value={launcherPath} onchange={(e) => selectLauncher(e.currentTarget.value)}>
 								{#if launchers.length === 0 && !launcherPath}
 									<option value="">（沒有偵測到 Prism Launcher / PolyMC / MultiMC）</option>
 								{/if}
@@ -569,13 +537,13 @@
 								{#if launcherPath && !launchers.some((l) => l.path === launcherPath)}
 									<option value={launcherPath}>{launcherPath}</option>
 								{/if}
-							</select>
-							<button class="qt-button" disabled={!!busy} onclick={pickLauncherDir}>瀏覽…</button>
+							</Select>
+							<Button disabled={!!busy} onclick={pickLauncherDir}>瀏覽…</Button>
 						</div>
-					</div>
+					</Field>
 
-					<div class="qt-table-wrap">
-						<table class="qt-table">
+					<TableBox>
+						<Table>
 							<thead>
 								<tr>
 									<th style="width:34px">
@@ -619,32 +587,25 @@
 									</tr>
 								{/each}
 							</tbody>
-						</table>
+						</Table>
 						{#if foreign.length === 0}
 							<p class="px-3 py-4 text-center text-muted">
 								選一個啟動器的資料目錄，或它的 instances 資料夾。
 							</p>
 						{/if}
-					</div>
+					</TableBox>
 
-					<div class="qt-field">
-						<label for="foreign-group">群組</label>
-						<input
-							id="foreign-group"
-							class="qt-input"
-							bind:value={group}
-							list="group-suggestions"
-							placeholder="（未分組）"
-						/>
+					<Field label="群組" for="foreign-group">
+						<TextInput id="foreign-group" bind:value={group} list="group-suggestions" placeholder="（未分組）" />
 						<datalist id="group-suggestions">
 							{#each groups as g (g)}
 								<option value={g}></option>
 							{/each}
 						</datalist>
-					</div>
+					</Field>
 
 					<div class="flex shrink-0 flex-col">
-						<label class="qt-check items-start">
+						<CheckRow class="items-start">
 							<input type="radio" class="mt-[3px]" value="copy" bind:group={importMode} />
 							<span class="min-w-0">
 								<span class="text-ink">複製一份</span>
@@ -652,8 +613,8 @@
 									把遊戲目錄整份複製過來，兩邊各玩各的，但硬碟會多放一份。
 								</span>
 							</span>
-						</label>
-						<label class="qt-check items-start">
+						</CheckRow>
+						<CheckRow class="items-start">
 							<input type="radio" class="mt-[3px]" value="link" bind:group={importMode} />
 							<span class="min-w-0">
 								<span class="text-ink">建立連結</span>
@@ -661,32 +622,26 @@
 									直接指向原本的遊戲目錄，存檔與模組兩邊共用，不佔額外空間。不要兩個啟動器同時開同一個實例。
 								</span>
 							</span>
-						</label>
+						</CheckRow>
 					</div>
 				</div>
 			{:else}
 				<div class="flex min-h-0 flex-1 flex-col gap-3">
-					<div class="qt-field">
-						<label for="zip-path">壓縮檔</label>
+					<Field label="壓縮檔" for="zip-path">
 						<div class="flex gap-1.75">
-							<input
-								id="zip-path"
-								class="qt-input min-w-0 flex-1"
-								bind:value={zipPath}
-								placeholder="選擇由「匯出實例」產生的 .zip"
-							/>
-							<button class="qt-button" onclick={pickZip}>瀏覽…</button>
+							<TextInput class="min-w-0 flex-1" id="zip-path" bind:value={zipPath} placeholder="選擇由「匯出實例」產生的 .zip" />
+							<Button onclick={pickZip}>瀏覽…</Button>
 						</div>
-					</div>
+					</Field>
 
 					<p class="px-0.5 leading-[1.8] text-faint">
 						也可以直接把整個實例資料夾複製到實例目錄底下。
 					</p>
 
 					<div class="flex gap-1.75">
-						<button class="qt-button" onclick={() => api.openLauncherFolder('instances')}>
+						<Button onclick={() => api.openLauncherFolder('instances')}>
 							開啟實例資料夾
-						</button>
+						</Button>
 					</div>
 				</div>
 			{/if}
@@ -710,22 +665,19 @@
 		{/if}
 		{#if foreignResult}
 			{@const first = foreignResult.imported[0]}
-			<button
-				class="qt-button primary"
-				onclick={() => (first ? oncreated(first) : onclose())}
-			>
+			<Button variant="primary" onclick={() => (first ? oncreated(first) : onclose())}>
 				<Icon name="check" size={13} />完成
-			</button>
+			</Button>
 		{:else if result}
 			{@const done = result}
-			<button class="qt-button primary" onclick={() => oncreated(done.instance)}>
+			<Button variant="primary" onclick={() => oncreated(done.instance)}>
 				<Icon name="check" size={13} />完成
-			</button>
+			</Button>
 		{:else}
-			<button class="qt-button primary" disabled={!action.ready || !!busy} onclick={action.run}>
+			<Button variant="primary" disabled={!action.ready || !!busy} onclick={action.run}>
 				<Icon name={action.icon} size={13} />{action.label}
-			</button>
-			<button class="qt-button" disabled={!!busy} onclick={onclose}>取消</button>
+			</Button>
+			<Button disabled={!!busy} onclick={onclose}>取消</Button>
 		{/if}
 	{/snippet}
 </WindowShell>

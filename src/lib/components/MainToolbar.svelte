@@ -1,7 +1,6 @@
 <script lang="ts">
-	import Icon from '$lib/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
-	import Menu from './Menu.svelte';
+	import { Icon, Menu, MenuItem, MenuLabel, MenuSeparator, ToolButton } from '$lib/ui';
 	import type { AccountView, LauncherFolder, UiConfig } from '$lib/api';
 
 	let {
@@ -32,147 +31,117 @@
 	const onInstances = $derived(currentPath === '/');
 	const onSettings = $derived(currentPath.startsWith('/settings'));
 	const current = $derived(accounts.find((a) => a.selected) ?? null);
-
-	let mainMenu = $state(false);
-	let folderMenu = $state(false);
-	let accountMenu = $state(false);
 </script>
 
+{#snippet caption(text: string)}
+	<span class="flex items-center gap-1 text-[11.5px] font-medium">{text}</span>
+{/snippet}
+
 <div class="toolbar flex shrink-0 items-stretch gap-1 border-b border-line bg-window px-3 py-2">
-	<div class="relative flex">
-		<button
-			class="tool-button w-9.5 justify-center"
-			aria-label="主選單"
-			title="主選單"
-			onclick={() => (mainMenu = !mainMenu)}
-		>
-			<Icon name="menu" size={18} />
-		</button>
-		<Menu open={mainMenu} onclose={() => (mainMenu = false)} width="236px">
-			<button class="qt-menu-item" onclick={onAddInstance}>
-				<span class="check-slot"></span>新增實例…<span class="shortcut">Ctrl+N</span>
-			</button>
-			<hr />
-			<div class="qt-menu-label">資料夾</div>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('instances')}>
-				<span class="check-slot"></span>實例資料夾
-			</button>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('base')}>
-				<span class="check-slot"></span>資料根目錄
-			</button>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('store')}>
-				<span class="check-slot"></span>啟動器設定資料夾
-			</button>
-			<hr />
-			<div class="qt-menu-label">檢視</div>
-			<button class="qt-menu-item" onclick={() => onNavigate('/')}>
-				<span class="check-slot">{onInstances ? '✓' : ''}</span>遊戲實例
-			</button>
-			<button class="qt-menu-item" onclick={() => onNavigate('/settings')}>
-				<span class="check-slot">{onSettings ? '✓' : ''}</span>設定
-			</button>
-			<hr />
-			<button class="qt-menu-item" onclick={() => onToggleView('instanceToolbar')}>
-				<span class="check-slot">{view.instanceToolbar ? '✓' : ''}</span>實例工具列
-			</button>
-			<button class="qt-menu-item" onclick={() => onToggleView('statusBar')}>
-				<span class="check-slot">{view.statusBar ? '✓' : ''}</span>狀態列
-			</button>
-			<hr />
-			<button class="qt-menu-item" onclick={onAbout}>
-				<span class="check-slot"></span>關於 Hexo Launcher
-			</button>
-		</Menu>
-	</div>
+	<Menu width="236px">
+		{#snippet trigger(attrs)}
+			<ToolButton
+				{...attrs}
+				layout="bare"
+				icon="menu"
+				iconSize={18}
+				class="w-9.5 justify-center"
+				aria-label="主選單"
+				title="主選單"
+			/>
+		{/snippet}
+
+		<MenuItem checked={false} shortcut="Ctrl+N" onclick={onAddInstance}>新增實例…</MenuItem>
+		<MenuSeparator />
+		<MenuLabel>資料夾</MenuLabel>
+		<MenuItem checked={false} onclick={() => onOpenFolder('instances')}>實例資料夾</MenuItem>
+		<MenuItem checked={false} onclick={() => onOpenFolder('base')}>資料根目錄</MenuItem>
+		<MenuItem checked={false} onclick={() => onOpenFolder('store')}>啟動器設定資料夾</MenuItem>
+		<MenuSeparator />
+		<MenuLabel>檢視</MenuLabel>
+		<MenuItem checked={onInstances} onclick={() => onNavigate('/')}>遊戲實例</MenuItem>
+		<MenuItem checked={onSettings} onclick={() => onNavigate('/settings')}>設定</MenuItem>
+		<MenuSeparator />
+		<MenuItem checked={view.instanceToolbar} onclick={() => onToggleView('instanceToolbar')}>
+			實例工具列
+		</MenuItem>
+		<MenuItem checked={view.statusBar} onclick={() => onToggleView('statusBar')}>狀態列</MenuItem>
+		<MenuSeparator />
+		<MenuItem checked={false} onclick={onAbout}>關於 Hexo Launcher</MenuItem>
+	</Menu>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>
 
+	<ToolButton icon="grid" active={onInstances} aria-current={onInstances} onclick={() => onNavigate('/')}>
+		{@render caption('遊戲實例')}
+	</ToolButton>
 
-	<button
-		class="tool-button under"
-		class:active={onInstances}
-		aria-current={onInstances}
-		onclick={() => onNavigate('/')}
-	>
-		<Icon name="grid" size={22} />
-		<span class="flex items-center gap-1 text-[11.5px] font-medium">遊戲實例</span>
-	</button>
-
-	<button
-		class="tool-button under"
-		class:active={onSettings}
+	<ToolButton
+		icon="settings"
+		active={onSettings}
 		aria-current={onSettings}
 		onclick={() => onNavigate('/settings')}
 	>
-		<Icon name="settings" size={22} />
-		<span class="flex items-center gap-1 text-[11.5px] font-medium">設定</span>
-	</button>
+		{@render caption('設定')}
+	</ToolButton>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>
 
+	<ToolButton icon="plus" onclick={onAddInstance}>
+		{@render caption('新增實例')}
+	</ToolButton>
 
-	<button class="tool-button under" onclick={onAddInstance}>
-		<Icon name="plus" size={22} />
-		<span class="flex items-center gap-1 text-[11.5px] font-medium">新增實例</span>
-	</button>
+	<Menu width="200px">
+		{#snippet trigger(attrs)}
+			<ToolButton {...attrs} icon="folder">
+				<span class="flex items-center gap-1 text-[11.5px] font-medium">
+					資料夾 <Icon name="caret" size={9} />
+				</span>
+			</ToolButton>
+		{/snippet}
 
-	<div class="relative flex">
-		<button class="tool-button under" onclick={() => (folderMenu = !folderMenu)}>
-			<Icon name="folder" size={22} />
-			<span class="flex items-center gap-1 text-[11.5px] font-medium">
-				資料夾 <Icon name="caret" size={9} />
-			</span>
-		</button>
-		<Menu open={folderMenu} onclose={() => (folderMenu = false)} width="200px">
-			<button class="qt-menu-item" onclick={() => onOpenFolder('instances')}>
-				<Icon name="folder" size={14} />實例資料夾
-			</button>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('base')}>
-				<Icon name="folder" size={14} />資料根目錄
-			</button>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('java')}>
-				<Icon name="coffee" size={14} />下載的 Java
-			</button>
-			<button class="qt-menu-item" onclick={() => onOpenFolder('store')}>
-				<Icon name="settings" size={14} />啟動器設定資料夾
-			</button>
-		</Menu>
-	</div>
+		<MenuItem icon="folder" onclick={() => onOpenFolder('instances')}>實例資料夾</MenuItem>
+		<MenuItem icon="folder" onclick={() => onOpenFolder('base')}>資料根目錄</MenuItem>
+		<MenuItem icon="coffee" onclick={() => onOpenFolder('java')}>下載的 Java</MenuItem>
+		<MenuItem icon="settings" onclick={() => onOpenFolder('store')}>啟動器設定資料夾</MenuItem>
+	</Menu>
 
 	<span class="flex-1"></span>
 
-	<div class="relative flex">
+	<Menu width="240px" placement="bottom-end">
+		{#snippet trigger(attrs)}
+			<ToolButton
+				{...attrs}
+				layout="bare"
+				class="max-w-52.5 gap-2.25 py-1 pr-3.25 pl-1.25 not-disabled:hover:bg-btn-hi"
+			>
+				<span class="grid place-items-center rounded-full bg-card p-1">
+					<InstanceIcon name="steve" size={22} />
+				</span>
+				<span class="overflow-hidden font-medium text-ellipsis whitespace-nowrap text-ink">
+					{current?.playerName ?? '尚未登入'}
+				</span>
+				<Icon name="caret" size={9} />
+			</ToolButton>
+		{/snippet}
 
-		<button
-			class="tool-button max-w-52.5 gap-2.25 py-1 pl-1.25 pr-3.25
-				not-disabled:hover:bg-btn-hi"
-			onclick={() => (accountMenu = !accountMenu)}
-		>
-			<span class="grid place-items-center rounded-full bg-card p-1">
-				<InstanceIcon name="steve" size={22} />
-			</span>
-			<span class="overflow-hidden text-ellipsis whitespace-nowrap font-medium text-ink">
-				{current?.playerName ?? '尚未登入'}
-			</span>
-			<Icon name="caret" size={9} />
-		</button>
-		<Menu open={accountMenu} onclose={() => (accountMenu = false)} align="right" width="240px">
-			<div class="qt-menu-label">帳號</div>
-			{#each accounts as item (item.id)}
-				<button class="qt-menu-item" onclick={() => onSelectAccount(item.id)}>
-					<span class="check-slot">{item.selected ? '✓' : ''}</span>
-					{item.playerName}
-					<span class="shortcut">
-						{item.kind === 'microsoft' ? (item.expired ? '需重新登入' : 'Microsoft') : '離線'}
-					</span>
-				</button>
-			{:else}
-				<div class="px-3 py-2 text-faint">還沒有任何帳號</div>
-			{/each}
-			<hr />
-			<button class="qt-menu-item" onclick={onManageAccounts}>
-				<span class="check-slot"></span>管理帳號…
-			</button>
-		</Menu>
-	</div>
+		<MenuLabel>帳號</MenuLabel>
+		{#each accounts as item (item.id)}
+			<MenuItem
+				checked={item.selected}
+				shortcut={item.kind === 'microsoft'
+					? item.expired
+						? '需重新登入'
+						: 'Microsoft'
+					: '離線'}
+				onclick={() => onSelectAccount(item.id)}
+			>
+				{item.playerName}
+			</MenuItem>
+		{:else}
+			<div class="px-3 py-2 text-faint">還沒有任何帳號</div>
+		{/each}
+		<MenuSeparator />
+		<MenuItem checked={false} onclick={onManageAccounts}>管理帳號…</MenuItem>
+	</Menu>
 </div>

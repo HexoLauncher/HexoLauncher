@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { Button, CheckRow, Pill, Select, TextInput } from '$lib/ui';
 	import { onMount } from 'svelte';
-	import Icon from '$lib/Icon.svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 	import * as api from '$lib/api';
 	import type {
 		ContentDetail,
@@ -259,30 +260,23 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
-		<select class="qt-select w-28" bind:value={platform} onchange={reset} aria-label="平台">
+		<Select class="w-28" bind:value={platform} onchange={reset} aria-label="平台">
 			{#each PLATFORMS as p (p.id)}
 				<option value={p.id}>{p.label}</option>
 			{/each}
-		</select>
-		<input
-			class="qt-input min-w-0 flex-1"
-			bind:value={query}
-			oninput={searchSoon}
-			onkeydown={(e) => e.key === 'Enter' && search()}
-			placeholder={TEXT[kind].search}
-			aria-label={TEXT[kind].search}
-		/>
-		<select class="qt-select w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
+		</Select>
+		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={TEXT[kind].search} aria-label={TEXT[kind].search} />
+		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
 			{#each SORTS as s (s.id)}
 				<option value={s.id}>{s.label}</option>
 			{/each}
-		</select>
+		</Select>
 	</div>
 
-	<label class="qt-check compact shrink-0">
+	<CheckRow compact class="shrink-0">
 		<input type="checkbox" bind:checked={matchVersion} onchange={reset} />
 		只顯示相容 {compatLabel} 的版本
-	</label>
+	</CheckRow>
 
 	<div class="flex min-h-0 flex-1 gap-2.5">
 		<div
@@ -334,13 +328,13 @@
 					</span>
 				{:else if message}
 					<span class="leading-[1.7] text-danger">{message}</span>
-					<button class="qt-button" onclick={() => search(hits.length > 0)}>重試</button>
+					<Button onclick={() => search(hits.length > 0)}>重試</Button>
 				{:else if hits.length === 0}
 					<span>{TEXT[kind].empty}</span>
 				{:else if nextOffset !== null}
-					<button class="qt-button" onclick={() => search(true)}>
+					<Button onclick={() => search(true)}>
 						載入更多（{hits.length} / {total}）
-					</button>
+					</Button>
 				{:else}
 					<span class="text-faint">共 {total} 個</span>
 				{/if}
@@ -409,10 +403,10 @@
 						{#if info.categories.length || info.loaders.length}
 							<div class="flex flex-wrap gap-1.5">
 								{#each info.loaders as name (name)}
-									<span class="pill accent">{name}</span>
+									<Pill accent>{name}</Pill>
 								{/each}
 								{#each info.categories as name (name)}
-									<span class="pill">{name}</span>
+									<Pill>{name}</Pill>
 								{/each}
 							</div>
 						{/if}
@@ -453,9 +447,9 @@
 						{#if info.links.length}
 							<div class="flex flex-wrap gap-1.75">
 								{#each info.links as link (link.url)}
-									<button class="qt-button" onclick={() => openSite(link.url)}>
+									<Button onclick={() => openSite(link.url)}>
 										<Icon name="globe" size={13} />{link.label}
-									</button>
+									</Button>
 								{/each}
 							</div>
 						{/if}
@@ -467,13 +461,7 @@
 				<div class="flex shrink-0 items-center gap-2.5">
 					<label class="flex min-w-0 flex-1 items-center gap-2 text-muted">
 						版本
-						<select
-							class="qt-select min-w-0 flex-1"
-							value={version?.id ?? ''}
-							onchange={(e) =>
-								(version = versions.find((v) => v.id === e.currentTarget.value) ?? null)}
-							disabled={busy || loadingVersions || versions.length === 0}
-						>
+						<Select class="min-w-0 flex-1" value={version?.id ?? ''} onchange={(e) => (version = versions.find((v) => v.id === e.currentTarget.value) ?? null)} disabled={busy || loadingVersions || versions.length === 0}>
 							{#if loadingVersions}
 								<option value="">讀取版本中…</option>
 							{:else if versions.length === 0}
@@ -482,15 +470,11 @@
 							{#each versions as v (v.id)}
 								<option value={v.id}>{versionLabel(v)}</option>
 							{/each}
-						</select>
+						</Select>
 					</label>
-					<button
-						class="qt-button primary"
-						disabled={busy || !version || !version.downloadable}
-						onclick={install}
-					>
+					<Button variant="primary" disabled={busy || !version || !version.downloadable} onclick={install}>
 						<Icon name="download" size={13} />安裝
-					</button>
+					</Button>
 				</div>
 			{/if}
 		</div>

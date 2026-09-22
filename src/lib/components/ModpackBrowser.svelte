@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { Button, Select, TextInput } from '$lib/ui';
 	import { onMount } from 'svelte';
-	import Icon from '$lib/Icon.svelte';
-	import Toggle from './Toggle.svelte';
+	import Icon from '$lib/ui/Icon.svelte';
+	import Switch from '$lib/ui/Switch.svelte';
 	import * as api from '$lib/api';
 	import type { ModpackPlatform, ModpackSort, PackHit, RemoteVersion } from '$lib/api';
 	import { formatDate } from '$lib/format';
@@ -149,26 +150,13 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
-		<input
-			class="qt-input min-w-0 flex-1"
-			bind:value={query}
-			oninput={searchSoon}
-			onkeydown={(e) => e.key === 'Enter' && search()}
-			placeholder="搜尋模組包"
-			aria-label="搜尋模組包"
-		/>
-		<input
-			class="qt-input w-24"
-			bind:value={mcVersion}
-			onchange={() => search()}
-			placeholder="MC 版本"
-			aria-label="Minecraft 版本"
-		/>
-		<select class="qt-select w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
+		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder="搜尋模組包" aria-label="搜尋模組包" />
+		<TextInput class="w-24" bind:value={mcVersion} onchange={() => search()} placeholder="MC 版本" aria-label="Minecraft 版本" />
+		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
 			{#each sorts as s (s.id)}
 				<option value={s.id}>{s.label}</option>
 			{/each}
-		</select>
+		</Select>
 	</div>
 
 	<div
@@ -223,13 +211,13 @@
 				</span>
 			{:else if message}
 				<span class="leading-[1.7] text-danger">{message}</span>
-				<button class="qt-button" onclick={() => search(hits.length > 0)}>重試</button>
+				<Button onclick={() => search(hits.length > 0)}>重試</Button>
 			{:else if hits.length === 0}
 				<span>找不到符合的模組包</span>
 			{:else if nextOffset !== null}
-				<button class="qt-button" onclick={() => search(true)}>
+				<Button onclick={() => search(true)}>
 					載入更多（{hits.length} / {total}）
-				</button>
+				</Button>
 			{:else}
 				<span class="text-faint">共 {total} 個</span>
 			{/if}
@@ -241,13 +229,7 @@
 		<div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
 			<label class="flex min-w-0 flex-1 items-center gap-2 text-muted">
 				版本
-				<select
-					class="qt-select min-w-0 flex-1"
-					value={version?.id ?? ''}
-					onchange={(e) =>
-						(version = versions.find((v) => v.id === e.currentTarget.value) ?? null)}
-					disabled={disabled || loadingVersions || versions.length === 0}
-				>
+				<Select class="min-w-0 flex-1" value={version?.id ?? ''} onchange={(e) => (version = versions.find((v) => v.id === e.currentTarget.value) ?? null)} disabled={disabled || loadingVersions || versions.length === 0}>
 					{#if loadingVersions}
 						<option value="">讀取版本中…</option>
 					{:else if versions.length === 0}
@@ -256,19 +238,16 @@
 					{#each versions as v (v.id)}
 						<option value={v.id}>{versionLabel(v)}</option>
 					{/each}
-				</select>
+				</Select>
 			</label>
 			{#if hasOptional}
-				<Toggle bind:checked={includeOptional} label="安裝選用模組" {disabled} />
+				<Switch bind:checked={includeOptional} label="安裝選用模組" {disabled} />
 			{/if}
 			{#if selected.website}
 				{@const website = selected.website}
-				<button
-					class="qt-button"
-					onclick={() => api.openExternal(website).catch((e) => onerror(api.errorMessage(e)))}
-				>
+				<Button onclick={() => api.openExternal(website).catch((e) => onerror(api.errorMessage(e)))}>
 					<Icon name="globe" size={13} />網站
-				</button>
+				</Button>
 			{/if}
 		</div>
 	{/if}

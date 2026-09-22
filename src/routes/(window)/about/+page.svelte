@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Button } from '$lib/ui';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import WindowShell from '$lib/components/WindowShell.svelte';
 	import * as api from '$lib/api';
@@ -32,6 +33,6 @@
 	</div>
 
 	{#snippet footer()}
-		<button class="qt-button primary" onclick={closeSelf}>關閉</button>
+		<Button variant="primary" onclick={closeSelf}>關閉</Button>
 	{/snippet}
 </WindowShell>

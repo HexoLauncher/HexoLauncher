@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Icon from '$lib/Icon.svelte';
+	import { Button, ContextMenu, Icon, MenuItem, MenuSeparator, Pill, SearchField, Spinner } from '$lib/ui';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import type { InstanceView } from '$lib/api';
 	import { formatDate, loaderLabel } from '$lib/format';
@@ -88,12 +88,16 @@
 
 <div class="flex min-w-0 flex-1 flex-col bg-deep">
 	<div class="flex shrink-0 items-center gap-3 px-3.5 py-2.25">
-		<label class="qt-search max-w-105 flex-1 bg-window">
-			<Icon name="search" size={15} />
-			<input placeholder="搜尋實例…" bind:value={search} aria-label="搜尋實例" />
+		<div class="flex max-w-105 flex-1 items-center">
+			<SearchField
+				class="w-full bg-window"
+				placeholder="搜尋實例…"
+				aria-label="搜尋實例"
+				bind:value={search}
+			/>
 			{#if search}
 				<button
-					class="grid size-4.75 place-items-center rounded-full bg-btn text-muted
+					class="-ml-8 grid size-4.75 shrink-0 place-items-center rounded-full bg-btn text-muted
 						transition-colors duration-150 hover:bg-btn-hi hover:text-ink"
 					aria-label="清除搜尋"
 					onclick={() => (search = '')}
@@ -101,7 +105,7 @@
 					<Icon name="close" size={12} />
 				</button>
 			{/if}
-		</label>
+		</div>
 		<span class="ml-auto text-faint">{matches.length} / {instances.length}</span>
 	</div>
 
@@ -125,7 +129,7 @@
 						<Icon name="caret" size={11} />
 					</span>
 					{label(section.group)}
-					<span class="pill px-2 py-px text-[11px]">{section.items.length}</span>
+					<Pill class="px-2 py-px text-[11px]">{section.items.length}</Pill>
 				</button>
 				<span class="h-px flex-1 bg-linear-to-r from-line to-transparent"></span>
 			</div>
@@ -176,18 +180,6 @@
 								<span class="text-[11.5px] text-faint">{item.versionId || '—'}</span>
 							</button>
 
-
-							<button
-								class="pointer-events-none absolute right-3 top-11.5 grid size-7.5 scale-70 place-items-center
-									rounded-full bg-brand pl-0.5 text-brand-ink opacity-0 shadow-md
-									transition-[opacity,transform,background-color] duration-150 hover:bg-brand-hi
-									group-hover:not-disabled:pointer-events-auto group-hover:not-disabled:scale-100
-									group-hover:not-disabled:opacity-100"
-								aria-label={isRunning ? `終止 ${item.name}` : `啟動 ${item.name}`}
-								onclick={() => (isRunning ? onKill(item.id) : onLaunch(item.id))}
-							>
-								<Icon name={isRunning ? 'stop' : 'play'} size={15} />
-							</button>
 						</div>
 					{/each}
 				</div>
@@ -197,12 +189,12 @@
 		{#if grouped.length === 0}
 			<div class="flex flex-col items-center gap-3.5 py-17.5 text-muted">
 				{#if loading}
-					<span class="size-6 animate-spin rounded-full border-2 border-line border-t-brand"></span>
+					<Spinner size={24} />
 					<p>正在讀取實例…</p>
 				{:else if search}
 					<Icon name="search" size={34} />
 					<p>沒有符合「{search}」的實例。</p>
-					<button class="qt-button" onclick={() => (search = '')}>清除搜尋</button>
+					<Button onclick={() => (search = '')}>清除搜尋</Button>
 				{:else}
 					<Icon name="grid" size={34} />
 					<p>還沒有任何實例。</p>
@@ -214,45 +206,25 @@
 
 {#if context}
 	{@const item = instances.find((i) => i.id === context?.id)}
-	<button type="button" class="qt-menu-scrim" aria-label="關閉選單" onclick={() => (context = null)}
-	></button>
-	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-	<div
-		class="qt-menu fixed left-0 top-0 min-w-46"
-		style:left={`${context.x}px`}
-		style:top={`${context.y}px`}
-		onclick={() => (context = null)}
-	>
-		<button class="qt-menu-item" onclick={() => onLaunch(context!.id)}>
-			<Icon name="play" size={14} />啟動
-		</button>
-		<button
-			class="qt-menu-item"
+	<ContextMenu x={context.x} y={context.y} width="184px" onclose={() => (context = null)}>
+		<MenuItem icon="play" onclick={() => onLaunch(context!.id)}>啟動</MenuItem>
+		<MenuItem
+			icon="stop"
 			disabled={!running.includes(context.id)}
 			onclick={() => onKill(context!.id)}
 		>
-			<Icon name="stop" size={14} />終止
-		</button>
-		<hr />
-		<button class="qt-menu-item" onclick={() => onEdit(context!.id)}>
-			<Icon name="edit" size={14} />編輯…
-		</button>
-		<button class="qt-menu-item" disabled={item?.healthy} onclick={() => onRepair(context!.id)}>
-			<Icon name="refresh" size={14} />修復／重新安裝
-		</button>
-		<button class="qt-menu-item" onclick={() => onOpenFolder(context!.id)}>
-			<Icon name="folder" size={14} />實例資料夾
-		</button>
-		<hr />
-		<button class="qt-menu-item" onclick={() => onDuplicate(context!.id)}>
-			<Icon name="copy" size={14} />複製…
-		</button>
-		<button class="qt-menu-item" onclick={() => onExport(context!.id)}>
-			<Icon name="export" size={14} />匯出為 .zip…
-		</button>
-		<hr />
-		<button class="qt-menu-item danger" onclick={() => onDelete(context!.id)}>
-			<Icon name="trash" size={14} />刪除
-		</button>
-	</div>
+			終止
+		</MenuItem>
+		<MenuSeparator />
+		<MenuItem icon="edit" onclick={() => onEdit(context!.id)}>編輯…</MenuItem>
+		<MenuItem icon="refresh" disabled={item?.healthy} onclick={() => onRepair(context!.id)}>
+			修復／重新安裝
+		</MenuItem>
+		<MenuItem icon="folder" onclick={() => onOpenFolder(context!.id)}>實例資料夾</MenuItem>
+		<MenuSeparator />
+		<MenuItem icon="copy" onclick={() => onDuplicate(context!.id)}>複製…</MenuItem>
+		<MenuItem icon="export" onclick={() => onExport(context!.id)}>匯出為 .zip…</MenuItem>
+		<MenuSeparator />
+		<MenuItem icon="trash" danger onclick={() => onDelete(context!.id)}>刪除</MenuItem>
+	</ContextMenu>
 {/if}

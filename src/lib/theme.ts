@@ -275,5 +275,7 @@ export async function loadTheme(): Promise<void> {
 		const api = await import('./api');
 		const config = await api.getLauncherConfig();
 		await applyTheme(config.theme);
-	} catch {}
+	} catch {
+		return;
+	}
 }

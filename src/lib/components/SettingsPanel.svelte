@@ -1,7 +1,8 @@
 <script lang="ts">
-	import PageList from './PageList.svelte';
-	import Toggle from './Toggle.svelte';
-	import Window from './Window.svelte';
+	import { Button, ColorField, Field, Group, Slider, Table, TableBox, TextInput } from '$lib/ui';
+	import NavList from '$lib/ui/NavList.svelte';
+	import Switch from '$lib/ui/Switch.svelte';
+	import Dialog from '$lib/ui/Dialog.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import * as api from '$lib/api';
 	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
@@ -17,7 +18,7 @@
 		type ThemeMode,
 		type ThemePreset
 	} from '$lib/theme';
-	import Icon from '$lib/Icon.svelte';
+	import Icon from '$lib/ui/Icon.svelte';
 
 	let {
 		config,
@@ -280,7 +281,6 @@
 </script>
 
 {#snippet slider(
-	id: string,
 	label: string,
 	min: number,
 	max: number,
@@ -290,69 +290,48 @@
 	disabled: boolean,
 	oninput: (value: number) => void
 )}
-	<div class="qt-field">
-		<label for={id}>{label}</label>
+	<Field {label}>
 		<div class="flex items-center gap-3">
-			<input
-				{id}
-				class="qt-range max-w-70"
-				type="range"
+			<Slider
+				ariaLabel={label}
+				class="max-w-70"
 				{min}
 				{max}
 				{step}
 				{value}
 				{disabled}
-				oninput={(e) => oninput(e.currentTarget.valueAsNumber)}
+				onchange={oninput}
 			/>
 			<span class="w-12 shrink-0 text-muted">{text}</span>
 		</div>
-	</div>
+	</Field>
 {/snippet}
 
 {#snippet colorField(id: string, label: string, value: string, onpick: (hex: string) => void)}
-	<div class="qt-field">
-		<label for={id}>{label}</label>
-		<div class="flex items-center gap-2">
-			<input
-				{id}
-				class="qt-color"
-				type="color"
-				{value}
-				oninput={(e) => onpick(e.currentTarget.value)}
-			/>
-			<input
-				class="qt-input w-28 font-mono uppercase"
-				{value}
-				maxlength={7}
-				spellcheck="false"
-				oninput={(e) => onpick(e.currentTarget.value)}
-			/>
-		</div>
-	</div>
+	<Field {label} for={id}>
+		<ColorField {id} {value} {onpick} />
+	</Field>
 {/snippet}
 
 {#snippet pathField(id: string, label: string, value: string, onBrowse: () => void)}
-	<div class="qt-field">
-		<label for={id}>{label}</label>
+	<Field {label} for={id}>
 		<div class="flex items-center gap-1.75">
-			<input {id} class="qt-input min-w-0 flex-1" {value} readonly />
-			<button class="qt-button" onclick={onBrowse}>瀏覽…</button>
+			<TextInput class="min-w-0 flex-1" {id} {value} readonly />
+			<Button onclick={onBrowse}>瀏覽…</Button>
 		</div>
-	</div>
+	</Field>
 {/snippet}
 
-<!-- 內容區要自己畫底色：外殼（app-shell）在有背景圖的時候是全透明的，
-	 這裡不畫的話背景圖會整片透出來，介面不透明度也就管不到這一塊。 -->
+
 <div class="flex min-h-0 flex-1 bg-window">
-	<PageList {pages} selected={page} onselect={(id) => (page = id)} width="172px" />
+	<NavList {pages} selected={page} onselect={(id) => (page = id)} width="172px" />
 
 
 	<div
 		class="mx-auto flex w-full min-w-0 max-w-205 flex-1 flex-col gap-1.5 overflow-y-auto px-5.5 pb-5.5 pt-2"
 	>
 		{#if page === 'launcher'}
-			<div class="qt-group">
-				<span class="qt-group-title">資料夾</span>
+			<Group title="資料夾">
 				{@render pathField(
 					'dir-base',
 					'資料根目錄',
@@ -360,54 +339,43 @@
 					pickBaseDir
 				)}
 				<div class="flex gap-1.75 px-0.5 pt-1">
-					<button class="qt-button" onclick={() => api.openLauncherFolder('base')}>開啟</button>
-					<button class="qt-button" onclick={() => api.openLauncherFolder('instances')}>
+					<Button onclick={() => api.openLauncherFolder('base')}>開啟</Button>
+					<Button onclick={() => api.openLauncherFolder('instances')}>
 						開啟實例資料夾
-					</button>
+					</Button>
 					{#if config.baseDir}
-						<button
-							class="qt-button"
-							onclick={() => {
-								config.baseDir = '';
-								save(true);
-								report('已改回預設資料目錄');
-							}}
-						>
+						<Button onclick={() => { config.baseDir = ''; save(true); report('已改回預設資料目錄'); }}>
 							還原預設
-						</button>
+						</Button>
 					{/if}
 				</div>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">啟動器設定</span>
-				<div class="qt-field">
-					<label for="store-dir">設定檔位置</label>
-					<input id="store-dir" class="qt-input" value={paths.storeDir} readonly />
-				</div>
+			<Group title="啟動器設定">
+				<Field label="設定檔位置" for="store-dir">
+					<TextInput id="store-dir" value={paths.storeDir} readonly />
+				</Field>
 				<div class="px-0.5 pt-1">
-					<button class="qt-button" onclick={() => api.openLauncherFolder('store')}>開啟</button>
+					<Button onclick={() => api.openLauncherFolder('store')}>開啟</Button>
 				</div>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">使用者介面</span>
-				<Toggle
+			<Group title="使用者介面">
+				<Switch
 					label="顯示實例工具列"
 					bind:checked={config.ui.instanceToolbar}
 					onchange={() => save(true)}
 				/>
-				<Toggle label="顯示狀態列" bind:checked={config.ui.statusBar} onchange={() => save(true)} />
-				<Toggle
+				<Switch label="顯示狀態列" bind:checked={config.ui.statusBar} onchange={() => save(true)} />
+				<Switch
 					label="在實例圖示上顯示執行狀態"
 					bind:checked={config.ui.runningBadge}
 					onchange={() => save(true)}
 				/>
-			</div>
+			</Group>
 
 		{:else if page === 'theme'}
-			<div class="qt-group">
-				<span class="qt-group-title">主題</span>
+			<Group title="主題">
 				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
 					{#each MODES as item (item.id)}
 						<button
@@ -422,10 +390,9 @@
 						</button>
 					{/each}
 				</div>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">強調色</span>
+			<Group title="強調色">
 				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
 					{#each PRESETS as preset (preset.id)}
 						<button
@@ -453,7 +420,6 @@
 				</div>
 				{@render colorField('t-accent', '自訂顏色', config.theme.accent, setAccent)}
 				{@render slider(
-					't-tint',
 					'介面染色',
 					0,
 					100,
@@ -467,12 +433,11 @@
 					}
 				)}
 				<div class="px-0.5 pt-2">
-					<button class="qt-button" onclick={resetColors}>還原預設強調色</button>
+					<Button onclick={resetColors}>還原預設強調色</Button>
 				</div>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">背景圖片</span>
+			<Group title="背景圖片">
 				<div class="flex gap-2.5">
 					<div
 						class="grid h-27 w-48 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-deep"
@@ -484,16 +449,15 @@
 						{/if}
 					</div>
 					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-						<button class="qt-button" onclick={pickBackground}>選擇圖片…</button>
-						<button class="qt-button" disabled={!config.theme.background} onclick={clearBackground}>
+						<Button onclick={pickBackground}>選擇圖片…</Button>
+						<Button disabled={!config.theme.background} onclick={clearBackground}>
 							移除
-						</button>
+						</Button>
 					</div>
 				</div>
 
 				<div class="pt-3">
 					{@render slider(
-						't-opacity',
 						'介面不透明度',
 						25,
 						100,
@@ -507,7 +471,6 @@
 						}
 					)}
 					{@render slider(
-						't-dim',
 						'背景變暗',
 						0,
 						90,
@@ -521,7 +484,6 @@
 						}
 					)}
 					{@render slider(
-						't-blur',
 						'背景模糊',
 						0,
 						40,
@@ -535,94 +497,64 @@
 						}
 					)}
 				</div>
-			</div>
+			</Group>
 
 		{:else if page === 'minecraft'}
-			<div class="qt-group">
-				<span class="qt-group-title">啟動</span>
-				<Toggle
+			<Group title="啟動">
+				<Switch
 					label="啟動時顯示檔案檢查與下載視窗"
 					bind:checked={config.game.showProgressWindow}
 					onchange={() => save(true)}
 				/>
-				<Toggle
+				<Switch
 					label="準備完成、遊戲起來之後自動關閉那個視窗"
 					bind:checked={config.game.closeProgressWhenDone}
 					onchange={() => save(true)}
 				/>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">遊戲日誌</span>
-				<div class="qt-field">
-					<label for="history">保留行數</label>
-					<input
-						id="history"
-						class="qt-input"
-						type="number"
-						style="width:110px"
-						bind:value={config.game.keepLogLines}
-						oninput={() => save()}
-					/>
-				</div>
-			</div>
+			<Group title="遊戲日誌">
+				<Field label="保留行數" for="history">
+					<TextInput id="history" type="number" style="width:110px" bind:value={config.game.keepLogLines} oninput={() => save()} />
+				</Field>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">遊戲時間</span>
-				<Toggle
+			<Group title="遊戲時間">
+				<Switch
 					label="記錄每個實例的遊玩時間"
 					bind:checked={config.game.recordPlayTime}
 					onchange={() => save(true)}
 				/>
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">版本清單</span>
-				<Toggle
+			<Group title="版本清單">
+				<Switch
 					label="預設顯示快照版本"
 					bind:checked={config.ui.includeSnapshots}
 					onchange={() => save(true)}
 				/>
-			</div>
+			</Group>
 
 		{:else if page === 'java'}
-			<div class="qt-group">
-				<span class="qt-group-title">記憶體</span>
-				<div class="qt-field">
-					<label for="j-min">最小配置</label>
+			<Group title="記憶體">
+				<Field label="最小配置" for="j-min">
 					<div class="flex items-center gap-1.75">
-						<input
-							id="j-min"
-							class="qt-input"
-							type="number"
-							style="width:110px"
-							bind:value={config.game.minMemoryMb}
-							oninput={() => save()}
-						/>
+						<TextInput id="j-min" type="number" style="width:110px" bind:value={config.game.minMemoryMb} oninput={() => save()} />
 						<span class="text-muted">MiB</span>
 					</div>
-				</div>
-				<div class="qt-field">
-					<label for="j-max">最大配置</label>
+				</Field>
+				<Field label="最大配置" for="j-max">
 					<div class="flex items-center gap-1.75">
-						<input
-							id="j-max"
-							class="qt-input"
-							type="number"
-							style="width:110px"
-							bind:value={config.game.maxMemoryMb}
-							oninput={() => save()}
-						/>
+						<TextInput id="j-max" type="number" style="width:110px" bind:value={config.game.maxMemoryMb} oninput={() => save()} />
 						<span class="text-muted">MiB</span>
 					</div>
-				</div>
-			</div>
+				</Field>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">Java 執行階段</span>
+			<Group title="Java 執行階段">
 				<div class="flex gap-2.25">
-					<div class="qt-table-wrap max-h-40">
-						<table class="qt-table">
+					<TableBox class="max-h-40">
+						<Table>
 							<thead>
 								<tr>
 									<th style="width:90px">版本</th>
@@ -647,93 +579,57 @@
 									</tr>
 								{/each}
 							</tbody>
-						</table>
+						</Table>
 						{#if javaList.length === 0}
 							<p class="px-3 py-4 text-center text-muted">
 								{javaBusy || '沒有偵測到系統安裝的 Java。'}
 							</p>
 						{/if}
-					</div>
+					</TableBox>
 					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-						<button class="qt-button" disabled={!!javaBusy} onclick={detectJava}>重新偵測</button>
-						<button class="qt-button" disabled={!!javaBusy} onclick={testJava}>測試</button>
-						<button class="qt-button" disabled={!!javaBusy} onclick={() => downloadJava(21)}>
+						<Button disabled={!!javaBusy} onclick={detectJava}>重新偵測</Button>
+						<Button disabled={!!javaBusy} onclick={testJava}>測試</Button>
+						<Button disabled={!!javaBusy} onclick={() => downloadJava(21)}>
 							下載 Java 21
-						</button>
-						<button class="qt-button" disabled={!!javaBusy} onclick={() => downloadJava(17)}>
+						</Button>
+						<Button disabled={!!javaBusy} onclick={() => downloadJava(17)}>
 							下載 Java 17
-						</button>
-						<button class="qt-button" disabled={!!javaBusy} onclick={() => downloadJava(8)}>
+						</Button>
+						<Button disabled={!!javaBusy} onclick={() => downloadJava(8)}>
 							下載 Java 8
-						</button>
+						</Button>
 					</div>
 				</div>
 
-				<div class="qt-field">
-					<label for="java-path">預設 Java</label>
+				<Field label="預設 Java" for="java-path">
 					<div class="flex items-center gap-1.75">
-						<input
-							id="java-path"
-							class="qt-input min-w-0 flex-1"
-							bind:value={config.java.path}
-							oninput={() => save()}
-							placeholder="（依實例需要的版本自動挑選）"
-						/>
-						<button class="qt-button" onclick={pickJavaPath}>瀏覽…</button>
-						<button
-							class="qt-button"
-							disabled={!config.java.path}
-							onclick={() => {
-								config.java.path = '';
-								save(true);
-							}}
-						>
+						<TextInput class="min-w-0 flex-1" id="java-path" bind:value={config.java.path} oninput={() => save()} placeholder="（依實例需要的版本自動挑選）" />
+						<Button onclick={pickJavaPath}>瀏覽…</Button>
+						<Button disabled={!config.java.path} onclick={() => { config.java.path = ''; save(true); }}>
 							自動挑選
-						</button>
+						</Button>
 					</div>
-				</div>
+				</Field>
 				{#if javaBusy}
 					<p class="px-0.5 py-1 text-muted">{javaBusy}</p>
 				{/if}
-			</div>
+			</Group>
 
-			<div class="qt-group">
-				<span class="qt-group-title">JVM 參數</span>
-				<div class="qt-field">
-					<label for="jvm">額外參數</label>
-					<input
-						id="jvm"
-						class="qt-input"
-						bind:value={config.game.jvmArgs}
-						oninput={() => save()}
-						placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50"
-					/>
-				</div>
-			</div>
+			<Group title="JVM 參數">
+				<Field label="額外參數" for="jvm">
+					<TextInput id="jvm" bind:value={config.game.jvmArgs} oninput={() => save()} placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
+				</Field>
+			</Group>
 
 		{:else if page === 'commands'}
-			<div class="qt-group">
-				<span class="qt-group-title">自訂指令</span>
-				<div class="qt-field">
-					<label for="c-pre">啟動前執行</label>
-					<input
-						id="c-pre"
-						class="qt-input"
-						bind:value={config.commands.preLaunch}
-						oninput={() => save()}
-						placeholder="例如：backup.bat"
-					/>
-				</div>
-				<div class="qt-field">
-					<label for="c-post">結束後執行</label>
-					<input
-						id="c-post"
-						class="qt-input"
-						bind:value={config.commands.postExit}
-						oninput={() => save()}
-					/>
-				</div>
-			</div>
+			<Group title="自訂指令">
+				<Field label="啟動前執行" for="c-pre">
+					<TextInput id="c-pre" bind:value={config.commands.preLaunch} oninput={() => save()} placeholder="例如：backup.bat" />
+				</Field>
+				<Field label="結束後執行" for="c-post">
+					<TextInput id="c-post" bind:value={config.commands.postExit} oninput={() => save()} />
+				</Field>
+			</Group>
 			<p class="px-0.5 py-1 leading-[1.7] text-faint">
 				可用變數：
 				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_ID</code>、
@@ -746,8 +642,8 @@
 
 		{:else if page === 'accounts'}
 			<div class="flex min-h-0 flex-1 gap-2.25">
-				<div class="qt-table-wrap">
-					<table class="qt-table">
+				<TableBox>
+					<Table>
 						<thead>
 							<tr>
 								<th style="width:44px"></th>
@@ -771,65 +667,38 @@
 								</tr>
 							{/each}
 						</tbody>
-					</table>
+					</Table>
 					{#if accounts.length === 0}
 						<p class="px-3 py-4 text-center text-muted">還沒有任何帳號。</p>
 					{/if}
-				</div>
+				</TableBox>
 				<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-					<button class="qt-button" onclick={startLogin}>新增 Microsoft…</button>
-					<button class="qt-button" onclick={() => (offlineDialog = '')}>新增離線…</button>
-					<button
-						class="qt-button"
-						disabled={!selectedAccountId}
-						onclick={() =>
-							selectedAccountId &&
-							accountAction('已設為使用中', () => api.selectAccount(selectedAccountId!))}
-					>
+					<Button onclick={startLogin}>新增 Microsoft…</Button>
+					<Button onclick={() => (offlineDialog = '')}>新增離線…</Button>
+					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已設為使用中', () => api.selectAccount(selectedAccountId!))}>
 						設為使用中
-					</button>
-					<button
-						class="qt-button"
-						disabled={!selectedAccountId}
-						onclick={() =>
-							selectedAccountId &&
-							accountAction('已更新權杖', () => api.refreshAccount(selectedAccountId!))}
-					>
+					</Button>
+					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已更新權杖', () => api.refreshAccount(selectedAccountId!))}>
 						重新整理
-					</button>
-					<button
-						class="qt-button destructive"
-						disabled={!selectedAccountId}
-						onclick={() =>
-							selectedAccountId &&
-							accountAction('已移除帳號', () => api.removeAccount(selectedAccountId!))}
-					>
+					</Button>
+					<Button variant="destructive" disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已移除帳號', () => api.removeAccount(selectedAccountId!))}>
 						移除
-					</button>
+					</Button>
 				</div>
 			</div>
 
 		{:else}
-			<div class="qt-group">
-				<span class="qt-group-title">CurseForge</span>
-				<div class="qt-field">
-					<label for="a-cf">API 金鑰</label>
-					<input
-						id="a-cf"
-						class="qt-input"
-						type="password"
-						bind:value={config.api.curseforgeApiKey}
-						oninput={() => save()}
-						placeholder="（不填就只查 Modrinth）"
-					/>
-				</div>
-			</div>
+			<Group title="CurseForge">
+				<Field label="API 金鑰" for="a-cf">
+					<TextInput id="a-cf" type="password" bind:value={config.api.curseforgeApiKey} oninput={() => save()} placeholder="（不填就只查 Modrinth）" />
+				</Field>
+			</Group>
 		{/if}
 	</div>
 </div>
 
 {#if login}
-	<Window title="Microsoft 登入" width="440px" onclose={cancelLogin}>
+	<Dialog title="Microsoft 登入" width="440px" onclose={cancelLogin}>
 		<div class="flex flex-col gap-3 px-5 py-5">
 			<p class="text-muted">在瀏覽器輸入這組代碼完成授權。</p>
 			<div
@@ -837,43 +706,42 @@
 			>
 				{login.userCode}
 			</div>
-			<button class="qt-button" onclick={() => login && api.openExternal(login.verificationUri)}>
+			<Button onclick={() => login && api.openExternal(login.verificationUri)}>
 				重新開啟 {login.verificationUri}
-			</button>
+			</Button>
 			<p class="flex items-center gap-2 text-faint">
 				<span class="size-3.5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
 				等待授權中…
 			</p>
 		</div>
 		{#snippet footer()}
-			<button class="qt-button" onclick={cancelLogin}>取消</button>
+			<Button onclick={cancelLogin}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if loginError}
-	<Window title="登入失敗" width="420px" onclose={() => (loginError = '')}>
+	<Dialog title="登入失敗" width="420px" onclose={() => (loginError = '')}>
 		<p class="px-5 py-5 leading-[1.8] text-danger">{loginError}</p>
 		{#snippet footer()}
-			<button class="qt-button primary" onclick={() => (loginError = '')}>關閉</button>
+			<Button variant="primary" onclick={() => (loginError = '')}>關閉</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if offlineDialog !== null}
-	<Window title="新增離線帳號" width="380px" onclose={() => (offlineDialog = null)}>
+	<Dialog title="新增離線帳號" width="380px" onclose={() => (offlineDialog = null)}>
 		<div class="px-5 py-5">
-			<div class="qt-field">
-				<label for="offline-name">玩家名稱</label>
-				<input id="offline-name" class="qt-input" bind:value={offlineDialog} maxlength={16} />
-			</div>
+			<Field label="玩家名稱" for="offline-name">
+				<TextInput id="offline-name" bind:value={offlineDialog} maxlength={16} />
+			</Field>
 			<p class="mt-2 text-faint">只能用英數字與底線。</p>
 		</div>
 		{#snippet footer()}
-			<button class="qt-button primary" disabled={!offlineDialog?.trim()} onclick={addOffline}>
+			<Button variant="primary" disabled={!offlineDialog?.trim()} onclick={addOffline}>
 				新增
-			</button>
-			<button class="qt-button" onclick={() => (offlineDialog = null)}>取消</button>
+			</Button>
+			<Button onclick={() => (offlineDialog = null)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}

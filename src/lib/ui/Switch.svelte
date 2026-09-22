@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Toggle } from 'melt/builders';
 
 	let {
 		checked = $bindable(false),
@@ -9,9 +10,17 @@
 		checked?: boolean;
 		label: string;
 		disabled?: boolean;
-
 		onchange?: (checked: boolean) => void;
 	} = $props();
+
+	const toggle = new Toggle({
+		value: () => checked,
+		disabled: () => disabled,
+		onValueChange: (next) => {
+			checked = next;
+			onchange?.(next);
+		}
+	});
 </script>
 
 <label
@@ -19,27 +28,19 @@
 	class:cursor-pointer={!disabled}
 	class:text-faint={disabled}
 >
-	<input
-		type="checkbox"
-		bind:checked
-		{disabled}
-		class="peer sr-only"
-		onchange={(e) => onchange?.(e.currentTarget.checked)}
-	/>
-
-
-	<span
+	<button
+		{...toggle.trigger}
 		class="relative h-5 w-9 shrink-0 rounded-full bg-btn transition-colors duration-150
-			peer-checked:bg-brand
-			peer-checked:[&>span]:translate-x-4 peer-checked:[&>span]:bg-brand-ink
-			peer-focus-visible:shadow-[0_0_0_3px_var(--color-brand-soft)]
-			peer-disabled:opacity-45"
+			data-[checked]:bg-brand
+			focus-visible:shadow-[0_0_0_3px_var(--color-brand-soft)]
+			disabled:opacity-45"
 	>
 		<span
-			class="absolute left-0.75 top-0.75 h-3.5 w-3.5 rounded-full bg-muted
+			class="absolute top-0.75 left-0.75 h-3.5 w-3.5 rounded-full bg-muted
 				transition-[transform,background-color] duration-150"
+			class:translate-x-4={checked}
+			class:bg-brand-ink={checked}
 		></span>
-	</span>
-
+	</button>
 	<span class="min-w-0">{label}</span>
 </label>

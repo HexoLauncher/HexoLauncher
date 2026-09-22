@@ -1,14 +1,12 @@
 <script lang="ts">
+	import { Button } from '$lib/ui';
 	import { page } from '$app/state';
 	import InstanceEditor from '$lib/components/InstanceEditor.svelte';
 	import * as api from '$lib/api';
 	import type { InstanceView } from '$lib/api';
 	import { closeSelf } from '$lib/windows';
 
-	/**
-	 * 這裡是獨立視窗，拿不到主視窗的記憶體狀態，所以自己依 id 跟後端要資料。
-	 * 存檔之後後端會發 instances-changed，主視窗自己會更新。
-	 */
+
 	const id = $derived(page.params.id ?? '');
 
 	let baseDir = $state('');
@@ -52,7 +50,7 @@
 		<p class="text-faint">
 			路由參數 <code class="rounded-sm bg-deep px-1.5 py-0.5 font-mono">{id || '（空的）'}</code>
 		</p>
-		<button class="qt-button primary" onclick={closeSelf}>關閉視窗</button>
+		<Button variant="primary" onclick={closeSelf}>關閉視窗</Button>
 	</div>
 {:else}
 	<div class="flex h-full items-center justify-center gap-3 text-muted">

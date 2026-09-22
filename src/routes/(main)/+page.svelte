@@ -1,9 +1,10 @@
 <script lang="ts">
-	import Icon from '$lib/Icon.svelte';
+	import { Button, Field, TextInput } from '$lib/ui';
+	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceGrid from '$lib/components/InstanceGrid.svelte';
 	import InstanceActions from '$lib/components/InstanceActions.svelte';
-	import Window from '$lib/components/Window.svelte';
-	import Toggle from '$lib/components/Toggle.svelte';
+	import Dialog from '$lib/ui/Dialog.svelte';
+	import Switch from '$lib/ui/Switch.svelte';
 	import { formatSize } from '$lib/format';
 	import * as api from '$lib/api';
 	import {
@@ -20,7 +21,7 @@
 	} from '$lib/state.svelte';
 	import { openAppWindow, windowSpecs } from '$lib/windows';
 
-	/** 確認與輸入都是訊息方塊，留在主視窗裡當強制回應對話框 */
+
 	let confirmingDelete = $state(false);
 	let groupDialog = $state<{ id: string; value: string } | null>(null);
 	let duplicateDialog = $state<{ id: string; value: string } | null>(null);
@@ -116,7 +117,7 @@
 		}
 	}
 
-	/** 匯出成 .zip；路徑用系統的儲存對話框選 */
+
 	async function confirmExport() {
 		if (!exportDialog) return;
 		const { id, name, includeSaves, includeScreenshots } = exportDialog;
@@ -248,7 +249,7 @@
 {/if}
 
 {#if confirmingDelete && selected}
-	<Window title="刪除實例" width="420px" onclose={() => (confirmingDelete = false)}>
+	<Dialog title="刪除實例" width="420px" onclose={() => (confirmingDelete = false)}>
 		<div class="flex gap-3.75 px-5 py-5.5">
 			<span class="grid size-11.5 shrink-0 place-items-center rounded-lg bg-danger-soft text-danger"
 				><Icon name="trash" size={30} /></span
@@ -261,69 +262,57 @@
 			</div>
 		</div>
 		{#snippet footer()}
-			<button class="qt-button destructive" onclick={confirmDelete}>刪除</button>
-			<button class="qt-button" onclick={() => (confirmingDelete = false)}>取消</button>
+			<Button variant="destructive" onclick={confirmDelete}>刪除</Button>
+			<Button onclick={() => (confirmingDelete = false)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if groupDialog}
-	<Window title="變更群組" width="380px" onclose={() => (groupDialog = null)}>
+	<Dialog title="變更群組" width="380px" onclose={() => (groupDialog = null)}>
 		<div class="px-5 py-5">
-			<div class="qt-field">
-				<label for="group-name">群組</label>
-				<input
-					id="group-name"
-					class="qt-input"
-					bind:value={groupDialog.value}
-					list="known-groups"
-					placeholder="（未分組）"
-				/>
+			<Field label="群組" for="group-name">
+				<TextInput id="group-name" bind:value={groupDialog.value} list="known-groups" placeholder="（未分組）" />
 				<datalist id="known-groups">
 					{#each knownGroups() as g (g)}
 						<option value={g}></option>
 					{/each}
 				</datalist>
-			</div>
+			</Field>
 		</div>
 		{#snippet footer()}
-			<button class="qt-button primary" onclick={saveGroup}>確定</button>
-			<button class="qt-button" onclick={() => (groupDialog = null)}>取消</button>
+			<Button variant="primary" onclick={saveGroup}>確定</Button>
+			<Button onclick={() => (groupDialog = null)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if duplicateDialog}
-	<Window title="複製實例" width="380px" onclose={() => (duplicateDialog = null)}>
+	<Dialog title="複製實例" width="380px" onclose={() => (duplicateDialog = null)}>
 		<div class="px-5 py-5">
-			<div class="qt-field">
-				<label for="copy-name">新名稱</label>
-				<input id="copy-name" class="qt-input" bind:value={duplicateDialog.value} />
-			</div>
+			<Field label="新名稱" for="copy-name">
+				<TextInput id="copy-name" bind:value={duplicateDialog.value} />
+			</Field>
 		</div>
 		{#snippet footer()}
-			<button
-				class="qt-button primary"
-				disabled={!duplicateDialog?.value.trim()}
-				onclick={confirmDuplicate}>複製</button
-			>
-			<button class="qt-button" onclick={() => (duplicateDialog = null)}>取消</button>
+			<Button variant="primary" disabled={!duplicateDialog?.value.trim()} onclick={confirmDuplicate}>複製</Button>
+			<Button onclick={() => (duplicateDialog = null)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if exportDialog}
-	<Window title="匯出實例" width="440px" onclose={() => (exportDialog = null)}>
+	<Dialog title="匯出實例" width="440px" onclose={() => (exportDialog = null)}>
 		<div class="flex flex-col gap-1 px-5 py-5">
 			<p class="mb-1 text-muted">打包「{exportDialog.name}」成 .zip</p>
-			<Toggle label="包含世界存檔" bind:checked={exportDialog.includeSaves} />
-			<Toggle label="包含螢幕截圖" bind:checked={exportDialog.includeScreenshots} />
+			<Switch label="包含世界存檔" bind:checked={exportDialog.includeSaves} />
+			<Switch label="包含螢幕截圖" bind:checked={exportDialog.includeScreenshots} />
 		</div>
 		{#snippet footer()}
-			<button class="qt-button primary" onclick={confirmExport}>選擇位置並匯出</button>
-			<button class="qt-button" onclick={() => (exportDialog = null)}>取消</button>
+			<Button variant="primary" onclick={confirmExport}>選擇位置並匯出</Button>
+			<Button onclick={() => (exportDialog = null)}>取消</Button>
 		{/snippet}
-	</Window>
+	</Dialog>
 {/if}
 
 {#if busy}
