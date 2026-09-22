@@ -492,12 +492,12 @@
 
 		<div class="flex min-w-0 flex-1 flex-col">
 			<div
-				class="flex shrink-0 items-center gap-2.75 border-b border-line px-4.5 pb-3.25 pt-3.75 text-brand"
+				class="flex shrink-0 items-center gap-2.75 border-b border-line px-4.5 pb-3.25 pt-3.75 text-brand-fg"
 			>
 				<Icon name={pages.find((p) => p.id === page)?.icon ?? 'box'} size={19} />
 				<h3>{title}</h3>
 				{#if running}
-					<span class="ml-auto text-[12px] text-brand">執行中 · PID {running.pid}</span>
+					<span class="ml-auto text-[12px] text-brand-fg">執行中 · PID {running.pid}</span>
 				{:else if !instance.healthy}
 					<span class="ml-auto text-[12px] text-warn">遊戲檔案不完整，請到「版本」修復</span>
 				{/if}
@@ -1179,7 +1179,7 @@
 {/if}
 
 {#if busy}
-	<div class="fixed inset-0 z-100 grid place-items-center bg-[#07090b99] backdrop-blur-[3px]">
+	<div class="fixed inset-0 z-100 grid place-items-center bg-scrim backdrop-blur-[3px]">
 		<div
 			class="flex items-center gap-3 rounded-xl border border-line bg-window px-6 py-5 shadow-lg"
 			role="status"

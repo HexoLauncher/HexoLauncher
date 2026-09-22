@@ -29,7 +29,7 @@
 />
 
 <div
-	class="fixed inset-0 z-100 flex animate-fade items-center justify-center bg-[#07090b99] p-6 backdrop-blur-[3px]"
+	class="fixed inset-0 z-100 flex animate-fade items-center justify-center bg-scrim p-6 backdrop-blur-[3px]"
 >
 	<div
 		class="flex max-h-full max-w-full animate-rise flex-col overflow-hidden rounded-xl

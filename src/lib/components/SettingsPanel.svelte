@@ -6,6 +6,18 @@
 	import * as api from '$lib/api';
 	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
 	import type { Page } from '$lib/ui';
+	import {
+		MODES,
+		PRESETS,
+		applyTheme,
+		backgroundUrl,
+		defaultTheme,
+		parseHex,
+		toHex,
+		type ThemeMode,
+		type ThemePreset
+	} from '$lib/theme';
+	import Icon from '$lib/Icon.svelte';
 
 	let {
 		config,
@@ -29,6 +41,7 @@
 
 	const pages: Page[] = [
 		{ id: 'launcher', label: '啟動器', icon: 'settings' },
+		{ id: 'theme', label: '外觀', icon: 'palette' },
 		{ id: 'minecraft', label: '遊戲與啟動', icon: 'box' },
 		{ id: 'java', label: 'Java', icon: 'coffee' },
 		{ id: 'commands', label: '自訂指令', icon: 'terminal' },
@@ -38,6 +51,91 @@
 
 	// svelte-ignore state_referenced_locally
 	let page = $state(initialPage);
+
+	let bgPreview = $state('');
+	let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// 主題頁開著的時候，任何一個值被改到就立刻套到畫面上（順便把背景圖的預覽抓回來），
+	// 所以這一頁不需要「套用」按鈕。
+	$effect(() => {
+		if (page !== 'theme') return;
+		const theme = $state.snapshot(config.theme);
+		applyTheme(theme).then(() => (bgPreview = backgroundUrl()));
+	});
+
+	/** 存檔，再通知其他視窗換主題。拖 slider 的時候會連續進來，所以廣播壓一下。 */
+	function themeChanged(immediate = false) {
+		save(immediate);
+		clearTimeout(broadcastTimer);
+		broadcastTimer = setTimeout(
+			() => api.emitThemeChanged($state.snapshot(config.theme)).catch(() => {}),
+			immediate ? 0 : 200
+		);
+	}
+
+	function useMode(mode: ThemeMode) {
+		config.theme.mode = mode;
+		themeChanged(true);
+	}
+
+	function usePreset(preset: ThemePreset) {
+		config.theme.preset = preset.id;
+		config.theme.accent = preset.accent;
+		themeChanged(true);
+	}
+
+	/** 色票跟手打的 hex 共用；打到一半不是合法顏色就先不要動。 */
+	function setAccent(value: string) {
+		const rgb = parseHex(value);
+		if (!rgb) return;
+		config.theme.accent = toHex(rgb);
+		config.theme.preset = 'custom';
+		themeChanged();
+	}
+
+	function resetColors() {
+		const base = defaultTheme();
+		config.theme.preset = base.preset;
+		config.theme.accent = base.accent;
+		config.theme.tint = base.tint;
+		themeChanged(true);
+		report('已還原預設強調色');
+	}
+
+	async function pickBackground() {
+		let picked: string | null = null;
+		try {
+			const { open } = await import('@tauri-apps/api/dialog');
+			const chosen = await open({
+				filters: [{ name: '圖片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }]
+			});
+			picked = typeof chosen === 'string' ? chosen : null;
+		} catch {
+			report('這個環境沒有系統對話框，沒辦法選圖片');
+			return;
+		}
+		if (!picked) return;
+
+		try {
+			config.theme.background = await api.setBackgroundImage(picked);
+			// 不透明度停在 100% 的話，圖會被介面整片蓋掉，看起來就像沒設成功。
+			if (config.theme.opacity >= 1) config.theme.opacity = defaultTheme().opacity;
+			themeChanged(true);
+			report('已更新背景圖片');
+		} catch (e) {
+			report(`設定背景失敗：${api.errorMessage(e)}`);
+		}
+	}
+
+	async function clearBackground() {
+		config.theme.background = '';
+		bgPreview = '';
+		themeChanged(true);
+		await api.clearBackgroundImage().catch(() => {});
+		report('已移除背景圖片');
+	}
+
+	const percent = (value: number) => `${Math.round(value * 100)}%`;
 
 	let javaList = $state<JavaCandidate[]>([]);
 	let javaLoaded = false;
@@ -181,6 +279,58 @@
 	}
 </script>
 
+{#snippet slider(
+	id: string,
+	label: string,
+	min: number,
+	max: number,
+	step: number,
+	value: number,
+	text: string,
+	disabled: boolean,
+	oninput: (value: number) => void
+)}
+	<div class="qt-field">
+		<label for={id}>{label}</label>
+		<div class="flex items-center gap-3">
+			<input
+				{id}
+				class="qt-range max-w-70"
+				type="range"
+				{min}
+				{max}
+				{step}
+				{value}
+				{disabled}
+				oninput={(e) => oninput(e.currentTarget.valueAsNumber)}
+			/>
+			<span class="w-12 shrink-0 text-muted">{text}</span>
+		</div>
+	</div>
+{/snippet}
+
+{#snippet colorField(id: string, label: string, value: string, onpick: (hex: string) => void)}
+	<div class="qt-field">
+		<label for={id}>{label}</label>
+		<div class="flex items-center gap-2">
+			<input
+				{id}
+				class="qt-color"
+				type="color"
+				{value}
+				oninput={(e) => onpick(e.currentTarget.value)}
+			/>
+			<input
+				class="qt-input w-28 font-mono uppercase"
+				{value}
+				maxlength={7}
+				spellcheck="false"
+				oninput={(e) => onpick(e.currentTarget.value)}
+			/>
+		</div>
+	</div>
+{/snippet}
+
 {#snippet pathField(id: string, label: string, value: string, onBrowse: () => void)}
 	<div class="qt-field">
 		<label for={id}>{label}</label>
@@ -191,7 +341,9 @@
 	</div>
 {/snippet}
 
-<div class="flex min-h-0 flex-1">
+<!-- 內容區要自己畫底色：外殼（app-shell）在有背景圖的時候是全透明的，
+	 這裡不畫的話背景圖會整片透出來，介面不透明度也就管不到這一塊。 -->
+<div class="flex min-h-0 flex-1 bg-window">
 	<PageList {pages} selected={page} onselect={(id) => (page = id)} width="172px" />
 
 
@@ -251,6 +403,138 @@
 					bind:checked={config.ui.runningBadge}
 					onchange={() => save(true)}
 				/>
+			</div>
+
+		{:else if page === 'theme'}
+			<div class="qt-group">
+				<span class="qt-group-title">主題</span>
+				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
+					{#each MODES as item (item.id)}
+						<button
+							class="flex items-center gap-2 rounded-lg border px-3.5 py-2 transition-colors duration-150
+								{config.theme.mode === item.id
+								? 'border-brand-line bg-brand-soft text-brand-fg'
+								: 'border-line text-muted hover:border-line-hi hover:text-ink'}"
+							onclick={() => useMode(item.id)}
+						>
+							<Icon name={item.icon} size={15} />
+							{item.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="qt-group">
+				<span class="qt-group-title">強調色</span>
+				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
+					{#each PRESETS as preset (preset.id)}
+						<button
+							class="flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors duration-150
+								{config.theme.preset === preset.id
+								? 'border-brand-line bg-brand-soft text-brand-fg'
+								: 'border-line text-muted hover:border-line-hi hover:text-ink'}"
+							onclick={() => usePreset(preset)}
+						>
+							<span class="size-4 shrink-0 rounded-full" style="background:{preset.accent}"></span>
+							{preset.label}
+						</button>
+					{/each}
+					{#if config.theme.preset === 'custom'}
+						<span
+							class="flex items-center gap-2 rounded-lg border border-brand-line bg-brand-soft px-3 py-2 text-brand-fg"
+						>
+							<span
+								class="size-4 shrink-0 rounded-full"
+								style="background:{config.theme.accent}"
+							></span>
+							自訂
+						</span>
+					{/if}
+				</div>
+				{@render colorField('t-accent', '自訂顏色', config.theme.accent, setAccent)}
+				{@render slider(
+					't-tint',
+					'介面染色',
+					0,
+					100,
+					1,
+					Math.round(config.theme.tint * 100),
+					percent(config.theme.tint),
+					false,
+					(value) => {
+						config.theme.tint = value / 100;
+						themeChanged();
+					}
+				)}
+				<div class="px-0.5 pt-2">
+					<button class="qt-button" onclick={resetColors}>還原預設強調色</button>
+				</div>
+			</div>
+
+			<div class="qt-group">
+				<span class="qt-group-title">背景圖片</span>
+				<div class="flex gap-2.5">
+					<div
+						class="grid h-27 w-48 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-deep"
+					>
+						{#if bgPreview}
+							<img src={bgPreview} alt="背景預覽" class="size-full object-cover" />
+						{:else}
+							<span class="text-faint">沒有背景圖</span>
+						{/if}
+					</div>
+					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
+						<button class="qt-button" onclick={pickBackground}>選擇圖片…</button>
+						<button class="qt-button" disabled={!config.theme.background} onclick={clearBackground}>
+							移除
+						</button>
+					</div>
+				</div>
+
+				<div class="pt-3">
+					{@render slider(
+						't-opacity',
+						'介面不透明度',
+						25,
+						100,
+						1,
+						Math.round(config.theme.opacity * 100),
+						percent(config.theme.opacity),
+						!config.theme.background,
+						(value) => {
+							config.theme.opacity = value / 100;
+							themeChanged();
+						}
+					)}
+					{@render slider(
+						't-dim',
+						'背景變暗',
+						0,
+						90,
+						1,
+						Math.round(config.theme.backgroundDim * 100),
+						percent(config.theme.backgroundDim),
+						!config.theme.background,
+						(value) => {
+							config.theme.backgroundDim = value / 100;
+							themeChanged();
+						}
+					)}
+					{@render slider(
+						't-blur',
+						'背景模糊',
+						0,
+						40,
+						1,
+						config.theme.backgroundBlur,
+						`${config.theme.backgroundBlur}px`,
+						!config.theme.background,
+						(value) => {
+							config.theme.backgroundBlur = value;
+							themeChanged();
+						}
+					)}
+				</div>
 			</div>
 
 		{:else if page === 'minecraft'}
@@ -408,9 +692,6 @@
 						</button>
 					</div>
 				</div>
-				<p class="px-0.5 leading-[1.8] text-faint">
-					點選清單中的 Java 會設為所有實例的預設；版本不夠的實例會自動改用合適的 Java。個別實例可以在「編輯實例」裡另外指定。
-				</p>
 				{#if javaBusy}
 					<p class="px-0.5 py-1 text-muted">{javaBusy}</p>
 				{/if}

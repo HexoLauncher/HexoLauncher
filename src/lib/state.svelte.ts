@@ -1,5 +1,6 @@
 import * as api from './api';
 import type { AccountView, InstanceView, LauncherConfig, RunningGame } from './api';
+import { applyTheme, defaultTheme } from './theme';
 
 export const app = $state({
 	ready: false,
@@ -21,6 +22,7 @@ export function defaultConfig(): LauncherConfig {
 		formatVersion: 1,
 		baseDir: '',
 		ui: { instanceToolbar: true, statusBar: true, runningBadge: true, includeSnapshots: false },
+		theme: defaultTheme(),
 		game: {
 			minMemoryMb: 512,
 			maxMemoryMb: 4096,
@@ -57,6 +59,7 @@ export async function init() {
 		app.defaultBaseDir = paths.defaultBaseDir;
 		app.storeDir = paths.storeDir;
 		app.config = config;
+		applyTheme(config.theme);
 	} catch (e) {
 		reportError('無法讀取啟動器設定', e);
 		return;

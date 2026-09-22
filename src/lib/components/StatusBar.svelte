@@ -22,7 +22,7 @@
 >
 	<button
 		class="flex min-w-0 items-center gap-1.75 rounded-full bg-brand-soft px-2.75 py-1
-			font-medium text-brand transition-colors duration-150 hover:bg-brand-soft-hi"
+			font-medium text-brand-fg transition-colors duration-150 hover:bg-brand-soft-hi"
 		title={baseDir}
 		onclick={onOpenBaseDir}
 	>

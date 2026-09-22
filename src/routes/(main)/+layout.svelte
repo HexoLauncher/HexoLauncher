@@ -73,7 +73,7 @@
 
 <svelte:window onkeydown={shortcut} />
 
-<div class="flex h-screen flex-col bg-window">
+<div class="app-shell flex h-screen flex-col">
 	<MainToolbar
 		accounts={app.accounts}
 		view={app.config.ui}

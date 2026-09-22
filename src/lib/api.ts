@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/tauri';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { RichTextFormat } from '$lib/richtext';
+import type { ThemeConfig } from '$lib/theme';
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
@@ -54,6 +55,7 @@ export interface LauncherConfig {
 
 	baseDir: string;
 	ui: UiConfig;
+	theme: ThemeConfig;
 	game: GameConfig;
 	java: JavaConfig;
 	commands: CommandsConfig;
@@ -81,6 +83,19 @@ export const openLauncherFolder = (target: LauncherFolder) =>
 	invoke<void>('open_launcher_folder', { target });
 
 export const openExternal = (url: string) => invoke<void>('open_external', { url });
+
+export const setBackgroundImage = (source: string) =>
+	invoke<string>('set_background_image', { source });
+
+export const backgroundImagePath = (name: string) =>
+	invoke<string>('background_image_path', { name });
+
+export const clearBackgroundImage = () => invoke<void>('clear_background_image');
+
+export const emitThemeChanged = (theme: ThemeConfig) => emit('hexo://theme-changed', theme);
+
+export const onThemeChanged = (handler: (theme: ThemeConfig) => void): Promise<UnlistenFn> =>
+	listen<ThemeConfig>('hexo://theme-changed', (event) => handler(event.payload));
 
 export type AccountKind = 'microsoft' | 'offline';
 
@@ -262,7 +277,6 @@ export const importInstance = (baseDir: string, zipPath: string, name?: string |
 	invoke<InstanceView>('import_instance', { baseDir, zipPath, name });
 
 export type ImportMode = 'copy' | 'link';
-
 
 export interface ForeignLauncher {
 	kind: string;

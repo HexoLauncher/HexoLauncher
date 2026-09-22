@@ -169,7 +169,7 @@
 
 								<span
 									class="line-clamp-2 min-h-[2.7em] wrap-break-word text-center font-medium leading-[1.35]
-										{selectedId === item.id ? 'text-brand' : ''}"
+										{selectedId === item.id ? 'text-brand-fg' : ''}"
 								>
 									{item.name}
 								</span>

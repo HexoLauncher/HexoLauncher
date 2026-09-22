@@ -327,7 +327,7 @@
 {/if}
 
 {#if busy}
-	<div class="fixed inset-0 z-100 grid place-items-center bg-[#07090b99] backdrop-blur-[3px]">
+	<div class="fixed inset-0 z-100 grid place-items-center bg-scrim backdrop-blur-[3px]">
 		<div
 			class="flex items-center gap-3 rounded-xl border border-line bg-window px-6 py-5 shadow-lg"
 			role="status"

@@ -5,11 +5,19 @@ mod error;
 mod state;
 mod store;
 
+use tauri::Manager;
+
 use state::AppState;
 
 fn main() {
     tauri::Builder::default()
         .manage(AppState::default())
+        .setup(|app| {
+            if let Ok(dir) = store::store_dir() {
+                let _ = app.asset_protocol_scope().allow_directory(&dir, false);
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             store::launcher::get_launcher_config,
             store::launcher::save_launcher_config,
@@ -17,6 +25,9 @@ fn main() {
             commands::misc::prepare_base_dir,
             commands::misc::open_external,
             commands::misc::open_launcher_folder,
+            commands::theme::set_background_image,
+            commands::theme::background_image_path,
+            commands::theme::clear_background_image,
             store::accounts::list_accounts,
             store::accounts::add_offline_account,
             store::accounts::remove_account,

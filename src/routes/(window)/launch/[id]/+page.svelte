@@ -220,7 +220,7 @@
 	<span
 		class="grid size-6 shrink-0 place-items-center rounded-full border transition-colors duration-150
 			{phase === 'done'
-			? 'border-brand-line bg-brand-soft text-brand'
+			? 'border-brand-line bg-brand-soft text-brand-fg'
 			: phase === 'active'
 				? 'border-brand bg-brand text-brand-ink'
 				: phase === 'failed'
@@ -315,7 +315,7 @@
 									>
 										<span class="grid size-3.5 shrink-0 place-items-center">
 											{#if task.finished}
-												<span class="text-brand"><Icon name="check" size={10} /></span>
+												<span class="text-brand-fg"><Icon name="check" size={10} /></span>
 											{:else}
 												<span
 													class="size-2.5 animate-spin rounded-full border-[1.5px] border-line border-t-brand"

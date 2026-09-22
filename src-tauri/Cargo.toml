@@ -18,6 +18,7 @@ tauri-build = { version = "1.5.6", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "1.8.3", features = [
+    "protocol-asset",
     "dialog-save",
     "window-unminimize",
     "window-close",

@@ -25,7 +25,7 @@
 			class="flex items-center gap-2.5 rounded-md px-2.75 py-2 text-left font-medium
 				transition-colors duration-150
 				{selected === page.id
-				? 'bg-brand-soft text-brand'
+				? 'bg-brand-soft text-brand-fg'
 				: 'text-muted hover:bg-window hover:text-ink'}"
 			onclick={() => onselect(page.id)}
 			aria-current={selected === page.id}

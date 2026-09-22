@@ -144,7 +144,7 @@
 	<div class="relative flex">
 
 		<button
-			class="tool-button max-w-52.5 gap-2.25 bg-btn py-1 pl-1.25 pr-3.25
+			class="tool-button max-w-52.5 gap-2.25 py-1 pl-1.25 pr-3.25
 				not-disabled:hover:bg-btn-hi"
 			onclick={() => (accountMenu = !accountMenu)}
 		>

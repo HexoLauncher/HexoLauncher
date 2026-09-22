@@ -135,7 +135,7 @@
 			</div>
 
 			{#if running}
-				<p class="mb-2 rounded-md bg-brand-soft px-2 py-1.5 leading-[1.7] text-brand">
+				<p class="mb-2 rounded-md bg-brand-soft px-2 py-1.5 leading-[1.7] text-brand-fg">
 					執行中 · PID {running.pid}<br />
 					<span class="text-[11px] text-muted">
 						{formatTime(running.startedAt)} 起 · {running.playerName}

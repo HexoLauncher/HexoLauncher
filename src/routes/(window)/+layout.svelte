@@ -9,7 +9,7 @@
 	let { children }: { children: Snippet } = $props();
 </script>
 
-<div class="h-screen bg-window">
+<div class="app-shell h-screen">
 	{@render children()}
 </div>
 

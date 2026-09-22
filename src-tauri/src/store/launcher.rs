@@ -15,6 +15,7 @@ pub struct LauncherConfig {
     pub format_version: u32,
     pub base_dir: String,
     pub ui: UiConfig,
+    pub theme: ThemeConfig,
     pub game: GameConfig,
     pub java: JavaConfig,
     pub commands: CommandsConfig,
@@ -30,6 +31,28 @@ pub struct UiConfig {
     pub running_badge: bool,
 
     pub include_snapshots: bool,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ThemeConfig {
+
+    pub mode: String,
+
+    pub preset: String,
+
+    pub accent: String,
+
+    pub tint: f32,
+
+    pub opacity: f32,
+
+    pub background: String,
+
+    pub background_dim: f32,
+
+    pub background_blur: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,6 +97,7 @@ impl Default for LauncherConfig {
             format_version: FORMAT_VERSION,
             base_dir: String::new(),
             ui: UiConfig::default(),
+            theme: ThemeConfig::default(),
             game: GameConfig::default(),
             java: JavaConfig::default(),
             commands: CommandsConfig::default(),
@@ -89,6 +113,21 @@ impl Default for UiConfig {
             status_bar: true,
             running_badge: true,
             include_snapshots: false,
+        }
+    }
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        Self {
+            mode: "dark".into(),
+            preset: "crimson".into(),
+            accent: "#e5343f".into(),
+            tint: 0.5,
+            opacity: 0.82,
+            background: String::new(),
+            background_dim: 0.35,
+            background_blur: 0,
         }
     }
 }

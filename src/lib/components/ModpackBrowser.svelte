@@ -196,7 +196,7 @@
 				{/if}
 				<span class="min-w-0 flex-1">
 					<span class="flex items-baseline gap-2">
-						<span class="truncate font-semibold {hit?.id === item.id ? 'text-brand' : 'text-ink'}">
+						<span class="truncate font-semibold {hit?.id === item.id ? 'text-brand-fg' : 'text-ink'}">
 							{item.name}
 						</span>
 						{#if item.author}

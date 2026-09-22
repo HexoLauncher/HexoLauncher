@@ -11,6 +11,7 @@ pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
 pub mod mods;
+pub mod theme;
 pub mod version;
 
 use std::path::{Path, PathBuf};
