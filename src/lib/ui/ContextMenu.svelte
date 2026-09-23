@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { setContext } from 'svelte';
 	import { MENU_CTX, type MenuContext } from './menu-context';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		x,
@@ -26,7 +27,7 @@
 	}}
 />
 
-<button type="button" class="fixed inset-0 z-199 cursor-default" aria-label="關閉選單" onclick={onclose}
+<button type="button" class="fixed inset-0 z-199 cursor-default" aria-label={m.common_close_menu()} onclick={onclose}
 ></button>
 
 <div

@@ -12,7 +12,8 @@
 		ModpackSort,
 		PackHit
 	} from '$lib/api';
-	import { formatDate, loaderLabel } from '$lib/format';
+	import { formatCount, formatDate, loaderLabel } from '$lib/format';
+	import { m } from '$lib/paraglide/messages.js';
 	import { renderRichText } from '$lib/richtext';
 
 	let {
@@ -33,24 +34,32 @@
 	];
 
 	const SORTS: { id: ModpackSort; label: string }[] = [
-		{ id: 'relevance', label: '相關性' },
-		{ id: 'downloads', label: '熱門' },
-		{ id: 'updated', label: '最近更新' }
+		{ id: 'relevance', label: m.sort_relevance() },
+		{ id: 'downloads', label: m.sort_downloads() },
+		{ id: 'updated', label: m.sort_updated() }
 	];
 
 	const KIND_LABELS: Record<string, string> = {
-		beta: '測試版',
-		alpha: 'Alpha'
+		beta: m.release_beta(),
+		alpha: m.release_alpha()
 	};
 
 	const TEXT: Record<ContentKind, { search: string; empty: string; pick: string }> = {
-		mod: { search: '搜尋模組', empty: '找不到符合的模組', pick: '選一個模組看介紹' },
-		resourcepack: {
-			search: '搜尋資源包',
-			empty: '找不到符合的資源包',
-			pick: '選一個資源包看介紹'
+		mod: {
+			search: m.content_search_mod(),
+			empty: m.content_empty_mod(),
+			pick: m.content_pick_mod()
 		},
-		shader: { search: '搜尋光影包', empty: '找不到符合的光影包', pick: '選一個光影包看介紹' }
+		resourcepack: {
+			search: m.content_search_resourcepack(),
+			empty: m.content_empty_resourcepack(),
+			pick: m.content_pick_resourcepack()
+		},
+		shader: {
+			search: m.content_search_shader(),
+			empty: m.content_empty_shader(),
+			pick: m.content_pick_shader()
+		}
 	};
 
 	const loader = $derived(kind === 'mod' ? instance.loader : null);
@@ -214,7 +223,7 @@
 				projectId: item.id,
 				versionId: picked.id
 			});
-			status = `已安裝 ${installed.fileName}`;
+			status = m.content_installed({ file: installed.fileName });
 			oninstalled(installed.fileName);
 		} catch (e) {
 			status = api.errorMessage(e);
@@ -228,15 +237,10 @@
 		if (v.mcVersion) parts.push(`MC ${v.mcVersion}`);
 		if (KIND_LABELS[v.kind]) parts.push(KIND_LABELS[v.kind]);
 		if (v.published) parts.push(formatDate(v.published));
-		if (!v.downloadable) parts.push('不可自動下載');
+		if (!v.downloadable) parts.push(m.content_not_downloadable());
 		return parts.join(' · ');
 	}
 
-	function formatCount(n: number) {
-		if (n >= 1e8) return `${(n / 1e8).toFixed(1)} 億`;
-		if (n >= 1e4) return `${(n / 1e4).toFixed(1)} 萬`;
-		return String(n);
-	}
 
 	function openSite(url: string) {
 		api.openExternal(url).catch((e) => (status = api.errorMessage(e)));
@@ -260,13 +264,13 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
-		<Select class="w-28" bind:value={platform} onchange={reset} aria-label="平台">
+		<Select class="w-28" bind:value={platform} onchange={reset} aria-label={m.content_platform()}>
 			{#each PLATFORMS as p (p.id)}
 				<option value={p.id}>{p.label}</option>
 			{/each}
 		</Select>
 		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={TEXT[kind].search} aria-label={TEXT[kind].search} />
-		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
+		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label={m.common_sort()}>
 			{#each SORTS as s (s.id)}
 				<option value={s.id}>{s.label}</option>
 			{/each}
@@ -275,7 +279,7 @@
 
 	<CheckRow compact class="shrink-0">
 		<input type="checkbox" bind:checked={matchVersion} onchange={reset} />
-		只顯示相容 {compatLabel} 的版本
+		{m.content_filter_compatible({ target: compatLabel })}
 	</CheckRow>
 
 	<div class="flex min-h-0 flex-1 gap-2.5">
@@ -324,19 +328,19 @@
 						<span
 							class="size-4 animate-spin rounded-full border-2 border-line border-t-brand"
 						></span>
-						正在搜尋…
+						{m.common_searching()}
 					</span>
 				{:else if message}
 					<span class="leading-[1.7] text-danger">{message}</span>
-					<Button onclick={() => search(hits.length > 0)}>重試</Button>
+					<Button onclick={() => search(hits.length > 0)}>{m.common_retry()}</Button>
 				{:else if hits.length === 0}
 					<span>{TEXT[kind].empty}</span>
 				{:else if nextOffset !== null}
 					<Button onclick={() => search(true)}>
-						載入更多（{hits.length} / {total}）
+						{m.list_load_more({ loaded: hits.length, total })}
 					</Button>
 				{:else}
-					<span class="text-faint">共 {total} 個</span>
+					<span class="text-faint">{m.list_total({ total })}</span>
 				{/if}
 			</div>
 		</div>
@@ -351,7 +355,7 @@
 							<span
 								class="size-4 animate-spin rounded-full border-2 border-line border-t-brand"
 							></span>
-							正在讀取介紹…
+							{m.content_loading_detail()}
 						</span>
 					</p>
 				{:else if detailError}
@@ -370,7 +374,7 @@
 							<div class="min-w-0 flex-1">
 								<h4 class="truncate font-semibold text-ink">{info.name}</h4>
 								{#if hit.author}
-									<p class="truncate text-faint">由 {hit.author} 製作</p>
+									<p class="truncate text-faint">{m.content_by_author({ author: hit.author })}</p>
 								{/if}
 							</div>
 						</div>
@@ -381,7 +385,7 @@
 
 						<div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-faint">
 							<span class="flex items-center gap-1">
-								<Icon name="download" size={11} />{formatCount(info.downloads)} 次下載
+								<Icon name="download" size={11} />{m.content_downloads({ count: formatCount(info.downloads) })}
 							</span>
 							{#if info.follows}
 								<span class="flex items-center gap-1">
@@ -390,7 +394,7 @@
 							{/if}
 							{#if info.updated}
 								<span class="flex items-center gap-1">
-									<Icon name="clock" size={11} />{formatDate(info.updated)} 更新
+									<Icon name="clock" size={11} />{m.content_updated({ date: formatDate(info.updated) })}
 								</span>
 							{/if}
 							{#if info.license}
@@ -416,7 +420,7 @@
 								{#each info.gallery.slice(0, 10) as image (image.url)}
 									<button
 										class="shrink-0 rounded-md border border-line p-0"
-										title={image.title || '開啟原圖'}
+										title={image.title || m.content_open_image()}
 										onclick={() => openSite(image.url)}
 									>
 										<img
@@ -432,8 +436,8 @@
 
 						{#if info.gameVersions.length}
 							<p class="leading-[1.7] text-muted">
-								<span class="text-faint">支援版本：</span>
-								{info.gameVersions.slice(-12).reverse().join('、')}
+								<span class="text-faint">{m.content_supported_versions()}</span>
+								{info.gameVersions.slice(-12).reverse().join(m.common_list_separator())}
 							</p>
 						{/if}
 
@@ -441,7 +445,7 @@
 							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 							<div class="rich-text" use:externalLinks>{@html descriptionHtml}</div>
 						{:else}
-							<p class="text-faint">這個項目沒有提供詳細說明。</p>
+							<p class="text-faint">{m.content_no_description()}</p>
 						{/if}
 
 						{#if info.links.length}
@@ -460,12 +464,12 @@
 			{#if hit}
 				<div class="flex shrink-0 items-center gap-2.5">
 					<label class="flex min-w-0 flex-1 items-center gap-2 text-muted">
-						版本
+						{m.common_version()}
 						<Select class="min-w-0 flex-1" value={version?.id ?? ''} onchange={(e) => (version = versions.find((v) => v.id === e.currentTarget.value) ?? null)} disabled={busy || loadingVersions || versions.length === 0}>
 							{#if loadingVersions}
-								<option value="">讀取版本中…</option>
+								<option value="">{m.common_loading_versions()}</option>
 							{:else if versions.length === 0}
-								<option value="">沒有相容的版本</option>
+								<option value="">{m.content_no_compatible_version()}</option>
 							{/if}
 							{#each versions as v (v.id)}
 								<option value={v.id}>{versionLabel(v)}</option>
@@ -473,7 +477,7 @@
 						</Select>
 					</label>
 					<Button variant="primary" disabled={busy || !version || !version.downloadable} onclick={install}>
-						<Icon name="download" size={13} />安裝
+						<Icon name="download" size={13} />{m.common_install()}
 					</Button>
 				</div>
 			{/if}
@@ -482,7 +486,7 @@
 
 	{#if busy || status}
 		<p class="shrink-0 truncate px-0.5 text-muted" role="status">
-			{busy ? '正在下載…' : status}
+			{busy ? m.content_downloading() : status}
 		</p>
 	{/if}
 </div>

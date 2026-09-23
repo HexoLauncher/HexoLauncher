@@ -29,6 +29,7 @@
 	import { formatDuration, formatSize, formatTime, loaderLabel } from '$lib/format';
 	import { onMount } from 'svelte';
 	import type { Page } from '$lib/ui';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		baseDir,
@@ -39,29 +40,28 @@
 		baseDir: string;
 		instance: InstanceView;
 		onclose: () => void;
-		/** 存檔或重新安裝之後回報新的內容 */
 		onchanged: (instance: InstanceView) => void;
 	} = $props();
 
 	const pages: Page[] = [
-		{ id: 'general', label: '一般', icon: 'box' },
-		{ id: 'console', label: '遊戲日誌', icon: 'terminal' },
-		{ id: 'version', label: '版本', icon: 'package' },
-		{ id: 'mods', label: '模組', icon: 'package' },
-		{ id: 'resourcepacks', label: '資源包', icon: 'image' },
-		{ id: 'shaderpacks', label: '光影包', icon: 'sun' },
-		{ id: 'worlds', label: '世界', icon: 'globe' },
-		{ id: 'servers', label: '伺服器', icon: 'server' },
-		{ id: 'screenshots', label: '螢幕截圖', icon: 'image' },
-		{ id: 'notes', label: '記事', icon: 'notes' },
-		{ id: 'logs', label: '日誌檔', icon: 'list' },
-		{ id: 'settings', label: '設定', icon: 'settings' }
+		{ id: 'general', label: m.editor_page_general(), icon: 'box' },
+		{ id: 'console', label: m.editor_page_console(), icon: 'terminal' },
+		{ id: 'version', label: m.editor_page_version(), icon: 'package' },
+		{ id: 'mods', label: m.editor_page_mods(), icon: 'package' },
+		{ id: 'resourcepacks', label: m.editor_page_resourcepacks(), icon: 'image' },
+		{ id: 'shaderpacks', label: m.editor_page_shaderpacks(), icon: 'sun' },
+		{ id: 'worlds', label: m.editor_page_worlds(), icon: 'globe' },
+		{ id: 'servers', label: m.editor_page_servers(), icon: 'server' },
+		{ id: 'screenshots', label: m.editor_page_screenshots(), icon: 'image' },
+		{ id: 'notes', label: m.editor_page_notes(), icon: 'notes' },
+		{ id: 'logs', label: m.editor_page_logs(), icon: 'list' },
+		{ id: 'settings', label: m.editor_page_settings(), icon: 'settings' }
 	];
 
 	const BROWSE_TITLES: Record<ContentKind, string> = {
-		mod: '下載模組',
-		resourcepack: '下載資源包',
-		shader: '下載光影包'
+		mod: m.editor_browse_mod(),
+		resourcepack: m.editor_browse_resourcepack(),
+		shader: m.editor_browse_shader()
 	};
 
 	const BROWSE_PAGES: Record<ContentKind, string> = {
@@ -132,7 +132,6 @@
 		loaderVersion: string;
 	} | null>(null);
 
-	/** 模組包更新完的結果，拿來提示刪掉了什麼、還有哪些要手動下載。 */
 	let packUpdate = $state<ModpackUpdateResult | null>(null);
 
 
@@ -148,7 +147,7 @@
 	}
 
 	function fail(prefix: string, e: unknown) {
-		status = `${prefix}：${api.errorMessage(e)}`;
+		status = m.common_error_detail({ prefix, message: api.errorMessage(e) });
 	}
 
 	async function load(target: string, force = false) {
@@ -185,7 +184,7 @@
 			}
 		} catch (e) {
 			loaded.splice(loaded.indexOf(target), 1);
-			fail('讀取失敗', e);
+			fail(m.editor_error_load(), e);
 		}
 	}
 
@@ -240,7 +239,7 @@
 		try {
 			appendOutput(await api.gameLog(instance.id));
 		} catch (e) {
-			fail('讀取遊戲輸出失敗', e);
+			fail(m.editor_error_output(), e);
 		}
 	}
 
@@ -249,16 +248,16 @@
 			const list = await api.runningInstances();
 			running = list.find((r) => r.instanceName === instance.id) ?? null;
 		} catch (e) {
-			fail('讀取執行狀態失敗', e);
+			fail(m.editor_error_running(), e);
 		}
 	}
 
 	async function stopGame() {
 		try {
 			await api.stopInstance(instance.id);
-			report('已要求遊戲結束');
+			report(m.editor_status_stop_requested());
 		} catch (e) {
-			fail('終止失敗', e);
+			fail(m.editor_error_stop(), e);
 		}
 	}
 
@@ -271,7 +270,7 @@
 			await api.clearGameLog(instance.id);
 			output = [];
 		} catch (e) {
-			fail('清空失敗', e);
+			fail(m.editor_error_clear(), e);
 		}
 	}
 
@@ -286,7 +285,7 @@
 		try {
 			logText = await api.readInstanceLog(baseDir, instance.id, name);
 		} catch (e) {
-			fail('讀取日誌失敗', e);
+			fail(m.editor_error_read_log(), e);
 		}
 	}
 
@@ -321,9 +320,9 @@
 			});
 			saved = snapshot();
 			onchanged(updated);
-			report('已儲存');
+			report(m.editor_status_saved());
 		} catch (e) {
-			fail('儲存失敗', e);
+			fail(m.editor_error_save(), e);
 		}
 	}
 
@@ -336,7 +335,7 @@
 		try {
 			await api.openInstanceFolder(baseDir, instance.id, target);
 		} catch (e) {
-			fail('開啟資料夾失敗', e);
+			fail(m.editor_error_open_folder(), e);
 		}
 	}
 
@@ -346,7 +345,7 @@
 			await api.setModEnabled(baseDir, instance.id, mod.fileName, !mod.enabled);
 			await load('mods', true);
 		} catch (e) {
-			fail('切換模組失敗', e);
+			fail(m.editor_error_toggle_mod(), e);
 		}
 	}
 
@@ -354,33 +353,37 @@
 		try {
 			await api.deleteMod(baseDir, instance.id, fileName);
 			await load('mods', true);
-			report(`已移除 ${fileName}`);
+			report(m.editor_status_mod_removed({ file: fileName }));
 		} catch (e) {
-			fail('移除模組失敗', e);
+			fail(m.editor_error_remove_mod(), e);
 		}
 	}
 
 	async function checkUpdates() {
-		busy = '正在比對 Modrinth / CurseForge…';
+		busy = m.editor_busy_check_updates();
 		try {
 			modUpdates = await api.checkModUpdates({ baseDir, instanceName: instance.id });
-			report(modUpdates.length ? `有 ${modUpdates.length} 個模組可以更新` : '所有模組都是最新的');
+			report(
+				modUpdates.length
+					? m.editor_status_updates_found({ count: modUpdates.length })
+					: m.editor_status_up_to_date()
+			);
 		} catch (e) {
-			fail('檢查更新失敗', e);
+			fail(m.editor_error_check_updates(), e);
 		} finally {
 			busy = '';
 		}
 	}
 
 	async function applyUpdate(update: ModUpdateEntry) {
-		busy = `正在更新 ${update.name}…`;
+		busy = m.editor_busy_update_mod({ name: update.name });
 		try {
 			await api.applyModUpdate(baseDir, instance.id, update.id);
 			modUpdates = modUpdates.filter((u) => u.id !== update.id);
 			await load('mods', true);
-			report(`${update.name} 已更新至 ${update.newVersion}`);
+			report(m.editor_status_mod_updated({ name: update.name, version: update.newVersion }));
 		} catch (e) {
-			fail('更新失敗', e);
+			fail(m.editor_error_update(), e);
 		} finally {
 			busy = '';
 		}
@@ -389,13 +392,16 @@
 
 	async function reinstall(request?: { mcVersion: string; loader: LoaderKind; loaderVersion: string }) {
 		versionDialog = null;
-		busy = request ? '正在安裝新版本…' : '正在修復遊戲檔案…';
+		busy = request ? m.editor_busy_install_version() : m.editor_busy_repair();
 
 		let unlisten: (() => void) | undefined;
 		try {
 			unlisten = await api.onInstallProgress((p) => {
 				if (p.instanceName === instance.id) {
-					busy = p.total > 1 ? `${p.message}（${p.done} / ${p.total}）` : p.message;
+					busy =
+							p.total > 1
+								? m.common_progress_count({ message: p.message, done: p.done, total: p.total })
+								: p.message;
 				}
 			});
 
@@ -410,9 +416,9 @@
 				: await api.repairInstance(baseDir, instance.id);
 
 			onchanged(updated);
-			report('已完成');
+			report(m.editor_status_done());
 		} catch (e) {
-			fail('安裝失敗', e);
+			fail(m.editor_error_install(), e);
 		} finally {
 			unlisten?.();
 			busy = '';
@@ -422,37 +428,38 @@
 	async function pickPack() {
 		try {
 			const { open } = await import('@tauri-apps/api/dialog');
-			const picked = await open({ filters: [{ name: '模組包', extensions: ['mrpack', 'zip'] }] });
+			const picked = await open({
+				filters: [{ name: m.file_filter_modpack(), extensions: ['mrpack', 'zip'] }]
+			});
 			return typeof picked === 'string' ? picked : null;
 		} catch {
-			status = '這個環境沒有系統對話框，無法選擇模組包檔案';
+			status = m.editor_error_no_dialog_pack();
 			return null;
 		}
 	}
 
-	/**
-	 * 用另一個版本的模組包就地覆蓋這個實例；上一版帶進來、新版沒有的檔案會被刪掉，
-	 * 自己另外丟進去的檔案不會動到。
-	 */
 	async function updatePack() {
 		const packPath = await pickPack();
 		if (!packPath) return;
 
-		busy = '正在更新模組包…';
+		busy = m.editor_busy_update_pack();
 		let unlisten: (() => void) | undefined;
 		try {
 			unlisten = await api.onInstallProgress((p) => {
 				if (p.instanceName === instance.id) {
-					busy = p.total > 1 ? `${p.message}（${p.done} / ${p.total}）` : p.message;
+					busy =
+							p.total > 1
+								? m.common_progress_count({ message: p.message, done: p.done, total: p.total })
+								: p.message;
 				}
 			});
 
 			const result = await api.updateModpackFile(baseDir, instance.id, packPath);
 			onchanged(result.instance);
 			packUpdate = result;
-			report('模組包已更新');
+			report(m.editor_status_pack_updated());
 		} catch (e) {
-			fail('更新模組包失敗', e);
+			fail(m.editor_error_update_pack(), e);
 		} finally {
 			unlisten?.();
 			busy = '';
@@ -460,19 +467,35 @@
 	}
 
 	const versionRows = $derived([
-		{ name: 'Minecraft', version: instance.versionId || '未知', note: '必要' },
+		{
+			name: 'Minecraft',
+			version: instance.versionId || m.editor_version_unknown(),
+			note: m.editor_version_required()
+		},
 		...(instance.loader !== 'vanilla'
 			? [
 					{
 						name: `${loaderLabel(instance.loader)} Loader`,
-						version: instance.loaderVersion || '（未記錄）',
-						note: '模組載入器'
+						version: instance.loaderVersion || m.editor_version_unrecorded(),
+						note: m.editor_version_loader_note()
 					}
 				]
 			: []),
-		{ name: 'Java', version: `需要 ${instance.javaVersion} 以上`, note: '執行環境' },
-		{ name: '資產索引', version: instance.assetsId || '—', note: '共用資源' },
-		{ name: '主類別', version: instance.mainClass || '—', note: '啟動進入點' }
+		{
+			name: 'Java',
+			version: m.editor_version_java({ version: instance.javaVersion }),
+			note: m.editor_version_runtime()
+		},
+		{
+			name: m.editor_version_assets(),
+			version: instance.assetsId || m.common_dash(),
+			note: m.editor_version_assets_note()
+		},
+		{
+			name: m.editor_version_main_class(),
+			version: instance.mainClass || m.common_dash(),
+			note: m.editor_version_main_class_note()
+		}
 	]);
 </script>
 
@@ -497,9 +520,9 @@
 				<Icon name={pages.find((p) => p.id === page)?.icon ?? 'box'} size={19} />
 				<h3>{title}</h3>
 				{#if running}
-					<span class="ml-auto text-[12px] text-brand-fg">執行中 · PID {running.pid}</span>
+					<span class="ml-auto text-[12px] text-brand-fg">{m.info_running_pid({ pid: running.pid })}</span>
 				{:else if !instance.healthy}
-					<span class="ml-auto text-[12px] text-warn">遊戲檔案不完整，請到「版本」修復</span>
+					<span class="ml-auto text-[12px] text-warn">{m.editor_needs_repair()}</span>
 				{/if}
 			</div>
 
@@ -508,7 +531,7 @@
 					<div class="flex items-start gap-3">
 						<Menu width="228px">
 							{#snippet trigger(attrs)}
-								<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label="選擇圖示">
+								<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label={m.common_select_icon()}>
 									<InstanceIcon name={form.icon} size={34} />
 								</Button>
 							{/snippet}
@@ -529,51 +552,54 @@
 						</Menu>
 
 						<div class="min-w-0 flex-1 [--field-label:64px]">
-							<Field label="名稱" for="edit-name">
+							<Field label={m.common_name()} for="edit-name">
 								<TextInput id="edit-name" bind:value={form.name} />
 							</Field>
-							<Field label="群組" for="edit-group">
-								<TextInput id="edit-group" bind:value={form.group} placeholder="（未分組）" />
+							<Field label={m.common_group()} for="edit-group">
+								<TextInput id="edit-group" bind:value={form.group} placeholder={m.common_ungrouped()} />
 							</Field>
 						</div>
 					</div>
 
-					<Group title="狀態">
-						<Field label="資料夾名稱" for="s1">
+					<Group title={m.editor_state()}>
+						<Field label={m.editor_folder_name()} for="s1">
 <span id="s1">{instance.id}</span>
 						</Field>
-						<Field label="位置" for="s2">
+						<Field label={m.editor_location()} for="s2">
 							<span id="s2" class="overflow-hidden text-ellipsis font-mono text-[11.5px] text-muted"
 								>{instance.dir}</span
 							>
 						</Field>
-						<Field label="上次遊玩" for="s3">
+						<Field label={m.info_last_played()} for="s3">
 <span id="s3">{formatTime(instance.lastPlayed)}</span>
 						</Field>
-						<Field label="總時數" for="s4">
+						<Field label={m.info_total_time()} for="s4">
 							<span id="s4">
-								{formatDuration(instance.playTimeSeconds)}（啟動 {instance.launchCount} 次）
+								{m.editor_play_time_launches({
+									duration: formatDuration(instance.playTimeSeconds),
+									count: instance.launchCount
+								})}
 							</span>
 						</Field>
-						<Field label="模組" for="s5">
-<span id="s5">{instance.modCount} 個</span>
+						<Field label={m.info_mods()} for="s5">
+<span id="s5">{m.common_item_count({ count: instance.modCount })}</span>
 						</Field>
 					</Group>
 
 				{:else if page === 'console'}
 					<div class="flex shrink-0 items-center gap-2.5">
 						{#if running}
-							<Pill accent>執行中 · PID {running.pid}</Pill>
+							<Pill accent>{m.info_running_pid({ pid: running.pid })}</Pill>
 							<span class="text-muted">
-								{running.online ? '正版登入' : '離線模式'} · {running.playerName} ·
-								{formatTime(running.startedAt)} 起
+								{running.online ? m.editor_online_mode() : m.editor_offline_mode()} · {running.playerName}
+								· {formatTime(running.startedAt)}
 							</span>
 						{:else}
-							<Pill>未執行</Pill>
+							<Pill>{m.editor_not_running()}</Pill>
 						{/if}
 						<span class="flex-1"></span>
 						<Button variant="destructive" disabled={!running} onclick={stopGame}>
-							終止遊戲
+							{m.editor_stop_game()}
 						</Button>
 					</div>
 
@@ -588,21 +614,21 @@
 								class:text-danger={colorLog && line.kind === 'stderr'}
 							>{line.line}</div>
 						{:else}
-							<p class="py-6 text-center font-sans text-faint">目前沒有輸出。</p>
+							<p class="py-6 text-center font-sans text-faint">{m.editor_no_output()}</p>
 						{/each}
 					</div>
 
 					<div class="flex shrink-0 items-center gap-4.5">
-						<CheckRow compact><input type="checkbox" bind:checked={autoScroll} />自動捲動</CheckRow>
-						<CheckRow compact><input type="checkbox" bind:checked={onlyErrors} />只看 stderr</CheckRow>
-						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />自動換行</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={autoScroll} />{m.editor_auto_scroll()}</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={onlyErrors} />{m.editor_only_stderr()}</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />{m.editor_wrap_lines()}</CheckRow>
 						<span class="flex-1"></span>
-						<span class="text-faint">{visibleOutput.length} / {output.length} 行</span>
+						<span class="text-faint">{m.editor_line_progress({ visible: visibleOutput.length, total: output.length })}</span>
 						<Button disabled={output.length === 0} onclick={copyOutput}>
-							複製
+							{m.editor_copy()}
 						</Button>
 						<Button disabled={!!running || output.length === 0} onclick={clearOutput}>
-							清空
+							{m.editor_clear()}
 						</Button>
 					</div>
 
@@ -611,7 +637,7 @@
 						<TableBox>
 							<Table>
 								<thead>
-									<tr><th style="width:34%">名稱</th><th>版本</th><th style="width:110px">說明</th></tr>
+									<tr><th style="width:34%">{m.common_name()}</th><th>{m.common_version()}</th><th style="width:110px">{m.editor_version_note()}</th></tr>
 								</thead>
 								<tbody>
 									{#each versionRows as row (row.name)}
@@ -626,7 +652,7 @@
 						</TableBox>
 						{@render sideButtons([
 							{
-								label: '變更版本…',
+								label: m.editor_change_version(),
 								action: () =>
 									(versionDialog = {
 										mcVersion: instance.versionId,
@@ -634,25 +660,29 @@
 										loaderVersion: instance.loaderVersion
 									})
 							},
-							{ label: '修復／重新安裝', action: () => reinstall() },
-							{ label: '更新模組包…', action: updatePack },
-							{ label: '實例資料夾', action: () => openFolder('instance') }
+							{ label: m.action_repair_reinstall(), action: () => reinstall() },
+							{ label: m.editor_update_pack(), action: updatePack },
+							{ label: m.folder_instance(), action: () => openFolder('instance') }
 						])}
 					</div>
 				{:else if page === 'mods'}
 					{#if modUpdates.length > 0}
 						<div class="shrink-0 rounded-lg border border-line bg-deep p-2.5">
-							<p class="mb-2 font-medium">可以更新的模組</p>
+							<p class="mb-2 font-medium">{m.editor_mod_updates()}</p>
 							<div class="flex flex-col gap-1">
 								{#each modUpdates as update (update.id)}
 									<div class="flex items-center gap-2.5">
 										<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
 											{update.name}
 											<span class="text-faint">
-												{update.currentVersion} → {update.newVersion}（{update.source}）
+												{m.editor_mod_update_detail({
+													from: update.currentVersion,
+													to: update.newVersion,
+													source: update.source
+												})}
 											</span>
 										</span>
-										<Button onclick={() => applyUpdate(update)}>更新</Button>
+										<Button onclick={() => applyUpdate(update)}>{m.common_update()}</Button>
 									</div>
 								{/each}
 							</div>
@@ -665,10 +695,10 @@
 								<thead>
 									<tr>
 										<th style="width:28px"></th>
-										<th style="width:34%">名稱</th>
-										<th>版本</th>
-										<th>檔案</th>
-										<th style="width:80px">載入器</th>
+										<th style="width:34%">{m.common_name()}</th>
+										<th>{m.common_version()}</th>
+										<th>{m.editor_mod_file()}</th>
+										<th style="width:80px">{m.editor_mod_loader()}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -681,7 +711,7 @@
 												<input
 													type="checkbox"
 													checked={mod.enabled}
-													aria-label={`啟用 ${mod.name}`}
+													aria-label={m.editor_mod_enable({ name: mod.name })}
 													onclick={(e) => {
 														e.stopPropagation();
 														toggleMod(mod);
@@ -691,7 +721,7 @@
 											<td class:line-through={!mod.enabled} class:text-faint={!mod.enabled}
 												>{mod.name}</td
 											>
-											<td class="text-muted">{mod.version || '—'}</td>
+											<td class="text-muted">{mod.version || m.common_dash()}</td>
 											<td class="text-muted">{mod.fileName}</td>
 											<td class="text-muted">{mod.loader}</td>
 										</tr>
@@ -699,19 +729,19 @@
 								</tbody>
 							</Table>
 							{#if mods.length === 0}
-								<p class="px-3 py-4 text-center text-muted">這個實例還沒有任何模組。</p>
+								<p class="px-3 py-4 text-center text-muted">{m.editor_mods_empty()}</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
-							{ label: '下載模組…', action: () => (browse = 'mod') },
-							{ label: '檢查更新', disabled: mods.length === 0, action: checkUpdates },
+							{ label: m.editor_download_mods(), action: () => (browse = 'mod') },
+							{ label: m.editor_check_updates(), disabled: mods.length === 0, action: checkUpdates },
 							{
-								label: '移除',
+								label: m.common_remove(),
 								disabled: !selectedMod,
 								action: () => selectedMod && removeMod(selectedMod)
 							},
-							{ label: '重新載入', action: () => load('mods', true) },
-							{ label: '模組資料夾', action: () => openFolder('mods') }
+							{ label: m.common_reload(), action: () => load('mods', true) },
+							{ label: m.editor_mods_folder(), action: () => openFolder('mods') }
 						])}
 					</div>
 
@@ -721,13 +751,13 @@
 						<TableBox>
 							<Table>
 								<thead>
-									<tr><th style="width:45%">名稱</th><th>類型</th><th>位置</th></tr>
+									<tr><th style="width:45%">{m.common_name()}</th><th>{m.editor_pack_type()}</th><th>{m.editor_pack_location()}</th></tr>
 								</thead>
 								<tbody>
 									{#each packs as pack (pack.path)}
 										<tr>
 											<td>{pack.name}</td>
-											<td class="text-muted">{pack.isFolder ? '資料夾' : '壓縮檔'}</td>
+											<td class="text-muted">{pack.isFolder ? m.editor_pack_folder() : m.editor_pack_archive()}</td>
 											<td class="overflow-hidden text-ellipsis font-mono text-[11px] text-muted"
 												>{pack.path}</td
 											>
@@ -737,18 +767,21 @@
 							</Table>
 							{#if packs.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
-									{page === 'resourcepacks' ? '沒有資源包。' : '沒有光影包。'}
+									{page === 'resourcepacks' ? m.editor_resourcepacks_empty() : m.editor_shaderpacks_empty()}
 								</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
 							{
-								label: page === 'resourcepacks' ? '下載資源包…' : '下載光影包…',
+								label:
+									page === 'resourcepacks'
+										? m.editor_download_resourcepacks()
+										: m.editor_download_shaderpacks(),
 								action: () => (browse = page === 'resourcepacks' ? 'resourcepack' : 'shader')
 							},
-							{ label: '重新載入', action: () => load(page, true) },
+							{ label: m.common_reload(), action: () => load(page, true) },
 							{
-								label: '開啟資料夾',
+								label: m.common_open_folder(),
 								action: () => openFolder(page === 'resourcepacks' ? 'resourcepacks' : 'shaderpacks')
 							}
 						])}
@@ -759,7 +792,7 @@
 						<TableBox>
 							<Table>
 								<thead>
-									<tr><th style="width:44px"></th><th style="width:45%">名稱</th><th>資料夾</th></tr>
+									<tr><th style="width:44px"></th><th style="width:45%">{m.common_name()}</th><th>{m.editor_world_folder()}</th></tr>
 								</thead>
 								<tbody>
 									{#each worlds as world (world.path)}
@@ -778,12 +811,12 @@
 								</tbody>
 							</Table>
 							{#if worlds.length === 0}
-								<p class="px-3 py-4 text-center text-muted">還沒有任何世界存檔。</p>
+								<p class="px-3 py-4 text-center text-muted">{m.editor_worlds_empty()}</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
-							{ label: '重新載入', action: () => load('worlds', true) },
-							{ label: '開啟資料夾', action: () => openFolder('saves') }
+							{ label: m.common_reload(), action: () => load('worlds', true) },
+							{ label: m.common_open_folder(), action: () => openFolder('saves') }
 						])}
 					</div>
 
@@ -794,9 +827,9 @@
 								<thead>
 									<tr>
 										<th style="width:44px"></th>
-										<th style="width:40%">名稱</th>
-										<th>位址</th>
-										<th style="width:90px">材質包</th>
+										<th style="width:40%">{m.common_name()}</th>
+										<th>{m.editor_server_address()}</th>
+										<th style="width:90px">{m.editor_server_textures()}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -809,20 +842,20 @@
 											</td>
 											<td>{server.name}</td>
 											<td class="font-mono text-[11.5px] text-muted">{server.address}</td>
-											<td class="text-muted">{server.acceptTextures ? '接受' : '詢問'}</td>
+											<td class="text-muted">{server.acceptTextures ? m.editor_server_accept() : m.editor_server_prompt()}</td>
 										</tr>
 									{/each}
 								</tbody>
 							</Table>
 							{#if servers.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
-									還沒有加過伺服器。
+									{m.editor_servers_empty()}
 								</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
-							{ label: '重新載入', action: () => load('servers', true) },
-							{ label: '開啟資料夾', action: () => openFolder('minecraft') }
+							{ label: m.common_reload(), action: () => load('servers', true) },
+							{ label: m.common_open_folder(), action: () => openFolder('minecraft') }
 						])}
 					</div>
 				{:else if page === 'screenshots'}
@@ -830,7 +863,7 @@
 						<TableBox>
 							<Table>
 								<thead>
-									<tr><th style="width:55%">檔名</th><th>大小</th><th>拍攝時間</th></tr>
+									<tr><th style="width:55%">{m.editor_screenshot_name()}</th><th>{m.editor_screenshot_size()}</th><th>{m.editor_screenshot_taken()}</th></tr>
 								</thead>
 								<tbody>
 									{#each screenshots as shot (shot.path)}
@@ -843,39 +876,39 @@
 								</tbody>
 							</Table>
 							{#if screenshots.length === 0}
-								<p class="px-3 py-4 text-center text-muted">還沒有螢幕截圖。</p>
+								<p class="px-3 py-4 text-center text-muted">{m.editor_screenshots_empty()}</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
-							{ label: '重新載入', action: () => load('screenshots', true) },
-							{ label: '開啟資料夾', action: () => openFolder('screenshots') }
+							{ label: m.common_reload(), action: () => load('screenshots', true) },
+							{ label: m.common_open_folder(), action: () => openFolder('screenshots') }
 						])}
 					</div>
 
 				{:else if page === 'notes'}
-					<Textarea class="min-h-0 flex-1 p-2.5" bind:value={form.notes} placeholder="為這個實例寫點筆記…" aria-label="實例記事" />
+					<Textarea class="min-h-0 flex-1 p-2.5" bind:value={form.notes} placeholder={m.editor_notes_placeholder()} aria-label={m.editor_notes_aria()} />
 				{:else if page === 'logs'}
 					<div class="flex shrink-0 items-center gap-2.5">
-						<Select value={logFile} onchange={(e) => openLog(e.currentTarget.value)} aria-label="日誌檔案">
+						<Select value={logFile} onchange={(e) => openLog(e.currentTarget.value)} aria-label={m.editor_log_file()}>
 							{#each logFiles as file (file.name)}
-								<option value={file.name}>{file.name}（{formatSize(file.size)}）</option>
+								<option value={file.name}>{m.editor_log_size({ name: file.name, size: formatSize(file.size) })}</option>
 							{:else}
-								<option value="">沒有日誌檔</option>
+								<option value="">{m.editor_log_none()}</option>
 							{/each}
 						</Select>
 						<SearchField
 							class="bg-deep"
-							placeholder="搜尋日誌…"
-							aria-label="搜尋日誌"
+							placeholder={m.editor_log_search()}
+							aria-label={m.editor_log_search()}
 							bind:value={logSearch}
 						>
 							{#if logSearch}
-								<span class="whitespace-nowrap text-faint">{visibleLogLines.length} 行</span>
+								<span class="whitespace-nowrap text-faint">{m.common_line_count({ count: visibleLogLines.length })}</span>
 							{/if}
 						</SearchField>
 						<span class="flex-1"></span>
-						<Button onclick={() => load('logs', true)}>重新載入</Button>
-						<Button onclick={() => openFolder('logs')}>資料夾</Button>
+						<Button onclick={() => load('logs', true)}>{m.common_reload()}</Button>
+						<Button onclick={() => openFolder('logs')}>{m.action_folder()}</Button>
 					</div>
 
 					<div
@@ -890,77 +923,77 @@
 							>{line.text}</div>
 						{:else}
 							<p class="py-6 text-center font-sans text-faint">
-								{logFile ? '這個檔案是空的。' : '這個實例還沒有日誌。'}
+								{logFile ? m.editor_log_empty_file() : m.editor_log_no_files()}
 							</p>
 						{/each}
 					</div>
 
 					<div class="flex shrink-0 items-center gap-4.5">
-						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />自動換行</CheckRow>
-						<CheckRow compact><input type="checkbox" bind:checked={colorLog} />彩色輸出</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={wrapLines} />{m.editor_wrap_lines()}</CheckRow>
+						<CheckRow compact><input type="checkbox" bind:checked={colorLog} />{m.editor_color_log()}</CheckRow>
 					</div>
 
 				{:else}
 					<div class="min-h-0 flex-1 overflow-y-auto pr-1">
 						<Group title="Java">
-							<Field label="Java 執行檔" for="java-path">
+							<Field label={m.editor_java_executable()} for="java-path">
 								<div class="flex items-center gap-1.75">
 									<Select class="min-w-0 flex-1" bind:value={form.javaPath}>
-										<option value="">跟隨啟動器設定</option>
+										<option value="">{m.editor_java_follow_launcher()}</option>
 										{#each javaCandidates as java (java.path)}
-											<option value={java.path}>Java {java.version} — {java.path}</option>
+											<option value={java.path}>{m.editor_java_option({ version: java.version, path: java.path })}</option>
 										{/each}
 										{#if form.javaPath && !javaCandidates.some((j) => j.path === form.javaPath)}
 											<option value={form.javaPath}>{form.javaPath}</option>
 										{/if}
 									</Select>
-									<Button onclick={() => load('settings', true)}>重新偵測</Button>
+									<Button onclick={() => load('settings', true)}>{m.settings_java_redetect()}</Button>
 								</div>
 							</Field>
-							<p class="px-0.5 py-1 text-faint">需要 Java {instance.javaVersion} 以上</p>
+							<p class="px-0.5 py-1 text-faint">{m.editor_java_required({ version: instance.javaVersion })}</p>
 						</Group>
 
-						<Group title="記憶體" disabled={!form.settings.overrideMemory}>
+						<Group title={m.settings_memory()} disabled={!form.settings.overrideMemory}>
 							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Switch label="覆寫" bind:checked={form.settings.overrideMemory} />
+									<Switch label={m.editor_override()} bind:checked={form.settings.overrideMemory} />
 								</span>
 							{/snippet}
-							<Field label="最小記憶體" for="mem-min">
+							<Field label={m.editor_min_memory()} for="mem-min">
 								<div class="flex items-center gap-1.75">
 									<TextInput id="mem-min" type="number" style="width:100px" bind:value={form.settings.minMemoryMb} />
-									<span class="text-muted">MiB</span>
+									<span class="text-muted">{m.common_mib()}</span>
 								</div>
 							</Field>
-							<Field label="最大記憶體" for="mem-max">
+							<Field label={m.editor_max_memory()} for="mem-max">
 								<div class="flex items-center gap-1.75">
 									<TextInput id="mem-max" type="number" style="width:100px" bind:value={form.settings.maxMemoryMb} />
-									<span class="text-muted">MiB</span>
+									<span class="text-muted">{m.common_mib()}</span>
 								</div>
 							</Field>
 						</Group>
 
-						<Group title="JVM 參數" disabled={!form.settings.overrideJvmArgs}>
+						<Group title={m.settings_jvm_args()} disabled={!form.settings.overrideJvmArgs}>
 							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Switch label="覆寫" bind:checked={form.settings.overrideJvmArgs} />
+									<Switch label={m.editor_override()} bind:checked={form.settings.overrideJvmArgs} />
 								</span>
 							{/snippet}
-							<Field label="參數" for="jvm-args">
+							<Field label={m.editor_jvm_args_field()} for="jvm-args">
 								<TextInput id="jvm-args" bind:value={form.settings.jvmArgs} placeholder="-XX:+UseG1GC" />
 							</Field>
 						</Group>
 
-						<Group title="自訂指令" disabled={!form.settings.overrideCommands}>
+						<Group title={m.settings_commands()} disabled={!form.settings.overrideCommands}>
 							{#snippet header()}
 								<span class="ml-auto text-[11.5px] font-normal text-muted">
-									<Switch label="覆寫" bind:checked={form.settings.overrideCommands} />
+									<Switch label={m.editor_override()} bind:checked={form.settings.overrideCommands} />
 								</span>
 							{/snippet}
-							<Field label="啟動前執行" for="pre">
-								<TextInput id="pre" bind:value={form.settings.preLaunch} placeholder="例如：backup.bat" />
+							<Field label={m.settings_pre_launch()} for="pre">
+								<TextInput id="pre" bind:value={form.settings.preLaunch} placeholder={m.settings_command_placeholder()} />
 							</Field>
-							<Field label="結束後執行" for="post">
+							<Field label={m.settings_post_exit()} for="post">
 								<TextInput id="post" bind:value={form.settings.postExit} />
 							</Field>
 						</Group>
@@ -974,15 +1007,15 @@
 		{#if status}
 			<span class="mr-auto pl-1 text-muted" role="status">{status}</span>
 		{/if}
-		<Button disabled={!dirty} onclick={save}>儲存</Button>
-		<Button variant="primary" onclick={saveAndClose}>關閉</Button>
+		<Button disabled={!dirty} onclick={save}>{m.common_save()}</Button>
+		<Button variant="primary" onclick={saveAndClose}>{m.common_close()}</Button>
 	{/snippet}
 </WindowShell>
 
 {#if versionDialog}
-	<Dialog title="變更版本" width="720px" height="560px" onclose={() => (versionDialog = null)}>
+	<Dialog title={m.editor_change_version_title()} width="720px" height="560px" onclose={() => (versionDialog = null)}>
 		<div class="flex min-h-0 flex-1 flex-col gap-3 px-4.5 py-4">
-			<p class="shrink-0 text-muted">世界與模組留在原地，但模組不一定相容新版本。</p>
+			<p class="shrink-0 text-muted">{m.editor_change_version_desc()}</p>
 			<VersionPicker
 				bind:mcVersion={versionDialog.mcVersion}
 				bind:loader={versionDialog.loader}
@@ -992,28 +1025,28 @@
 		</div>
 		{#snippet footer()}
 			<Button variant="primary" disabled={!versionDialog?.mcVersion} onclick={() => versionDialog && reinstall({ ...versionDialog })}>
-				安裝
+				{m.common_install()}
 			</Button>
-			<Button onclick={() => (versionDialog = null)}>取消</Button>
+			<Button onclick={() => (versionDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if packUpdate}
 	{@const result = packUpdate}
-	<Dialog title="模組包已更新" width="560px" height="480px" onclose={() => (packUpdate = null)}>
+	<Dialog title={m.editor_pack_updated_title()} width="560px" height="480px" onclose={() => (packUpdate = null)}>
 		<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto px-4.5 py-4">
 			<p>
-				已更新為 <b>{result.instance.versionId || instance.versionId}</b>
+				{m.editor_pack_updated_to()} <b>{result.instance.versionId || instance.versionId}</b>
 				{#if result.instance.loader !== 'vanilla'}
-					／ {loaderLabel(result.instance.loader)} {result.instance.loaderVersion}
+					/ {loaderLabel(result.instance.loader)} {result.instance.loaderVersion}
 				{/if}
 			</p>
 
 			{#if result.manualDownloads.length > 0}
 				<div class="flex flex-col gap-1">
 					<p class="font-medium text-danger">
-						這 {result.manualDownloads.length} 個檔案作者不允許第三方下載，請自己抓回來放進對應資料夾：
+						{m.editor_pack_manual({ count: result.manualDownloads.length })}
 					</p>
 					{#each result.manualDownloads as item (item.dest)}
 						<div class="flex items-center gap-2.5">
@@ -1021,7 +1054,7 @@
 							<span class="font-mono text-[11px] text-muted">{item.dest}</span>
 							{#if item.website}
 								<Button onclick={() => api.openExternal(item.website!)}>
-									開啟頁面
+									{m.editor_pack_open_page()}
 								</Button>
 							{/if}
 						</div>
@@ -1031,7 +1064,7 @@
 
 			{#if result.removedFiles.length > 0}
 				<details>
-					<summary class="cursor-pointer">已移除 {result.removedFiles.length} 個舊版檔案</summary>
+					<summary class="cursor-pointer">{m.editor_pack_removed({ count: result.removedFiles.length })}</summary>
 					<ul class="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-muted">
 						{#each result.removedFiles as file (file)}
 							<li>{file}</li>
@@ -1042,7 +1075,7 @@
 
 			{#if result.skipped.length > 0}
 				<details>
-					<summary class="cursor-pointer">有 {result.skipped.length} 個檔案被跳過</summary>
+					<summary class="cursor-pointer">{m.editor_pack_skipped({ count: result.skipped.length })}</summary>
 					<ul class="mt-1 flex flex-col gap-0.5 font-mono text-[11px] text-muted">
 						{#each result.skipped as file (file)}
 							<li>{file}</li>
@@ -1052,11 +1085,11 @@
 			{/if}
 
 			{#if result.manualDownloads.length === 0 && result.removedFiles.length === 0 && result.skipped.length === 0}
-				<p class="text-muted">沒有需要手動處理的檔案。</p>
+				<p class="text-muted">{m.editor_pack_nothing_manual()}</p>
 			{/if}
 		</div>
 		{#snippet footer()}
-			<Button variant="primary" onclick={() => (packUpdate = null)}>關閉</Button>
+			<Button variant="primary" onclick={() => (packUpdate = null)}>{m.common_close()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
@@ -1071,7 +1104,7 @@
 				{kind}
 				oninstalled={(fileName) => {
 					load(BROWSE_PAGES[kind], true);
-					report(`已加入 ${fileName}`);
+					report(m.editor_status_added({ file: fileName }));
 				}}
 			/>
 		</div>

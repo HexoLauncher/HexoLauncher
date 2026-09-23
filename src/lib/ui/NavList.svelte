@@ -2,6 +2,7 @@
 	import { Tabs } from 'melt/builders';
 	import Icon from './Icon.svelte';
 	import type { Page } from './types';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		pages,
@@ -29,7 +30,7 @@
 	{...tabs.triggerList}
 	class="flex shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-deep px-2 py-2.5"
 	style:width
-	aria-label="頁面"
+	aria-label={m.common_page()}
 >
 	{#each pages as page (page.id)}
 		<button

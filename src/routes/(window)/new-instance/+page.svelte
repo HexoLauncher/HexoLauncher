@@ -3,6 +3,7 @@
 	import AddInstancePanel from '$lib/components/AddInstancePanel.svelte';
 	import * as api from '$lib/api';
 	import { closeSelf } from '$lib/windows';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	let baseDir = $state('');
@@ -27,19 +28,19 @@
 	load();
 </script>
 
-<svelte:head><title>新增實例 — Hexo Launcher</title></svelte:head>
+<svelte:head><title>{m.window_new_instance_title()}</title></svelte:head>
 
 {#if created}
 	<div class="flex h-full flex-col items-center justify-center gap-3 text-muted">
-		<h2 class="text-[17px] font-semibold text-ink">已建立「{created}」</h2>
-		<p>實例已經出現在主視窗的清單裡。</p>
-		<Button variant="primary" onclick={closeSelf}>關閉視窗</Button>
+		<h2 class="text-[17px] font-semibold text-ink">{m.add_created_title({ name: created })}</h2>
+		<p>{m.add_created_desc()}</p>
+		<Button variant="primary" onclick={closeSelf}>{m.common_close_window()}</Button>
 	</div>
 {:else if error}
 	<div class="flex h-full flex-col items-center justify-center gap-3 text-muted">
-		<h2 class="text-[17px] font-semibold text-ink">無法讀取啟動器設定</h2>
+		<h2 class="text-[17px] font-semibold text-ink">{m.error_load_config()}</h2>
 		<p>{error}</p>
-		<Button onclick={load}>重試</Button>
+		<Button onclick={load}>{m.common_retry()}</Button>
 	</div>
 {:else if baseDir}
 	<AddInstancePanel

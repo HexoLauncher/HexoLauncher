@@ -2,6 +2,7 @@
 	import SettingsPanel from '$lib/components/SettingsPanel.svelte';
 	import { app, report, saveConfig, saveConfigSoon } from '$lib/state.svelte';
 	import { page } from '$app/state';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	const initialPage = $derived(page.params.section ?? 'launcher');
@@ -13,7 +14,7 @@
 	});
 </script>
 
-<svelte:head><title>設定 — Hexo Launcher</title></svelte:head>
+<svelte:head><title>{m.window_settings_title()}</title></svelte:head>
 
 {#key initialPage}
 	<SettingsPanel

@@ -1,10 +1,20 @@
 import tailwindcss from '@tailwindcss/vite';
 import Icons from 'unplugin-icons/vite';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-	plugins: [tailwindcss(), Icons({ compiler: 'svelte' }), sveltekit()],
+	plugins: [
+		tailwindcss(),
+		Icons({ compiler: 'svelte' }),
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/lib/paraglide',
+			strategy: ['localStorage', 'preferredLanguage', 'baseLocale']
+		}),
+		sveltekit()
+	],
 	test: {
 		projects: [
 			{

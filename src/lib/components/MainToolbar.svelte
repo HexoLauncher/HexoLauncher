@@ -2,6 +2,7 @@
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import { Icon, Menu, MenuItem, MenuLabel, MenuSeparator, ToolButton } from '$lib/ui';
 	import type { AccountView, LauncherFolder, UiConfig } from '$lib/api';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		accounts,
@@ -46,34 +47,34 @@
 				icon="menu"
 				iconSize={18}
 				class="w-9.5 justify-center"
-				aria-label="主選單"
-				title="主選單"
+				aria-label={m.menu_main()}
+				title={m.menu_main()}
 			/>
 		{/snippet}
 
-		<MenuItem checked={false} shortcut="Ctrl+N" onclick={onAddInstance}>新增實例…</MenuItem>
+		<MenuItem checked={false} shortcut="Ctrl+N" onclick={onAddInstance}>{m.menu_new_instance()}</MenuItem>
 		<MenuSeparator />
-		<MenuLabel>資料夾</MenuLabel>
-		<MenuItem checked={false} onclick={() => onOpenFolder('instances')}>實例資料夾</MenuItem>
-		<MenuItem checked={false} onclick={() => onOpenFolder('base')}>資料根目錄</MenuItem>
-		<MenuItem checked={false} onclick={() => onOpenFolder('store')}>啟動器設定資料夾</MenuItem>
+		<MenuLabel>{m.menu_folders()}</MenuLabel>
+		<MenuItem checked={false} onclick={() => onOpenFolder('instances')}>{m.folder_instances()}</MenuItem>
+		<MenuItem checked={false} onclick={() => onOpenFolder('base')}>{m.folder_base()}</MenuItem>
+		<MenuItem checked={false} onclick={() => onOpenFolder('store')}>{m.folder_store()}</MenuItem>
 		<MenuSeparator />
-		<MenuLabel>檢視</MenuLabel>
-		<MenuItem checked={onInstances} onclick={() => onNavigate('/')}>遊戲實例</MenuItem>
-		<MenuItem checked={onSettings} onclick={() => onNavigate('/settings')}>設定</MenuItem>
+		<MenuLabel>{m.menu_view()}</MenuLabel>
+		<MenuItem checked={onInstances} onclick={() => onNavigate('/')}>{m.nav_instances()}</MenuItem>
+		<MenuItem checked={onSettings} onclick={() => onNavigate('/settings')}>{m.nav_settings()}</MenuItem>
 		<MenuSeparator />
 		<MenuItem checked={view.instanceToolbar} onclick={() => onToggleView('instanceToolbar')}>
-			實例工具列
+			{m.view_instance_toolbar()}
 		</MenuItem>
-		<MenuItem checked={view.statusBar} onclick={() => onToggleView('statusBar')}>狀態列</MenuItem>
+		<MenuItem checked={view.statusBar} onclick={() => onToggleView('statusBar')}>{m.view_status_bar()}</MenuItem>
 		<MenuSeparator />
-		<MenuItem checked={false} onclick={onAbout}>關於 Hexo Launcher</MenuItem>
+		<MenuItem checked={false} onclick={onAbout}>{m.menu_about()}</MenuItem>
 	</Menu>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>
 
 	<ToolButton icon="grid" active={onInstances} aria-current={onInstances} onclick={() => onNavigate('/')}>
-		{@render caption('遊戲實例')}
+		{@render caption(m.nav_instances())}
 	</ToolButton>
 
 	<ToolButton
@@ -82,28 +83,28 @@
 		aria-current={onSettings}
 		onclick={() => onNavigate('/settings')}
 	>
-		{@render caption('設定')}
+		{@render caption(m.nav_settings())}
 	</ToolButton>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>
 
 	<ToolButton icon="plus" onclick={onAddInstance}>
-		{@render caption('新增實例')}
+		{@render caption(m.window_new_instance())}
 	</ToolButton>
 
 	<Menu width="200px">
 		{#snippet trigger(attrs)}
 			<ToolButton {...attrs} icon="folder">
 				<span class="flex items-center gap-1 text-[11.5px] font-medium">
-					資料夾 <Icon name="caret" size={9} />
+					{m.menu_folders()} <Icon name="caret" size={9} />
 				</span>
 			</ToolButton>
 		{/snippet}
 
-		<MenuItem icon="folder" onclick={() => onOpenFolder('instances')}>實例資料夾</MenuItem>
-		<MenuItem icon="folder" onclick={() => onOpenFolder('base')}>資料根目錄</MenuItem>
-		<MenuItem icon="coffee" onclick={() => onOpenFolder('java')}>下載的 Java</MenuItem>
-		<MenuItem icon="settings" onclick={() => onOpenFolder('store')}>啟動器設定資料夾</MenuItem>
+		<MenuItem icon="folder" onclick={() => onOpenFolder('instances')}>{m.folder_instances()}</MenuItem>
+		<MenuItem icon="folder" onclick={() => onOpenFolder('base')}>{m.folder_base()}</MenuItem>
+		<MenuItem icon="coffee" onclick={() => onOpenFolder('java')}>{m.folder_java()}</MenuItem>
+		<MenuItem icon="settings" onclick={() => onOpenFolder('store')}>{m.folder_store()}</MenuItem>
 	</Menu>
 
 	<span class="flex-1"></span>
@@ -119,29 +120,29 @@
 					<InstanceIcon name="steve" size={22} />
 				</span>
 				<span class="overflow-hidden font-medium text-ellipsis whitespace-nowrap text-ink">
-					{current?.playerName ?? '尚未登入'}
+					{current?.playerName ?? m.account_not_signed_in()}
 				</span>
 				<Icon name="caret" size={9} />
 			</ToolButton>
 		{/snippet}
 
-		<MenuLabel>帳號</MenuLabel>
+		<MenuLabel>{m.menu_accounts()}</MenuLabel>
 		{#each accounts as item (item.id)}
 			<MenuItem
 				checked={item.selected}
 				shortcut={item.kind === 'microsoft'
 					? item.expired
-						? '需重新登入'
-						: 'Microsoft'
-					: '離線'}
+						? m.account_needs_relogin()
+						: m.account_microsoft()
+					: m.account_offline()}
 				onclick={() => onSelectAccount(item.id)}
 			>
 				{item.playerName}
 			</MenuItem>
 		{:else}
-			<div class="px-3 py-2 text-faint">還沒有任何帳號</div>
+			<div class="px-3 py-2 text-faint">{m.account_none()}</div>
 		{/each}
 		<MenuSeparator />
-		<MenuItem checked={false} onclick={onManageAccounts}>管理帳號…</MenuItem>
+		<MenuItem checked={false} onclick={onManageAccounts}>{m.account_manage()}</MenuItem>
 	</Menu>
 </div>

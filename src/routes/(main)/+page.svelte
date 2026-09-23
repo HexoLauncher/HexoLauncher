@@ -20,6 +20,7 @@
 		runningOf
 	} from '$lib/state.svelte';
 	import { openAppWindow, windowSpecs } from '$lib/windows';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	let confirmingDelete = $state(false);
@@ -41,19 +42,18 @@
 		if (!target) return;
 		app.selectedId = id;
 
-		// 還沒下載完的實例一定要開視窗看進度；其餘照設定。
 		if (app.config.game.showProgressWindow || !target.healthy) {
 			openAppWindow(windowSpecs.launch(id, target.name));
 			return;
 		}
-		report(`正在啟動 ${target.name}…`);
+		report(m.status_launching({ name: target.name }));
 		api
 			.launchInstance({ baseDir: app.baseDir, instanceName: id })
 			.then(() => {
-				report(`${target.name} 已啟動`);
+				report(m.status_launched({ name: target.name }));
 				refreshRunning();
 			})
-			.catch((e) => reportError('啟動失敗', e));
+			.catch((e) => reportError(m.error_launch(), e));
 	}
 
 	async function kill(id: string) {
@@ -61,9 +61,9 @@
 		try {
 			await api.stopInstance(id);
 			await refreshRunning();
-			report(`已要求 ${name} 結束`);
+			report(m.status_kill_requested({ name }));
 		} catch (e) {
-			reportError('終止失敗', e);
+			reportError(m.error_kill(), e);
 		}
 	}
 
@@ -81,9 +81,9 @@
 		try {
 			await api.deleteInstance(app.baseDir, target.id);
 			await refreshInstances();
-			report(`已刪除實例「${target.name}」`);
+			report(m.status_instance_deleted({ name: target.name }));
 		} catch (e) {
-			reportError('刪除失敗', e);
+			reportError(m.error_delete(), e);
 		}
 	}
 
@@ -94,9 +94,9 @@
 		try {
 			await api.saveInstanceMeta(app.baseDir, id, { group: value });
 			await refreshInstances();
-			report(value ? `已移到群組「${value}」` : '已移出群組');
+			report(value ? m.status_group_moved({ group: value }) : m.status_group_cleared());
 		} catch (e) {
-			reportError('變更群組失敗', e);
+			reportError(m.error_change_group(), e);
 		}
 	}
 
@@ -104,14 +104,14 @@
 		if (!duplicateDialog) return;
 		const { id, value } = duplicateDialog;
 		duplicateDialog = null;
-		busy = '正在複製實例…';
+		busy = m.busy_duplicating();
 		try {
 			const copy = await api.duplicateInstance(app.baseDir, id, value);
 			await refreshInstances();
 			app.selectedId = copy.id;
-			report(`已複製為「${copy.name}」`);
+			report(m.status_duplicated({ name: copy.name }));
 		} catch (e) {
-			reportError('複製失敗', e);
+			reportError(m.error_duplicate(), e);
 		} finally {
 			busy = '';
 		}
@@ -128,15 +128,15 @@
 			const { save } = await import('@tauri-apps/api/dialog');
 			targetPath = await save({
 				defaultPath: `${name}.zip`,
-				filters: [{ name: '壓縮檔', extensions: ['zip'] }]
+				filters: [{ name: m.file_filter_zip(), extensions: ['zip'] }]
 			});
 		} catch {
-			reportError('匯出失敗', '這個環境沒有系統對話框');
+			reportError(m.error_export(), m.common_no_dialog());
 			return;
 		}
 		if (!targetPath) return;
 
-		busy = '正在打包實例…';
+		busy = m.busy_packing();
 		try {
 			const result = await api.exportInstance({
 				baseDir: app.baseDir,
@@ -145,9 +145,15 @@
 				includeSaves,
 				includeScreenshots
 			});
-			report(`已匯出 ${result.fileCount} 個檔案（${formatSize(result.bytes)}）到 ${result.path}`);
+			report(
+				m.status_exported({
+					count: result.fileCount,
+					size: formatSize(result.bytes),
+					path: result.path
+				})
+			);
 		} catch (e) {
-			reportError('匯出失敗', e);
+			reportError(m.error_export(), e);
 		} finally {
 			busy = '';
 		}
@@ -157,16 +163,16 @@
 		const target = findInstance(id);
 		if (!target) return;
 		if (!target.versionId) {
-			report('這個實例沒有版本資訊，請用「編輯 → 版本」重新指定');
+			report(m.status_no_version_info());
 			return;
 		}
-		busy = `正在修復 ${target.name}…`;
+		busy = m.busy_repairing({ name: target.name });
 		try {
 			await api.repairInstance(app.baseDir, id);
 			await refreshInstances();
-			report(`${target.name} 已修復完成`);
+			report(m.status_repaired({ name: target.name }));
 		} catch (e) {
-			reportError('修復失敗', e);
+			reportError(m.error_repair(), e);
 		} finally {
 			busy = '';
 		}
@@ -176,7 +182,7 @@
 		try {
 			await api.openInstanceFolder(app.baseDir, id, target);
 		} catch (e) {
-			reportError('開啟資料夾失敗', e);
+			reportError(m.error_open_folder(), e);
 		}
 	}
 
@@ -188,7 +194,7 @@
 			event.preventDefault();
 			refreshInstances();
 			refreshRunning();
-			report('已重新整理實例清單');
+			report(m.status_refreshed());
 		}
 	}
 </script>
@@ -209,7 +215,7 @@
 	onKill={kill}
 	onEdit={edit}
 	onRepair={repair}
-	onDuplicate={(id) => (duplicateDialog = { id, value: `${findInstance(id)?.name ?? ''} 的副本` })}
+	onDuplicate={(id) => (duplicateDialog = { id, value: m.copy_suffix({ name: findInstance(id)?.name ?? '' }) })}
 	onExport={(id) =>
 		(exportDialog = {
 			id,
@@ -234,7 +240,7 @@
 		onRepair={() => app.selectedId && repair(app.selectedId)}
 		onGroup={() => selected && (groupDialog = { id: selected.id, value: selected.group })}
 		onDuplicate={() =>
-			selected && (duplicateDialog = { id: selected.id, value: `${selected.name} 的副本` })}
+			selected && (duplicateDialog = { id: selected.id, value: m.copy_suffix({ name: selected.name }) })}
 		onExport={() =>
 			selected &&
 			(exportDialog = {
@@ -249,30 +255,30 @@
 {/if}
 
 {#if confirmingDelete && selected}
-	<Dialog title="刪除實例" width="420px" onclose={() => (confirmingDelete = false)}>
+	<Dialog title={m.dialog_delete_instance_title()} width="420px" onclose={() => (confirmingDelete = false)}>
 		<div class="flex gap-3.75 px-5 py-5.5">
 			<span class="grid size-11.5 shrink-0 place-items-center rounded-lg bg-danger-soft text-danger"
 				><Icon name="trash" size={30} /></span
 			>
 			<div>
-				<p class="mb-2 text-[15px] font-semibold">確定要刪除「{selected.name}」嗎？</p>
+				<p class="mb-2 text-[15px] font-semibold">{m.dialog_delete_confirm({ name: selected.name })}</p>
 				<p class="leading-[1.75] text-muted">
-					這個實例的所有世界、模組與設定都會一併移除，而且無法復原。
+					{m.dialog_delete_desc()}
 				</p>
 			</div>
 		</div>
 		{#snippet footer()}
-			<Button variant="destructive" onclick={confirmDelete}>刪除</Button>
-			<Button onclick={() => (confirmingDelete = false)}>取消</Button>
+			<Button variant="destructive" onclick={confirmDelete}>{m.common_delete()}</Button>
+			<Button onclick={() => (confirmingDelete = false)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if groupDialog}
-	<Dialog title="變更群組" width="380px" onclose={() => (groupDialog = null)}>
+	<Dialog title={m.dialog_change_group_title()} width="380px" onclose={() => (groupDialog = null)}>
 		<div class="px-5 py-5">
-			<Field label="群組" for="group-name">
-				<TextInput id="group-name" bind:value={groupDialog.value} list="known-groups" placeholder="（未分組）" />
+			<Field label={m.common_group()} for="group-name">
+				<TextInput id="group-name" bind:value={groupDialog.value} list="known-groups" placeholder={m.common_ungrouped()} />
 				<datalist id="known-groups">
 					{#each knownGroups() as g (g)}
 						<option value={g}></option>
@@ -281,36 +287,36 @@
 			</Field>
 		</div>
 		{#snippet footer()}
-			<Button variant="primary" onclick={saveGroup}>確定</Button>
-			<Button onclick={() => (groupDialog = null)}>取消</Button>
+			<Button variant="primary" onclick={saveGroup}>{m.common_ok()}</Button>
+			<Button onclick={() => (groupDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if duplicateDialog}
-	<Dialog title="複製實例" width="380px" onclose={() => (duplicateDialog = null)}>
+	<Dialog title={m.dialog_duplicate_title()} width="380px" onclose={() => (duplicateDialog = null)}>
 		<div class="px-5 py-5">
-			<Field label="新名稱" for="copy-name">
+			<Field label={m.dialog_new_name()} for="copy-name">
 				<TextInput id="copy-name" bind:value={duplicateDialog.value} />
 			</Field>
 		</div>
 		{#snippet footer()}
-			<Button variant="primary" disabled={!duplicateDialog?.value.trim()} onclick={confirmDuplicate}>複製</Button>
-			<Button onclick={() => (duplicateDialog = null)}>取消</Button>
+			<Button variant="primary" disabled={!duplicateDialog?.value.trim()} onclick={confirmDuplicate}>{m.editor_copy()}</Button>
+			<Button onclick={() => (duplicateDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if exportDialog}
-	<Dialog title="匯出實例" width="440px" onclose={() => (exportDialog = null)}>
+	<Dialog title={m.dialog_export_title()} width="440px" onclose={() => (exportDialog = null)}>
 		<div class="flex flex-col gap-1 px-5 py-5">
-			<p class="mb-1 text-muted">打包「{exportDialog.name}」成 .zip</p>
-			<Switch label="包含世界存檔" bind:checked={exportDialog.includeSaves} />
-			<Switch label="包含螢幕截圖" bind:checked={exportDialog.includeScreenshots} />
+			<p class="mb-1 text-muted">{m.dialog_export_desc({ name: exportDialog.name })}</p>
+			<Switch label={m.export_include_saves()} bind:checked={exportDialog.includeSaves} />
+			<Switch label={m.export_include_screenshots()} bind:checked={exportDialog.includeScreenshots} />
 		</div>
 		{#snippet footer()}
-			<Button variant="primary" onclick={confirmExport}>選擇位置並匯出</Button>
-			<Button onclick={() => (exportDialog = null)}>取消</Button>
+			<Button variant="primary" onclick={confirmExport}>{m.export_choose_location()}</Button>
+			<Button onclick={() => (exportDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}

@@ -9,6 +9,7 @@
 	import type { InstanceView, LauncherConfig } from '$lib/api';
 	import { formatSize, loaderLabel } from '$lib/format';
 	import { closeSelf } from '$lib/windows';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	const id = $derived(page.params.id ?? '');
@@ -17,11 +18,11 @@
 	type StageState = 'pending' | 'active' | 'done' | 'skipped' | 'failed';
 
 	const STAGES: { id: StageId; label: string; icon: string }[] = [
-		{ id: 'read', label: '讀取實例資訊', icon: 'box' },
-		{ id: 'check', label: '檢查遊戲檔案', icon: 'search' },
-		{ id: 'download', label: '下載遊戲檔案', icon: 'package' },
-		{ id: 'java', label: '準備 Java 與啟動參數', icon: 'coffee' },
-		{ id: 'launch', label: '啟動遊戲', icon: 'play' }
+		{ id: 'read', label: m.launch_stage_read(), icon: 'box' },
+		{ id: 'check', label: m.launch_stage_check(), icon: 'search' },
+		{ id: 'download', label: m.launch_stage_download(), icon: 'package' },
+		{ id: 'java', label: m.launch_stage_java(), icon: 'coffee' },
+		{ id: 'launch', label: m.launch_stage_launch(), icon: 'play' }
 	];
 
 
@@ -64,26 +65,36 @@
 	function describeJavaProgress(p: api.JavaProgress) {
 		switch (p.message) {
 			case 'Fetching Java release':
-				return { label: `取得 Java ${p.version} 的下載資訊…`, percent: null };
+				return { label: m.launch_java_fetching({ version: p.version }), percent: null };
 			case 'Downloading Java':
 				return p.total > 0
 					? {
-							label: `下載 Java ${p.version}：${formatSize(p.done)} / ${formatSize(p.total)}`,
+							label: m.launch_java_downloading({
+								version: p.version,
+								done: formatSize(p.done),
+								total: formatSize(p.total)
+							}),
 							percent: Math.min(100, Math.round((p.done / p.total) * 100))
 						}
-					: { label: `下載 Java ${p.version}：${formatSize(p.done)}`, percent: null };
+					: {
+							label: m.launch_java_downloading_unknown({
+								version: p.version,
+								done: formatSize(p.done)
+							}),
+							percent: null
+						};
 			case 'Extracting Java':
-				return { label: `解壓縮 Java ${p.version}…`, percent: null };
+				return { label: m.launch_java_extracting({ version: p.version }), percent: null };
 			default:
-				return { label: `準備 Java ${p.version}…`, percent: null };
+				return { label: m.launch_java_preparing({ version: p.version }), percent: null };
 		}
 	}
 
 	async function downloadJava(baseDir: string, version: number, stage: StageId) {
 		if (!(await askDownloadJava(version))) {
-			throw new Error(`找不到 Java ${version}，已取消。可以到「設定」指定已安裝的 Java。`);
+			throw new Error(m.launch_java_cancelled({ version }));
 		}
-		javaDownload = { label: `準備下載 Java ${version}…`, percent: null };
+		javaDownload = { label: m.launch_java_preparing_download({ version }), percent: null };
 		const unlisten = await api.onJavaProgress((p) => {
 			if (p.version === version) javaDownload = describeJavaProgress(p);
 		});
@@ -149,7 +160,10 @@
 
 			instance = await api.getInstance(baseDir, instanceName);
 			stageState.read = 'done';
-			detail.read = `${instance.versionId} · ${loaderLabel(instance.loader)}`;
+			detail.read = m.instance_tooltip_version({
+				version: instance.versionId,
+				loader: loaderLabel(instance.loader)
+			});
 
 			stage = 'check';
 			stageState.check = 'active';
@@ -157,9 +171,9 @@
 			stageState.check = 'done';
 			detail.check = needsDownload
 				? instance.installed
-					? '檔案不完整'
-					: '尚未下載'
-				: '檔案齊全';
+					? m.launch_detail_files_incomplete()
+					: m.launch_detail_not_downloaded()
+				: m.launch_detail_files_ready();
 
 			stage = 'download';
 			if (needsDownload) {
@@ -179,10 +193,10 @@
 				});
 				for (const task of tasks) task.finished = true;
 				stageState.download = 'done';
-				detail.download = `${tasks.length} 個步驟`;
+				detail.download = m.launch_detail_steps({ count: tasks.length });
 			} else {
 				stageState.download = 'skipped';
-				detail.download = '略過';
+				detail.download = m.launch_detail_skipped();
 			}
 
 			stage = 'java';
@@ -193,9 +207,13 @@
 			const info = await api.launchInstance({ baseDir, instanceName });
 
 			stageState.java = 'done';
-			detail.java = `Java ${info.javaVersion} · ${info.online ? '正版登入' : '離線模式'} · ${info.playerName}`;
+			detail.java = m.launch_detail_java({
+				version: info.javaVersion,
+				mode: info.online ? m.editor_online_mode() : m.editor_offline_mode(),
+				player: info.playerName
+			});
 			stageState.launch = 'done';
-			detail.launch = `PID ${info.pid}`;
+			detail.launch = m.launch_detail_pid({ pid: info.pid });
 			done = true;
 
 			if (config?.game.closeProgressWhenDone) {
@@ -214,7 +232,7 @@
 </script>
 
 <svelte:head>
-	<title>{instance ? `啟動 ${instance.name}` : '正在啟動'}</title>
+	<title>{instance ? m.window_launch({ name: instance.name }) : m.window_launching()}</title>
 </svelte:head>
 
 {#snippet marker(phase: StageState, icon: string)}
@@ -251,17 +269,17 @@
 			</span>
 			<div class="min-w-0 flex-1">
 				<h1 class="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold">
-					{instance?.name ?? '正在讀取…'}
+					{instance?.name ?? m.launch_loading()}
 				</h1>
 				<div class="mt-1.5 flex gap-1.25">
-					<Pill accent>{instance?.versionId ?? '—'}</Pill>
-					<Pill>{instance ? loaderLabel(instance.loader) : '—'}</Pill>
+					<Pill accent>{instance?.versionId ?? m.common_dash()}</Pill>
+					<Pill>{instance ? loaderLabel(instance.loader) : m.common_dash()}</Pill>
 				</div>
 			</div>
 			{#if done}
-				<Pill accent>已啟動</Pill>
+				<Pill accent>{m.launch_started()}</Pill>
 			{:else if failed}
-				<Pill>失敗</Pill>
+				<Pill>{m.launch_failed()}</Pill>
 			{/if}
 		</header>
 
@@ -339,15 +357,15 @@
 						{#if current === 'active' && javaPrompt}
 							{@const prompt = javaPrompt}
 							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2.5">
-								<p class="leading-[1.7] text-ink">找不到 Java {prompt.version}。</p>
+								<p class="leading-[1.7] text-ink">{m.launch_java_missing({ version: prompt.version })}</p>
 								<p class="leading-[1.7] text-muted">
-									要從 Adoptium 下載 Temurin {prompt.version} 嗎？也可以取消，到「設定」指定已安裝的 Java。
+									{m.launch_java_ask({ version: prompt.version })}
 								</p>
 								<div class="mt-2 flex gap-1.75">
 									<Button variant="primary" onclick={() => prompt.answer(true)}>
-										<Icon name="download" size={13} />下載 Java {prompt.version}
+										<Icon name="download" size={13} />{m.launch_java_download({ version: prompt.version })}
 									</Button>
-									<Button onclick={() => prompt.answer(false)}>取消</Button>
+									<Button onclick={() => prompt.answer(false)}>{m.common_cancel()}</Button>
 								</div>
 							</div>
 						{/if}
@@ -389,12 +407,12 @@
 
 	{#snippet footer()}
 		{#if failed}
-			<Button variant="primary" onclick={() => run(id)}>重試</Button>
-			<Button onclick={closeSelf}>關閉</Button>
+			<Button variant="primary" onclick={() => run(id)}>{m.common_retry()}</Button>
+			<Button onclick={closeSelf}>{m.common_close()}</Button>
 		{:else if done}
-			<Button variant="primary" onclick={closeSelf}>關閉</Button>
+			<Button variant="primary" onclick={closeSelf}>{m.common_close()}</Button>
 		{:else}
-			<Button onclick={closeSelf}>在背景繼續</Button>
+			<Button onclick={closeSelf}>{m.launch_background()}</Button>
 		{/if}
 	{/snippet}
 </WindowShell>

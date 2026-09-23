@@ -5,6 +5,7 @@
 	import * as api from '$lib/api';
 	import type { InstanceView } from '$lib/api';
 	import { closeSelf } from '$lib/windows';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	const id = $derived(page.params.id ?? '');
@@ -33,7 +34,11 @@
 </script>
 
 <svelte:head>
-	<title>{instance ? `${instance.name} — 編輯實例` : '編輯實例'}</title>
+	<title>
+		{instance
+			? m.window_edit_instance({ name: instance.name })
+			: m.window_edit_instance_fallback()}
+	</title>
 </svelte:head>
 
 {#if instance}
@@ -45,16 +50,19 @@
 	/>
 {:else if error}
 	<div class="flex h-full flex-col items-center justify-center gap-3.5 text-muted">
-		<h2 class="text-[17px] font-semibold text-ink">找不到實例</h2>
+		<h2 class="text-[17px] font-semibold text-ink">{m.instance_not_found()}</h2>
 		<p>{error}</p>
 		<p class="text-faint">
-			路由參數 <code class="rounded-sm bg-deep px-1.5 py-0.5 font-mono">{id || '（空的）'}</code>
+			{m.instance_route_param()}
+			<code class="rounded-sm bg-deep px-1.5 py-0.5 font-mono"
+				>{id || m.instance_route_param_empty()}</code
+			>
 		</p>
-		<Button variant="primary" onclick={closeSelf}>關閉視窗</Button>
+		<Button variant="primary" onclick={closeSelf}>{m.common_close_window()}</Button>
 	</div>
 {:else}
 	<div class="flex h-full items-center justify-center gap-3 text-muted">
 		<span class="size-5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
-		正在讀取實例…
+		{m.instance_loading()}
 	</div>
 {/if}

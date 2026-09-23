@@ -3,6 +3,7 @@
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import type { InstanceView } from '$lib/api';
 	import { formatDate, loaderLabel } from '$lib/format';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		instances,
@@ -25,7 +26,6 @@
 		instances: InstanceView[];
 		groupOrder: string[];
 		selectedId: string | null;
-		/** 執行中的實例 id */
 		running: string[];
 		showBadge?: boolean;
 		loading?: boolean;
@@ -64,7 +64,7 @@
 	);
 
 	function label(group: string) {
-		return group === '' ? '未分組' : group;
+		return group === '' ? m.group_ungrouped() : group;
 	}
 
 	function openContext(event: MouseEvent, id: string) {
@@ -74,11 +74,15 @@
 	}
 
 	function title(item: InstanceView) {
-		const state = !item.installed ? '尚未安裝' : !item.healthy ? '需要修復' : '';
+		const state = !item.installed
+			? m.instance_state_not_installed()
+			: !item.healthy
+				? m.instance_state_needs_repair()
+				: '';
 		return [
 			item.name,
-			`Minecraft ${item.versionId} · ${loaderLabel(item.loader)}`,
-			`上次遊玩：${formatDate(item.lastPlayed)}`,
+			m.instance_tooltip_version({ version: item.versionId, loader: loaderLabel(item.loader) }),
+			m.instance_tooltip_last_played({ date: formatDate(item.lastPlayed) }),
 			state
 		]
 			.filter(Boolean)
@@ -91,15 +95,15 @@
 		<div class="flex max-w-105 flex-1 items-center">
 			<SearchField
 				class="w-full bg-window"
-				placeholder="搜尋實例…"
-				aria-label="搜尋實例"
+				placeholder={m.search_instances()}
+				aria-label={m.search_instances()}
 				bind:value={search}
 			/>
 			{#if search}
 				<button
 					class="-ml-8 grid size-4.75 shrink-0 place-items-center rounded-full bg-btn text-muted
 						transition-colors duration-150 hover:bg-btn-hi hover:text-ink"
-					aria-label="清除搜尋"
+					aria-label={m.search_clear()}
 					onclick={() => (search = '')}
 				>
 					<Icon name="close" size={12} />
@@ -160,13 +164,13 @@
 										<span
 											class="absolute -bottom-0.75 -right-0.75 size-3.25 rounded-full border-3 border-deep
 												bg-brand shadow-[0_0_10px_var(--color-brand-line)]"
-											title="執行中"
+											title={m.common_running()}
 										></span>
 									{:else if !item.healthy}
 										<span
 											class="absolute -bottom-0.75 -right-0.75 grid size-4.5 place-items-center rounded-full
 												border-2 border-deep bg-warn text-[10px] font-bold text-black"
-											title={item.installed ? '檔案不完整，需要修復' : '還沒下載遊戲檔案，啟動時會自動下載'}
+											title={item.installed ? m.badge_incomplete() : m.badge_not_downloaded()}
 										>!</span>
 									{/if}
 								</span>
@@ -177,7 +181,7 @@
 								>
 									{item.name}
 								</span>
-								<span class="text-[11.5px] text-faint">{item.versionId || '—'}</span>
+								<span class="text-[11.5px] text-faint">{item.versionId || m.common_dash()}</span>
 							</button>
 
 						</div>
@@ -190,14 +194,14 @@
 			<div class="flex flex-col items-center gap-3.5 py-17.5 text-muted">
 				{#if loading}
 					<Spinner size={24} />
-					<p>正在讀取實例…</p>
+					<p>{m.grid_loading()}</p>
 				{:else if search}
 					<Icon name="search" size={34} />
-					<p>沒有符合「{search}」的實例。</p>
-					<Button onclick={() => (search = '')}>清除搜尋</Button>
+					<p>{m.grid_no_match({ query: search })}</p>
+					<Button onclick={() => (search = '')}>{m.search_clear()}</Button>
 				{:else}
 					<Icon name="grid" size={34} />
-					<p>還沒有任何實例。</p>
+					<p>{m.grid_empty()}</p>
 				{/if}
 			</div>
 		{/if}
@@ -207,24 +211,24 @@
 {#if context}
 	{@const item = instances.find((i) => i.id === context?.id)}
 	<ContextMenu x={context.x} y={context.y} width="184px" onclose={() => (context = null)}>
-		<MenuItem icon="play" onclick={() => onLaunch(context!.id)}>啟動</MenuItem>
+		<MenuItem icon="play" onclick={() => onLaunch(context!.id)}>{m.action_launch()}</MenuItem>
 		<MenuItem
 			icon="stop"
 			disabled={!running.includes(context.id)}
 			onclick={() => onKill(context!.id)}
 		>
-			終止
+			{m.action_stop()}
 		</MenuItem>
 		<MenuSeparator />
-		<MenuItem icon="edit" onclick={() => onEdit(context!.id)}>編輯…</MenuItem>
+		<MenuItem icon="edit" onclick={() => onEdit(context!.id)}>{m.action_edit_ellipsis()}</MenuItem>
 		<MenuItem icon="refresh" disabled={item?.healthy} onclick={() => onRepair(context!.id)}>
-			修復／重新安裝
+			{m.action_repair_reinstall()}
 		</MenuItem>
-		<MenuItem icon="folder" onclick={() => onOpenFolder(context!.id)}>實例資料夾</MenuItem>
+		<MenuItem icon="folder" onclick={() => onOpenFolder(context!.id)}>{m.folder_instance()}</MenuItem>
 		<MenuSeparator />
-		<MenuItem icon="copy" onclick={() => onDuplicate(context!.id)}>複製…</MenuItem>
-		<MenuItem icon="export" onclick={() => onExport(context!.id)}>匯出為 .zip…</MenuItem>
+		<MenuItem icon="copy" onclick={() => onDuplicate(context!.id)}>{m.action_duplicate_ellipsis()}</MenuItem>
+		<MenuItem icon="export" onclick={() => onExport(context!.id)}>{m.action_export_zip()}</MenuItem>
 		<MenuSeparator />
-		<MenuItem icon="trash" danger onclick={() => onDelete(context!.id)}>刪除</MenuItem>
+		<MenuItem icon="trash" danger onclick={() => onDelete(context!.id)}>{m.common_delete()}</MenuItem>
 	</ContextMenu>
 {/if}

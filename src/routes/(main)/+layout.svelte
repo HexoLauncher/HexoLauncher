@@ -17,6 +17,7 @@
 		selectedAccount
 	} from '$lib/state.svelte';
 	import { openAppWindow, windowSpecs } from '$lib/windows';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -24,7 +25,6 @@
 		const unlisteners: Array<() => void> = [];
 		const track = (p: Promise<() => void>) => p.then((un) => unlisteners.push(un));
 
-		// 二級視窗（新增實例、編輯）改完東西之後，主視窗靠這些事件跟上。
 		track(api.onInstancesChanged(() => refreshInstances()));
 		track(api.onGameStart(() => refreshRunning()));
 		track(
@@ -33,8 +33,8 @@
 				const name = app.instances.find((i) => i.id === exit.instanceName)?.name ?? exit.instanceName;
 				report(
 					exit.exitCode === 0 || exit.exitCode === null
-						? `${name} 已結束`
-						: `${name} 異常結束（代碼 ${exit.exitCode}）`
+						? m.status_game_exited({ name })
+						: m.status_game_crashed({ name, code: exit.exitCode })
 				);
 			})
 		);
@@ -56,9 +56,9 @@
 	async function pickAccount(id: string) {
 		try {
 			app.accounts = await api.selectAccount(id);
-			report(`已切換至帳號 ${selectedAccount()?.playerName ?? ''}`);
+			report(m.status_account_switched({ name: selectedAccount()?.playerName ?? '' }));
 		} catch (e) {
-			reportError('切換帳號失敗', e);
+			reportError(m.error_switch_account(), e);
 		}
 	}
 
@@ -66,7 +66,7 @@
 		try {
 			await api.openLauncherFolder(target);
 		} catch (e) {
-			reportError('開啟資料夾失敗', e);
+			reportError(m.error_open_folder(), e);
 		}
 	}
 </script>
@@ -102,7 +102,7 @@
 			message={app.status}
 			baseDir={app.baseDir}
 			instanceCount={app.instances.length}
-			account={selectedAccount()?.playerName ?? '尚未登入'}
+			account={selectedAccount()?.playerName ?? m.account_not_signed_in()}
 			onOpenBaseDir={() => openFolder('base')}
 		/>
 	{/if}

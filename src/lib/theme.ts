@@ -1,3 +1,5 @@
+import { m } from '$lib/paraglide/messages.js';
+
 export type ThemeMode = 'dark' | 'light' | 'system';
 
 export interface ThemeConfig {
@@ -19,9 +21,9 @@ export interface ThemeConfig {
 }
 
 export const MODES: { id: ThemeMode; label: string; icon: string }[] = [
-	{ id: 'dark', label: '黑暗', icon: 'moon' },
-	{ id: 'light', label: '明亮', icon: 'sun' },
-	{ id: 'system', label: '跟隨系統', icon: 'monitor' }
+	{ id: 'dark', label: m.theme_mode_dark(), icon: 'moon' },
+	{ id: 'light', label: m.theme_mode_light(), icon: 'sun' },
+	{ id: 'system', label: m.theme_mode_system(), icon: 'monitor' }
 ];
 
 export interface ThemePreset {
@@ -31,12 +33,12 @@ export interface ThemePreset {
 }
 
 export const PRESETS: ThemePreset[] = [
-	{ id: 'crimson', label: '緋紅', accent: '#e5343f' },
-	{ id: 'ember', label: '熔岩', accent: '#f2652b' },
-	{ id: 'sakura', label: '緋櫻', accent: '#ff5d8f' },
-	{ id: 'emerald', label: '翠綠', accent: '#1bd96a' },
-	{ id: 'ocean', label: '深海', accent: '#3b82f6' },
-	{ id: 'amethyst', label: '紫晶', accent: '#a855f7' }
+	{ id: 'crimson', label: m.theme_preset_crimson(), accent: '#e5343f' },
+	{ id: 'ember', label: m.theme_preset_ember(), accent: '#f2652b' },
+	{ id: 'sakura', label: m.theme_preset_sakura(), accent: '#ff5d8f' },
+	{ id: 'emerald', label: m.theme_preset_emerald(), accent: '#1bd96a' },
+	{ id: 'ocean', label: m.theme_preset_ocean(), accent: '#3b82f6' },
+	{ id: 'amethyst', label: m.theme_preset_amethyst(), accent: '#a855f7' }
 ];
 
 const NEUTRAL = { dark: '#16181c', light: '#f5f6f8' };
@@ -60,8 +62,6 @@ export function isDarkMode(mode: ThemeMode | undefined): boolean {
 	if (typeof window === 'undefined' || !window.matchMedia) return true;
 	return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
-
-/* ---------- 顏色工具 ---------- */
 
 type RGB = [number, number, number];
 

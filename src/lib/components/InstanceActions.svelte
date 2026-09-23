@@ -2,6 +2,7 @@
 	import { Icon, Menu, MenuItem, MenuSeparator, Pill, ToolButton } from '$lib/ui';
 	import type { InstanceFolder, InstanceView, RunningGame } from '$lib/api';
 	import { formatDate, formatDuration, formatTime, loaderLabel } from '$lib/format';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		instance,
@@ -46,46 +47,46 @@
 >
 	<button class="{launchButton} mb-1.5" disabled={off || !!running} onclick={onLaunch}>
 		<Icon name="play" size={15} />
-		<span>{running ? '執行中' : '啟動'}</span>
+		<span>{running ? m.common_running() : m.action_launch()}</span>
 	</button>
 
 	<ToolButton layout="beside" icon="stop" class={item} disabled={!running} onclick={onKill}>
-		<span>終止</span>
+		<span>{m.action_stop()}</span>
 	</ToolButton>
 
 	<span class="mx-1 my-2 h-px bg-line"></span>
 
 	<ToolButton layout="beside" icon="edit" class={item} disabled={off} onclick={onEdit}>
-		<span>編輯</span>
+		<span>{m.action_edit()}</span>
 	</ToolButton>
 
 	<ToolButton layout="beside" icon="tag" class={item} disabled={off} onclick={onGroup}>
-		<span>變更群組</span>
+		<span>{m.action_change_group()}</span>
 	</ToolButton>
 
 	<Menu width="180px" placement="bottom-end">
 		{#snippet trigger(attrs)}
 			<ToolButton {...attrs} layout="beside" icon="folder" class={item} disabled={off}>
-				<span>資料夾</span>
+				<span>{m.action_folder()}</span>
 				<Icon name="caret" size={9} />
 			</ToolButton>
 		{/snippet}
 
-		<MenuItem onclick={() => onFolder('minecraft')}>Minecraft 資料夾</MenuItem>
-		<MenuItem onclick={() => onFolder('mods')}>模組</MenuItem>
-		<MenuItem onclick={() => onFolder('saves')}>世界存檔</MenuItem>
-		<MenuItem onclick={() => onFolder('config')}>模組設定</MenuItem>
-		<MenuItem onclick={() => onFolder('logs')}>日誌</MenuItem>
+		<MenuItem onclick={() => onFolder('minecraft')}>{m.folder_minecraft()}</MenuItem>
+		<MenuItem onclick={() => onFolder('mods')}>{m.folder_mods()}</MenuItem>
+		<MenuItem onclick={() => onFolder('saves')}>{m.folder_saves()}</MenuItem>
+		<MenuItem onclick={() => onFolder('config')}>{m.folder_config()}</MenuItem>
+		<MenuItem onclick={() => onFolder('logs')}>{m.folder_logs()}</MenuItem>
 		<MenuSeparator />
-		<MenuItem onclick={() => onFolder('instance')}>實例資料夾</MenuItem>
+		<MenuItem onclick={() => onFolder('instance')}>{m.folder_instance()}</MenuItem>
 	</Menu>
 
 	<ToolButton layout="beside" icon="copy" class={item} disabled={off} onclick={onDuplicate}>
-		<span>複製實例</span>
+		<span>{m.action_duplicate_instance()}</span>
 	</ToolButton>
 
 	<ToolButton layout="beside" icon="export" class={item} disabled={off} onclick={onExport}>
-		<span>匯出…</span>
+		<span>{m.action_export()}</span>
 	</ToolButton>
 
 	<ToolButton
@@ -95,7 +96,7 @@
 		disabled={off || !!running}
 		onclick={onRepair}
 	>
-		<span>{instance && !instance.installed ? '下載檔案' : '修復'}</span>
+		<span>{instance && !instance.installed ? m.action_download_files() : m.action_repair()}</span>
 	</ToolButton>
 
 	<ToolButton
@@ -105,7 +106,7 @@
 		disabled={off || !!running}
 		onclick={onDelete}
 	>
-		<span>刪除</span>
+		<span>{m.common_delete()}</span>
 	</ToolButton>
 
 	<div class="min-h-4 flex-1"></div>
@@ -113,38 +114,38 @@
 	{#if instance}
 		<div class="rounded-lg bg-deep px-3 py-2.75 text-muted">
 			<div class="mb-2.5 flex flex-wrap gap-1.25">
-				<Pill accent>{instance.versionId || '未知版本'}</Pill>
+				<Pill accent>{instance.versionId || m.common_unknown_version()}</Pill>
 				<Pill>{loaderLabel(instance.loader)}</Pill>
 			</div>
 
 			{#if running}
 				<p class="mb-2 rounded-md bg-brand-soft px-2 py-1.5 leading-[1.7] text-brand-fg">
-					執行中 · PID {running.pid}<br />
+					{m.info_running_pid({ pid: running.pid })}<br />
 					<span class="text-[11px] text-muted">
-						{formatTime(running.startedAt)} 起 · {running.playerName}
+						{m.info_running_since({ time: formatTime(running.startedAt), player: running.playerName })}
 					</span>
 				</p>
 			{/if}
 
 			{#if !instance.healthy}
 				<p class="mb-2 rounded-md bg-danger-soft px-2 py-1.5 text-warn">
-					{instance.installed ? '檔案不完整，需要修復' : '尚未下載遊戲檔案'}
+					{instance.installed ? m.badge_incomplete() : m.info_not_downloaded()}
 				</p>
 			{/if}
 
 			<p class="py-1">
-				<span class="block text-[11.5px] text-faint">上次遊玩</span>
+				<span class="block text-[11.5px] text-faint">{m.info_last_played()}</span>
 				<strong class="mt-px block font-medium text-ink">{formatDate(instance.lastPlayed)}</strong>
 			</p>
 			<p class="py-1">
-				<span class="block text-[11.5px] text-faint">總時數</span>
+				<span class="block text-[11.5px] text-faint">{m.info_total_time()}</span>
 				<strong class="mt-px block font-medium text-ink"
 					>{formatDuration(instance.playTimeSeconds)}</strong
 				>
 			</p>
 			<p class="py-1">
-				<span class="block text-[11.5px] text-faint">模組</span>
-				<strong class="mt-px block font-medium text-ink">{instance.modCount} 個</strong>
+				<span class="block text-[11.5px] text-faint">{m.info_mods()}</span>
+				<strong class="mt-px block font-medium text-ink">{m.common_item_count({ count: instance.modCount })}</strong>
 			</p>
 		</div>
 	{/if}

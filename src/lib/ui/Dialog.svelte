@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { Dialog } from 'melt/builders';
 	import Icon from './Icon.svelte';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		title,
@@ -53,14 +54,14 @@
 		<div class="ml-auto flex h-full">
 			<button
 				class="grid h-full w-10.5 place-items-center text-muted transition-colors duration-150 disabled:text-faint"
-				aria-label="最小化"
+				aria-label={m.common_minimize()}
 				disabled
 			>
 				<Icon name="win-min" size={13} />
 			</button>
 			<button
 				class="grid h-full w-10.5 place-items-center text-muted transition-colors duration-150 disabled:text-faint"
-				aria-label="最大化"
+				aria-label={m.common_maximize()}
 				disabled
 			>
 				<Icon name="win-max" size={11} />
@@ -68,7 +69,7 @@
 			<button
 				class="grid h-full w-10.5 place-items-center text-muted transition-colors duration-150
 					hover:bg-danger hover:text-white"
-				aria-label="關閉"
+				aria-label={m.common_close()}
 				onclick={() => (dialog.open = false)}
 			>
 				<Icon name="close" size={13} />

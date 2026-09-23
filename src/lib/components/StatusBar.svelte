@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Icon from '$lib/ui/Icon.svelte';
+	import { m } from '$lib/paraglide/messages.js';
 
 	let {
 		message,
@@ -27,7 +28,7 @@
 		onclick={onOpenBaseDir}
 	>
 		<Icon name="folder" size={13} />
-		<span class="overflow-hidden text-ellipsis whitespace-nowrap">{baseDir || '尚未設定資料目錄'}</span>
+		<span class="overflow-hidden text-ellipsis whitespace-nowrap">{baseDir || m.statusbar_no_base_dir()}</span>
 	</button>
 
 	<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap pl-3 text-right">
@@ -35,7 +36,7 @@
 	</span>
 
 	<span class="mx-1.25 h-4 w-px self-center bg-line"></span>
-	<span class="whitespace-nowrap px-1.5">{instanceCount} 個實例</span>
+	<span class="whitespace-nowrap px-1.5">{m.statusbar_instance_count({ count: instanceCount })}</span>
 	<span class="mx-1.25 h-4 w-px self-center bg-line"></span>
 	<span class="whitespace-nowrap px-1.5">{account}</span>
 </footer>

@@ -1,5 +1,15 @@
 <script lang="ts">
-	import { Button, ColorField, Field, Group, Slider, Table, TableBox, TextInput } from '$lib/ui';
+	import {
+		Button,
+		ColorField,
+		Field,
+		Group,
+		Select,
+		Slider,
+		Table,
+		TableBox,
+		TextInput
+	} from '$lib/ui';
 	import NavList from '$lib/ui/NavList.svelte';
 	import Switch from '$lib/ui/Switch.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
@@ -19,6 +29,9 @@
 		type ThemePreset
 	} from '$lib/theme';
 	import Icon from '$lib/ui/Icon.svelte';
+	import { m } from '$lib/paraglide/messages.js';
+	import { LOCALE_OPTIONS, storedLocale, useLocale } from '$lib/i18n';
+	import type { Locale } from '$lib/paraglide/runtime.js';
 
 	let {
 		config,
@@ -41,30 +54,29 @@
 	} = $props();
 
 	const pages: Page[] = [
-		{ id: 'launcher', label: '啟動器', icon: 'settings' },
-		{ id: 'theme', label: '外觀', icon: 'palette' },
-		{ id: 'minecraft', label: '遊戲與啟動', icon: 'box' },
+		{ id: 'launcher', label: m.settings_page_launcher(), icon: 'settings' },
+		{ id: 'theme', label: m.settings_page_theme(), icon: 'palette' },
+		{ id: 'minecraft', label: m.settings_page_minecraft(), icon: 'box' },
 		{ id: 'java', label: 'Java', icon: 'coffee' },
-		{ id: 'commands', label: '自訂指令', icon: 'terminal' },
-		{ id: 'accounts', label: '帳號', icon: 'user' },
-		{ id: 'apis', label: 'API', icon: 'key' }
+		{ id: 'commands', label: m.settings_page_commands(), icon: 'terminal' },
+		{ id: 'accounts', label: m.settings_page_accounts(), icon: 'user' },
+		{ id: 'apis', label: m.settings_page_apis(), icon: 'key' }
 	];
 
 	// svelte-ignore state_referenced_locally
 	let page = $state(initialPage);
 
+	const locale = storedLocale();
+
 	let bgPreview = $state('');
 	let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
 
-	// 主題頁開著的時候，任何一個值被改到就立刻套到畫面上（順便把背景圖的預覽抓回來），
-	// 所以這一頁不需要「套用」按鈕。
 	$effect(() => {
 		if (page !== 'theme') return;
 		const theme = $state.snapshot(config.theme);
 		applyTheme(theme).then(() => (bgPreview = backgroundUrl()));
 	});
 
-	/** 存檔，再通知其他視窗換主題。拖 slider 的時候會連續進來，所以廣播壓一下。 */
 	function themeChanged(immediate = false) {
 		save(immediate);
 		clearTimeout(broadcastTimer);
@@ -85,7 +97,6 @@
 		themeChanged(true);
 	}
 
-	/** 色票跟手打的 hex 共用；打到一半不是合法顏色就先不要動。 */
 	function setAccent(value: string) {
 		const rgb = parseHex(value);
 		if (!rgb) return;
@@ -100,7 +111,7 @@
 		config.theme.accent = base.accent;
 		config.theme.tint = base.tint;
 		themeChanged(true);
-		report('已還原預設強調色');
+		report(m.settings_status_accent_reset());
 	}
 
 	async function pickBackground() {
@@ -108,23 +119,22 @@
 		try {
 			const { open } = await import('@tauri-apps/api/dialog');
 			const chosen = await open({
-				filters: [{ name: '圖片', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }]
+				filters: [{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }]
 			});
 			picked = typeof chosen === 'string' ? chosen : null;
 		} catch {
-			report('這個環境沒有系統對話框，沒辦法選圖片');
+			report(m.settings_status_no_dialog_image());
 			return;
 		}
 		if (!picked) return;
 
 		try {
 			config.theme.background = await api.setBackgroundImage(picked);
-			// 不透明度停在 100% 的話，圖會被介面整片蓋掉，看起來就像沒設成功。
 			if (config.theme.opacity >= 1) config.theme.opacity = defaultTheme().opacity;
 			themeChanged(true);
-			report('已更新背景圖片');
+			report(m.settings_status_background_updated());
 		} catch (e) {
-			report(`設定背景失敗：${api.errorMessage(e)}`);
+			report(m.settings_status_background_failed({ message: api.errorMessage(e) }));
 		}
 	}
 
@@ -133,7 +143,7 @@
 		bgPreview = '';
 		themeChanged(true);
 		await api.clearBackgroundImage().catch(() => {});
-		report('已移除背景圖片');
+		report(m.settings_status_background_removed());
 	}
 
 	const percent = (value: number) => `${Math.round(value * 100)}%`;
@@ -154,40 +164,46 @@
 		}
 	});
 
-	/** 32 位元的 Java 記憶體上限很低，在清單上標出來 */
 	function is32bit(arch: string) {
 		return !!arch && !['amd64', 'x86_64', 'aarch64', 'arm64'].includes(arch);
 	}
 
 	async function detectJava() {
-		javaBusy = '正在尋找已安裝的 Java…';
+		javaBusy = m.settings_status_java_searching();
 		try {
 			javaList = await api.detectJavaCandidates();
-			report(javaList.length ? `找到 ${javaList.length} 個 Java` : '找不到系統安裝的 Java');
+			report(
+				javaList.length
+					? m.settings_status_java_found({ count: javaList.length })
+					: m.settings_status_java_not_found()
+			);
 		} catch (e) {
-			report(`偵測失敗：${api.errorMessage(e)}`);
+			report(m.settings_status_detect_failed({ message: api.errorMessage(e) }));
 		} finally {
 			javaBusy = '';
 		}
 	}
 
 	async function downloadJava(version: number) {
-		javaBusy = `正在下載 Java ${version}…`;
+		javaBusy = m.settings_status_java_downloading({ version });
 		const unlisten = await api.onJavaProgress((p) => {
 			if (p.version !== version || !javaBusy) return;
 			javaBusy =
 				p.message === 'Downloading Java' && p.total > 0
-					? `正在下載 Java ${version}（${Math.min(100, Math.round((p.done / p.total) * 100))}%）`
+					? m.settings_status_java_downloading_percent({
+							version,
+							percent: Math.min(100, Math.round((p.done / p.total) * 100))
+						})
 					: p.message === 'Extracting Java'
-						? `正在解壓縮 Java ${version}…`
-						: `正在下載 Java ${version}…`;
+						? m.settings_status_java_extracting({ version })
+						: m.settings_status_java_downloading({ version });
 		});
 		try {
 			const java = await api.installJava(paths.baseDir, version);
-			report(`已下載 Java ${java.version}`);
+			report(m.settings_status_java_downloaded({ version: java.version }));
 			await detectJava();
 		} catch (e) {
-			report(`下載失敗：${api.errorMessage(e)}`);
+			report(m.settings_status_download_failed({ message: api.errorMessage(e) }));
 		} finally {
 			unlisten();
 			javaBusy = '';
@@ -196,14 +212,14 @@
 
 	async function testJava() {
 		if (!config.java.path) {
-			report('目前是自動偵測，沒有指定路徑可以測試');
+			report(m.settings_status_java_auto_no_test());
 			return;
 		}
 		try {
 			const java = await api.testJava(config.java.path);
-			report(`可以使用：Java ${java.version}`);
+			report(m.settings_status_java_usable({ version: java.version }));
 		} catch (e) {
-			report(`測試失敗：${api.errorMessage(e)}`);
+			report(m.settings_status_test_failed({ message: api.errorMessage(e) }));
 		}
 	}
 
@@ -214,7 +230,7 @@
 			const picked = await open({ directory: true, defaultPath: current || undefined });
 			return typeof picked === 'string' ? picked : null;
 		} catch {
-			report('這個環境沒有系統對話框，請直接輸入路徑');
+			report(m.common_no_dialog_type_path());
 			return null;
 		}
 	}
@@ -224,7 +240,7 @@
 		if (!picked) return;
 		config.baseDir = picked;
 		save(true);
-		report(`資料目錄改為 ${picked}`);
+		report(m.settings_status_base_dir_changed({ path: picked }));
 	}
 
 	async function pickJavaPath() {
@@ -239,7 +255,7 @@
 				save(true);
 			}
 		} catch {
-			report('這個環境沒有系統對話框，請直接輸入路徑');
+			report(m.common_no_dialog_type_path());
 		}
 	}
 
@@ -252,7 +268,7 @@
 			const updated = await api.msLoginPoll(login.sessionId);
 			login = null;
 			onAccounts(updated);
-			report('Microsoft 帳號已加入');
+			report(m.settings_status_microsoft_added());
 		} catch (e) {
 			loginError = api.errorMessage(e);
 		}
@@ -268,7 +284,7 @@
 			onAccounts(await fn());
 			report(label);
 		} catch (e) {
-			report(`${label}失敗：${api.errorMessage(e)}`);
+			report(m.settings_status_action_failed({ action: label, message: api.errorMessage(e) }));
 		}
 	}
 
@@ -276,7 +292,7 @@
 		const name = offlineDialog?.trim() ?? '';
 		offlineDialog = null;
 		if (!name) return;
-		await accountAction('已新增離線帳號', () => api.addOfflineAccount(name));
+		await accountAction(m.settings_status_offline_added(), () => api.addOfflineAccount(name));
 	}
 </script>
 
@@ -317,7 +333,7 @@
 	<Field {label} for={id}>
 		<div class="flex items-center gap-1.75">
 			<TextInput class="min-w-0 flex-1" {id} {value} readonly />
-			<Button onclick={onBrowse}>瀏覽…</Button>
+			<Button onclick={onBrowse}>{m.common_browse()}</Button>
 		</div>
 	</Field>
 {/snippet}
@@ -331,51 +347,67 @@
 		class="mx-auto flex w-full min-w-0 max-w-205 flex-1 flex-col gap-1.5 overflow-y-auto px-5.5 pb-5.5 pt-2"
 	>
 		{#if page === 'launcher'}
-			<Group title="資料夾">
+			<Group title={m.settings_folders()}>
 				{@render pathField(
 					'dir-base',
-					'資料根目錄',
+					m.settings_base_dir(),
 					config.baseDir || paths.baseDir,
 					pickBaseDir
 				)}
 				<div class="flex gap-1.75 px-0.5 pt-1">
-					<Button onclick={() => api.openLauncherFolder('base')}>開啟</Button>
+					<Button onclick={() => api.openLauncherFolder('base')}>{m.common_open()}</Button>
 					<Button onclick={() => api.openLauncherFolder('instances')}>
-						開啟實例資料夾
+						{m.folder_open_instances()}
 					</Button>
 					{#if config.baseDir}
-						<Button onclick={() => { config.baseDir = ''; save(true); report('已改回預設資料目錄'); }}>
-							還原預設
+						<Button onclick={() => { config.baseDir = ''; save(true); report(m.settings_status_base_dir_reset()); }}>
+							{m.settings_restore_default()}
 						</Button>
 					{/if}
 				</div>
 			</Group>
 
-			<Group title="啟動器設定">
-				<Field label="設定檔位置" for="store-dir">
+			<Group title={m.settings_launcher_store()}>
+				<Field label={m.settings_store_path()} for="store-dir">
 					<TextInput id="store-dir" value={paths.storeDir} readonly />
 				</Field>
 				<div class="px-0.5 pt-1">
-					<Button onclick={() => api.openLauncherFolder('store')}>開啟</Button>
+					<Button onclick={() => api.openLauncherFolder('store')}>{m.common_open()}</Button>
 				</div>
 			</Group>
 
-			<Group title="使用者介面">
+			<Group title={m.settings_ui()}>
+				<Field label={m.settings_language()} for="ui-locale">
+					<div class="flex items-center gap-2.5">
+						<Select
+							id="ui-locale"
+							style="width:180px"
+							value={locale}
+							onchange={(e) => useLocale(e.currentTarget.value as Locale | '')}
+						>
+							<option value="">{m.settings_language_system()}</option>
+							{#each LOCALE_OPTIONS as option (option.id)}
+								<option value={option.id}>{option.label}</option>
+							{/each}
+						</Select>
+						<span class="text-faint">{m.settings_language_desc()}</span>
+					</div>
+				</Field>
 				<Switch
-					label="顯示實例工具列"
+					label={m.settings_show_instance_toolbar()}
 					bind:checked={config.ui.instanceToolbar}
 					onchange={() => save(true)}
 				/>
-				<Switch label="顯示狀態列" bind:checked={config.ui.statusBar} onchange={() => save(true)} />
+				<Switch label={m.settings_show_status_bar()} bind:checked={config.ui.statusBar} onchange={() => save(true)} />
 				<Switch
-					label="在實例圖示上顯示執行狀態"
+					label={m.settings_show_running_badge()}
 					bind:checked={config.ui.runningBadge}
 					onchange={() => save(true)}
 				/>
 			</Group>
 
 		{:else if page === 'theme'}
-			<Group title="主題">
+			<Group title={m.settings_theme()}>
 				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
 					{#each MODES as item (item.id)}
 						<button
@@ -392,7 +424,7 @@
 				</div>
 			</Group>
 
-			<Group title="強調色">
+			<Group title={m.settings_accent()}>
 				<div class="flex flex-wrap gap-1.75 px-0.5 pb-1">
 					{#each PRESETS as preset (preset.id)}
 						<button
@@ -414,13 +446,13 @@
 								class="size-4 shrink-0 rounded-full"
 								style="background:{config.theme.accent}"
 							></span>
-							自訂
+							{m.settings_accent_custom()}
 						</span>
 					{/if}
 				</div>
-				{@render colorField('t-accent', '自訂顏色', config.theme.accent, setAccent)}
+				{@render colorField('t-accent', m.settings_accent_custom_color(), config.theme.accent, setAccent)}
 				{@render slider(
-					'介面染色',
+					m.settings_tint(),
 					0,
 					100,
 					1,
@@ -433,32 +465,32 @@
 					}
 				)}
 				<div class="px-0.5 pt-2">
-					<Button onclick={resetColors}>還原預設強調色</Button>
+					<Button onclick={resetColors}>{m.settings_reset_accent()}</Button>
 				</div>
 			</Group>
 
-			<Group title="背景圖片">
+			<Group title={m.settings_background()}>
 				<div class="flex gap-2.5">
 					<div
 						class="grid h-27 w-48 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-deep"
 					>
 						{#if bgPreview}
-							<img src={bgPreview} alt="背景預覽" class="size-full object-cover" />
+							<img src={bgPreview} alt={m.settings_background_preview()} class="size-full object-cover" />
 						{:else}
-							<span class="text-faint">沒有背景圖</span>
+							<span class="text-faint">{m.settings_background_none()}</span>
 						{/if}
 					</div>
 					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-						<Button onclick={pickBackground}>選擇圖片…</Button>
+						<Button onclick={pickBackground}>{m.settings_background_pick()}</Button>
 						<Button disabled={!config.theme.background} onclick={clearBackground}>
-							移除
+							{m.common_remove()}
 						</Button>
 					</div>
 				</div>
 
 				<div class="pt-3">
 					{@render slider(
-						'介面不透明度',
+						m.settings_opacity(),
 						25,
 						100,
 						1,
@@ -471,7 +503,7 @@
 						}
 					)}
 					{@render slider(
-						'背景變暗',
+						m.settings_background_dim(),
 						0,
 						90,
 						1,
@@ -484,7 +516,7 @@
 						}
 					)}
 					{@render slider(
-						'背景模糊',
+						m.settings_background_blur(),
 						0,
 						40,
 						1,
@@ -500,66 +532,66 @@
 			</Group>
 
 		{:else if page === 'minecraft'}
-			<Group title="啟動">
+			<Group title={m.settings_launch()}>
 				<Switch
-					label="啟動時顯示檔案檢查與下載視窗"
+					label={m.settings_show_progress_window()}
 					bind:checked={config.game.showProgressWindow}
 					onchange={() => save(true)}
 				/>
 				<Switch
-					label="準備完成、遊戲起來之後自動關閉那個視窗"
+					label={m.settings_close_progress_when_done()}
 					bind:checked={config.game.closeProgressWhenDone}
 					onchange={() => save(true)}
 				/>
 			</Group>
 
-			<Group title="遊戲日誌">
-				<Field label="保留行數" for="history">
+			<Group title={m.settings_game_log()}>
+				<Field label={m.settings_keep_log_lines()} for="history">
 					<TextInput id="history" type="number" style="width:110px" bind:value={config.game.keepLogLines} oninput={() => save()} />
 				</Field>
 			</Group>
 
-			<Group title="遊戲時間">
+			<Group title={m.settings_play_time()}>
 				<Switch
-					label="記錄每個實例的遊玩時間"
+					label={m.settings_record_play_time()}
 					bind:checked={config.game.recordPlayTime}
 					onchange={() => save(true)}
 				/>
 			</Group>
 
-			<Group title="版本清單">
+			<Group title={m.settings_version_list()}>
 				<Switch
-					label="預設顯示快照版本"
+					label={m.settings_include_snapshots()}
 					bind:checked={config.ui.includeSnapshots}
 					onchange={() => save(true)}
 				/>
 			</Group>
 
 		{:else if page === 'java'}
-			<Group title="記憶體">
-				<Field label="最小配置" for="j-min">
+			<Group title={m.settings_memory()}>
+				<Field label={m.settings_min_memory()} for="j-min">
 					<div class="flex items-center gap-1.75">
 						<TextInput id="j-min" type="number" style="width:110px" bind:value={config.game.minMemoryMb} oninput={() => save()} />
-						<span class="text-muted">MiB</span>
+						<span class="text-muted">{m.common_mib()}</span>
 					</div>
 				</Field>
-				<Field label="最大配置" for="j-max">
+				<Field label={m.settings_max_memory()} for="j-max">
 					<div class="flex items-center gap-1.75">
 						<TextInput id="j-max" type="number" style="width:110px" bind:value={config.game.maxMemoryMb} oninput={() => save()} />
-						<span class="text-muted">MiB</span>
+						<span class="text-muted">{m.common_mib()}</span>
 					</div>
 				</Field>
 			</Group>
 
-			<Group title="Java 執行階段">
+			<Group title={m.settings_java_runtime()}>
 				<div class="flex gap-2.25">
 					<TableBox class="max-h-40">
 						<Table>
 							<thead>
 								<tr>
-									<th style="width:90px">版本</th>
-									<th style="width:140px">廠商</th>
-									<th>路徑</th>
+									<th style="width:90px">{m.common_version()}</th>
+									<th style="width:140px">{m.settings_java_vendor()}</th>
+									<th>{m.settings_java_path()}</th>
 								</tr>
 							</thead>
 							<tbody>
@@ -572,9 +604,9 @@
 										}}
 									>
 										<td title={java.fullVersion}>
-											Java {java.version}{is32bit(java.arch) ? `（${java.arch}）` : ''}
+											Java {java.version}{is32bit(java.arch) ? ` (${java.arch})` : ''}
 										</td>
-										<td class="truncate" title={java.vendor}>{java.vendor || '—'}</td>
+										<td class="truncate" title={java.vendor}>{java.vendor || m.common_dash()}</td>
 										<td class="font-mono text-[11.5px]" title={java.path}>{java.path}</td>
 									</tr>
 								{/each}
@@ -582,31 +614,31 @@
 						</Table>
 						{#if javaList.length === 0}
 							<p class="px-3 py-4 text-center text-muted">
-								{javaBusy || '沒有偵測到系統安裝的 Java。'}
+								{javaBusy || m.settings_java_none_detected()}
 							</p>
 						{/if}
 					</TableBox>
 					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-						<Button disabled={!!javaBusy} onclick={detectJava}>重新偵測</Button>
-						<Button disabled={!!javaBusy} onclick={testJava}>測試</Button>
+						<Button disabled={!!javaBusy} onclick={detectJava}>{m.settings_java_redetect()}</Button>
+						<Button disabled={!!javaBusy} onclick={testJava}>{m.settings_java_test()}</Button>
 						<Button disabled={!!javaBusy} onclick={() => downloadJava(21)}>
-							下載 Java 21
+							{m.settings_java_download({ version: 21 })}
 						</Button>
 						<Button disabled={!!javaBusy} onclick={() => downloadJava(17)}>
-							下載 Java 17
+							{m.settings_java_download({ version: 17 })}
 						</Button>
 						<Button disabled={!!javaBusy} onclick={() => downloadJava(8)}>
-							下載 Java 8
+							{m.settings_java_download({ version: 8 })}
 						</Button>
 					</div>
 				</div>
 
-				<Field label="預設 Java" for="java-path">
+				<Field label={m.settings_java_default()} for="java-path">
 					<div class="flex items-center gap-1.75">
-						<TextInput class="min-w-0 flex-1" id="java-path" bind:value={config.java.path} oninput={() => save()} placeholder="（依實例需要的版本自動挑選）" />
-						<Button onclick={pickJavaPath}>瀏覽…</Button>
+						<TextInput class="min-w-0 flex-1" id="java-path" bind:value={config.java.path} oninput={() => save()} placeholder={m.settings_java_auto_placeholder()} />
+						<Button onclick={pickJavaPath}>{m.common_browse()}</Button>
 						<Button disabled={!config.java.path} onclick={() => { config.java.path = ''; save(true); }}>
-							自動挑選
+							{m.settings_java_auto()}
 						</Button>
 					</div>
 				</Field>
@@ -615,29 +647,27 @@
 				{/if}
 			</Group>
 
-			<Group title="JVM 參數">
-				<Field label="額外參數" for="jvm">
+			<Group title={m.settings_jvm_args()}>
+				<Field label={m.settings_jvm_extra_args()} for="jvm">
 					<TextInput id="jvm" bind:value={config.game.jvmArgs} oninput={() => save()} placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
 				</Field>
 			</Group>
 
 		{:else if page === 'commands'}
-			<Group title="自訂指令">
-				<Field label="啟動前執行" for="c-pre">
-					<TextInput id="c-pre" bind:value={config.commands.preLaunch} oninput={() => save()} placeholder="例如：backup.bat" />
+			<Group title={m.settings_commands()}>
+				<Field label={m.settings_pre_launch()} for="c-pre">
+					<TextInput id="c-pre" bind:value={config.commands.preLaunch} oninput={() => save()} placeholder={m.settings_command_placeholder()} />
 				</Field>
-				<Field label="結束後執行" for="c-post">
+				<Field label={m.settings_post_exit()} for="c-post">
 					<TextInput id="c-post" bind:value={config.commands.postExit} oninput={() => save()} />
 				</Field>
 			</Group>
 			<p class="px-0.5 py-1 leading-[1.7] text-faint">
-				可用變數：
-				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_ID</code>、
-				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_NAME</code>、
-				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_DIR</code>、
-				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_MC_DIR</code
-				>、
-				<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">$INST_JAVA</code>
+				{m.settings_command_variables()}
+				{#each ['$INST_ID', '$INST_NAME', '$INST_DIR', '$INST_MC_DIR', '$INST_JAVA'] as name, i (name)}
+					{#if i > 0}{m.common_list_separator()}{/if}
+					<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">{name}</code>
+				{/each}
 			</p>
 
 		{:else if page === 'accounts'}
@@ -647,9 +677,9 @@
 						<thead>
 							<tr>
 								<th style="width:44px"></th>
-								<th style="width:40%">使用者名稱</th>
-								<th>類型</th>
-								<th style="width:110px">狀態</th>
+								<th style="width:40%">{m.settings_account_name()}</th>
+								<th>{m.settings_account_type()}</th>
+								<th style="width:110px">{m.settings_account_status()}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -660,37 +690,41 @@
 								>
 									<td><InstanceIcon name="steve" size={20} /></td>
 									<td>{item.playerName}</td>
-									<td class="text-muted">{item.kind === 'microsoft' ? 'Microsoft' : '離線'}</td>
+									<td class="text-muted">{item.kind === 'microsoft' ? m.account_microsoft() : m.account_offline()}</td>
 									<td class="text-muted">
-										{item.selected ? '使用中' : item.expired ? '需重新登入' : '已登入'}
+										{item.selected
+											? m.settings_account_in_use()
+											: item.expired
+												? m.account_needs_relogin()
+												: m.settings_account_signed_in()}
 									</td>
 								</tr>
 							{/each}
 						</tbody>
 					</Table>
 					{#if accounts.length === 0}
-						<p class="px-3 py-4 text-center text-muted">還沒有任何帳號。</p>
+						<p class="px-3 py-4 text-center text-muted">{m.settings_account_empty()}</p>
 					{/if}
 				</TableBox>
 				<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
-					<Button onclick={startLogin}>新增 Microsoft…</Button>
-					<Button onclick={() => (offlineDialog = '')}>新增離線…</Button>
-					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已設為使用中', () => api.selectAccount(selectedAccountId!))}>
-						設為使用中
+					<Button onclick={startLogin}>{m.settings_add_microsoft()}</Button>
+					<Button onclick={() => (offlineDialog = '')}>{m.settings_add_offline()}</Button>
+					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction(m.settings_status_account_active(), () => api.selectAccount(selectedAccountId!))}>
+						{m.settings_set_active()}
 					</Button>
-					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已更新權杖', () => api.refreshAccount(selectedAccountId!))}>
-						重新整理
+					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction(m.settings_status_account_refreshed(), () => api.refreshAccount(selectedAccountId!))}>
+						{m.common_refresh()}
 					</Button>
-					<Button variant="destructive" disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction('已移除帳號', () => api.removeAccount(selectedAccountId!))}>
-						移除
+					<Button variant="destructive" disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction(m.settings_status_account_removed(), () => api.removeAccount(selectedAccountId!))}>
+						{m.common_remove()}
 					</Button>
 				</div>
 			</div>
 
 		{:else}
 			<Group title="CurseForge">
-				<Field label="API 金鑰" for="a-cf">
-					<TextInput id="a-cf" type="password" bind:value={config.api.curseforgeApiKey} oninput={() => save()} placeholder="（不填就只查 Modrinth）" />
+				<Field label={m.settings_api_key()} for="a-cf">
+					<TextInput id="a-cf" type="password" bind:value={config.api.curseforgeApiKey} oninput={() => save()} placeholder={m.settings_curseforge_placeholder()} />
 				</Field>
 			</Group>
 		{/if}
@@ -698,50 +732,50 @@
 </div>
 
 {#if login}
-	<Dialog title="Microsoft 登入" width="440px" onclose={cancelLogin}>
+	<Dialog title={m.login_title()} width="440px" onclose={cancelLogin}>
 		<div class="flex flex-col gap-3 px-5 py-5">
-			<p class="text-muted">在瀏覽器輸入這組代碼完成授權。</p>
+			<p class="text-muted">{m.login_desc()}</p>
 			<div
 				class="rounded-lg border border-line bg-deep px-4 py-3 text-center font-mono text-[22px] tracking-[4px]"
 			>
 				{login.userCode}
 			</div>
 			<Button onclick={() => login && api.openExternal(login.verificationUri)}>
-				重新開啟 {login.verificationUri}
+				{m.login_reopen({ url: login.verificationUri })}
 			</Button>
 			<p class="flex items-center gap-2 text-faint">
 				<span class="size-3.5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
-				等待授權中…
+				{m.login_waiting()}
 			</p>
 		</div>
 		{#snippet footer()}
-			<Button onclick={cancelLogin}>取消</Button>
+			<Button onclick={cancelLogin}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if loginError}
-	<Dialog title="登入失敗" width="420px" onclose={() => (loginError = '')}>
+	<Dialog title={m.login_failed()} width="420px" onclose={() => (loginError = '')}>
 		<p class="px-5 py-5 leading-[1.8] text-danger">{loginError}</p>
 		{#snippet footer()}
-			<Button variant="primary" onclick={() => (loginError = '')}>關閉</Button>
+			<Button variant="primary" onclick={() => (loginError = '')}>{m.common_close()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}
 
 {#if offlineDialog !== null}
-	<Dialog title="新增離線帳號" width="380px" onclose={() => (offlineDialog = null)}>
+	<Dialog title={m.offline_add_title()} width="380px" onclose={() => (offlineDialog = null)}>
 		<div class="px-5 py-5">
-			<Field label="玩家名稱" for="offline-name">
+			<Field label={m.offline_player_name()} for="offline-name">
 				<TextInput id="offline-name" bind:value={offlineDialog} maxlength={16} />
 			</Field>
-			<p class="mt-2 text-faint">只能用英數字與底線。</p>
+			<p class="mt-2 text-faint">{m.offline_name_hint()}</p>
 		</div>
 		{#snippet footer()}
 			<Button variant="primary" disabled={!offlineDialog?.trim()} onclick={addOffline}>
-				新增
+				{m.offline_add()}
 			</Button>
-			<Button onclick={() => (offlineDialog = null)}>取消</Button>
+			<Button onclick={() => (offlineDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}

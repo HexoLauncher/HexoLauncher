@@ -5,7 +5,8 @@
 	import Switch from '$lib/ui/Switch.svelte';
 	import * as api from '$lib/api';
 	import type { ModpackPlatform, ModpackSort, PackHit, RemoteVersion } from '$lib/api';
-	import { formatDate } from '$lib/format';
+	import { formatCount, formatDate } from '$lib/format';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	let {
@@ -27,16 +28,16 @@
 	} = $props();
 
 	const SORTS: { id: ModpackSort; label: string }[] = [
-		{ id: 'relevance', label: '相關性' },
-		{ id: 'downloads', label: '熱門' },
-		{ id: 'updated', label: '最近更新' },
-		{ id: 'name', label: '名稱' }
+		{ id: 'relevance', label: m.sort_relevance() },
+		{ id: 'downloads', label: m.sort_downloads() },
+		{ id: 'updated', label: m.sort_updated() },
+		{ id: 'name', label: m.sort_name() }
 	];
 
 	const KIND_LABELS: Record<string, string> = {
-		beta: '測試版',
-		alpha: 'Alpha',
-		archived: '已封存'
+		beta: m.release_beta(),
+		alpha: m.release_alpha(),
+		archived: m.release_archived()
 	};
 
 	const sorts = $derived(
@@ -141,18 +142,13 @@
 		return parts.join(' · ');
 	}
 
-	function formatCount(n: number) {
-		if (n >= 1e8) return `${(n / 1e8).toFixed(1)} 億`;
-		if (n >= 1e4) return `${(n / 1e4).toFixed(1)} 萬`;
-		return String(n);
-	}
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
-		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder="搜尋模組包" aria-label="搜尋模組包" />
-		<TextInput class="w-24" bind:value={mcVersion} onchange={() => search()} placeholder="MC 版本" aria-label="Minecraft 版本" />
-		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label="排序">
+		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={m.modpack_search()} aria-label={m.modpack_search()} />
+		<TextInput class="w-24" bind:value={mcVersion} onchange={() => search()} placeholder={m.modpack_mc_version()} aria-label={m.modpack_mc_version_aria()} />
+		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label={m.common_sort()}>
 			{#each sorts as s (s.id)}
 				<option value={s.id}>{s.label}</option>
 			{/each}
@@ -207,19 +203,19 @@
 					<span
 						class="size-4 animate-spin rounded-full border-2 border-line border-t-brand"
 					></span>
-					正在搜尋…
+					{m.common_searching()}
 				</span>
 			{:else if message}
 				<span class="leading-[1.7] text-danger">{message}</span>
-				<Button onclick={() => search(hits.length > 0)}>重試</Button>
+				<Button onclick={() => search(hits.length > 0)}>{m.common_retry()}</Button>
 			{:else if hits.length === 0}
-				<span>找不到符合的模組包</span>
+				<span>{m.modpack_none_found()}</span>
 			{:else if nextOffset !== null}
 				<Button onclick={() => search(true)}>
-					載入更多（{hits.length} / {total}）
+					{m.list_load_more({ loaded: hits.length, total })}
 				</Button>
 			{:else}
-				<span class="text-faint">共 {total} 個</span>
+				<span class="text-faint">{m.list_total({ total })}</span>
 			{/if}
 		</div>
 	</div>
@@ -228,12 +224,12 @@
 		{@const selected = hit}
 		<div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1.5">
 			<label class="flex min-w-0 flex-1 items-center gap-2 text-muted">
-				版本
+				{m.common_version()}
 				<Select class="min-w-0 flex-1" value={version?.id ?? ''} onchange={(e) => (version = versions.find((v) => v.id === e.currentTarget.value) ?? null)} disabled={disabled || loadingVersions || versions.length === 0}>
 					{#if loadingVersions}
-						<option value="">讀取版本中…</option>
+						<option value="">{m.common_loading_versions()}</option>
 					{:else if versions.length === 0}
-						<option value="">沒有可安裝的版本</option>
+						<option value="">{m.modpack_no_installable_version()}</option>
 					{/if}
 					{#each versions as v (v.id)}
 						<option value={v.id}>{versionLabel(v)}</option>
@@ -241,12 +237,12 @@
 				</Select>
 			</label>
 			{#if hasOptional}
-				<Switch bind:checked={includeOptional} label="安裝選用模組" {disabled} />
+				<Switch bind:checked={includeOptional} label={m.modpack_install_optional()} {disabled} />
 			{/if}
 			{#if selected.website}
 				{@const website = selected.website}
 				<Button onclick={() => api.openExternal(website).catch((e) => onerror(api.errorMessage(e)))}>
-					<Icon name="globe" size={13} />網站
+					<Icon name="globe" size={13} />{m.common_website()}
 				</Button>
 			{/if}
 		</div>

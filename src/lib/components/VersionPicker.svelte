@@ -3,6 +3,7 @@
 	import * as api from '$lib/api';
 	import type { LoaderKind, VersionSummary } from '$lib/api';
 	import { LOADERS, loaderLabel, releaseDate, versionTypeLabel } from '$lib/format';
+	import { m } from '$lib/paraglide/messages.js';
 
 
 	let {
@@ -42,7 +43,7 @@
 			versions = list.versions;
 			if (!mcVersion) mcVersion = list.latestRelease;
 		} catch (e) {
-			onError?.(`無法取得版本清單：${api.errorMessage(e)}`);
+			onError?.(m.error_version_list({ message: api.errorMessage(e) }));
 		} finally {
 			loadingVersions = false;
 		}
@@ -78,7 +79,13 @@
 				if (cancelled) return;
 				loaderVersions = [];
 				loaderVersion = '';
-				onError?.(`${loaderLabel(loader)} 沒有支援 ${mcVersion}（${api.errorMessage(e)}）`);
+				onError?.(
+					m.error_loader_unsupported({
+						loader: loaderLabel(loader),
+						version: mcVersion,
+						message: api.errorMessage(e)
+					})
+				);
 			})
 			.finally(() => {
 				if (!cancelled) loadingLoader = false;
@@ -95,7 +102,7 @@
 		<Table>
 			<thead>
 				<tr
-					><th style="width:40%">版本</th><th>發布日期</th><th style="width:90px">類型</th></tr
+					><th style="width:40%">{m.common_version()}</th><th>{m.version_table_date()}</th><th style="width:90px">{m.version_table_type()}</th></tr
 				>
 			</thead>
 			<tbody>
@@ -109,39 +116,39 @@
 			</tbody>
 		</Table>
 		{#if loadingVersions}
-			<p class="px-3 py-4 text-center text-muted">正在取得版本清單…</p>
+			<p class="px-3 py-4 text-center text-muted">{m.version_loading()}</p>
 		{:else if visible.length === 0}
-			<p class="px-3 py-4 text-center text-muted">沒有符合篩選條件的版本。</p>
+			<p class="px-3 py-4 text-center text-muted">{m.version_no_match()}</p>
 		{/if}
 	</TableBox>
 
 	<div class="flex w-36 shrink-0 flex-col gap-2">
-		<Group title="篩選" class="mt-1">
-			<CheckRow><input type="checkbox" bind:checked={filters.release} />正式版</CheckRow>
-			<CheckRow><input type="checkbox" bind:checked={filters.snapshot} />快照</CheckRow>
-			<CheckRow><input type="checkbox" bind:checked={filters.old} />舊版本</CheckRow>
+		<Group title={m.filter_title()} class="mt-1">
+			<CheckRow><input type="checkbox" bind:checked={filters.release} />{m.version_type_release()}</CheckRow>
+			<CheckRow><input type="checkbox" bind:checked={filters.snapshot} />{m.version_type_snapshot()}</CheckRow>
+			<CheckRow><input type="checkbox" bind:checked={filters.old} />{m.filter_old()}</CheckRow>
 		</Group>
-		<Button disabled={loadingVersions} onclick={loadVersions}>重新整理</Button>
+		<Button disabled={loadingVersions} onclick={loadVersions}>{m.common_refresh()}</Button>
 	</div>
 </div>
 
 <div class="flex shrink-0 flex-wrap items-center gap-3.5 pt-0.5">
-	<span class="text-muted">模組載入器</span>
+	<span class="text-muted">{m.common_loader()}</span>
 	{#each LOADERS as item (item)}
 		<CheckRow>
 			<input type="radio" name="loader" value={item} bind:group={loader} />
-			{item === 'vanilla' ? '無' : loaderLabel(item)}
+			{item === 'vanilla' ? m.common_none() : loaderLabel(item)}
 		</CheckRow>
 	{/each}
 
 	{#if loader !== 'vanilla'}
 		<label class="flex items-center gap-2 text-muted">
-			版本
+			{m.common_version()}
 			<Select bind:value={loaderVersion} disabled={loadingLoader}>
 				{#each loaderVersions.slice(0, 60) as v (v)}
 					<option value={v}>{v}</option>
 				{:else}
-					<option value="">{loadingLoader ? '讀取中…' : '沒有可用版本'}</option>
+					<option value="">{loadingLoader ? m.common_loading() : m.version_no_available()}</option>
 				{/each}
 			</Select>
 		</label>

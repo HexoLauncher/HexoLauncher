@@ -1,6 +1,8 @@
 import * as api from './api';
 import type { AccountView, InstanceView, LauncherConfig, RunningGame } from './api';
 import { applyTheme, defaultTheme } from './theme';
+import { m } from '$lib/paraglide/messages.js';
+import { getLocale } from '$lib/paraglide/runtime.js';
 
 export const app = $state({
 	ready: false,
@@ -14,7 +16,7 @@ export const app = $state({
 	running: [] as RunningGame[],
 	selectedId: null as string | null,
 	search: '',
-	status: '就緒'
+	status: m.status_ready() as string
 });
 
 export function defaultConfig(): LauncherConfig {
@@ -43,13 +45,13 @@ let statusTimer: ReturnType<typeof setTimeout> | undefined;
 export function report(message: string) {
 	app.status = message;
 	clearTimeout(statusTimer);
-	statusTimer = setTimeout(() => (app.status = '就緒'), 5000);
+	statusTimer = setTimeout(() => (app.status = m.status_ready()), 5000);
 }
 
 export function reportError(prefix: string, error: unknown) {
-	app.status = `${prefix}：${api.errorMessage(error)}`;
+	app.status = m.common_error_detail({ prefix, message: api.errorMessage(error) });
 	clearTimeout(statusTimer);
-	statusTimer = setTimeout(() => (app.status = '就緒'), 12000);
+	statusTimer = setTimeout(() => (app.status = m.status_ready()), 12000);
 }
 
 export async function init() {
@@ -61,7 +63,7 @@ export async function init() {
 		app.config = config;
 		applyTheme(config.theme);
 	} catch (e) {
-		reportError('無法讀取啟動器設定', e);
+		reportError(m.error_load_config(), e);
 		return;
 	}
 
@@ -77,7 +79,7 @@ export async function refreshInstances() {
 			app.selectedId = null;
 		}
 	} catch (e) {
-		reportError('無法讀取實例清單', e);
+		reportError(m.error_load_instances(), e);
 	}
 }
 
@@ -85,7 +87,7 @@ export async function refreshAccounts() {
 	try {
 		app.accounts = await api.listAccounts();
 	} catch (e) {
-		reportError('無法讀取帳號', e);
+		reportError(m.error_load_accounts(), e);
 	}
 }
 
@@ -93,7 +95,7 @@ export async function refreshRunning() {
 	try {
 		app.running = await api.runningInstances();
 	} catch (e) {
-		reportError('無法取得執行中的實例', e);
+		reportError(m.error_load_running(), e);
 	}
 }
 
@@ -102,7 +104,7 @@ export async function saveConfig(patch?: Partial<LauncherConfig>) {
 	try {
 		app.config = await api.saveLauncherConfig(next);
 	} catch (e) {
-		reportError('設定存檔失敗', e);
+		reportError(m.error_save_config(), e);
 		return;
 	}
 
@@ -144,7 +146,7 @@ export function selectedAccount(): AccountView | null {
 
 export function groupsOf(instances: InstanceView[]): string[] {
 	const present = instances.map((i) => i.group).filter((g, i, all) => all.indexOf(g) === i);
-	const named = present.filter((g) => g !== '').sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+	const named = present.filter((g) => g !== '').sort((a, b) => a.localeCompare(b, getLocale()));
 	return [...named, ...(present.includes('') ? [''] : [])];
 }
 

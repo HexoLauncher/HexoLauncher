@@ -1,3 +1,5 @@
+import { m } from '$lib/paraglide/messages.js';
+
 export type WindowSpec = {
 	path: string;
 	title: string;
@@ -8,25 +10,25 @@ export type WindowSpec = {
 export const windowSpecs = {
 	instance: (id: string, name: string): WindowSpec => ({
 		path: `/instance/${encodeURIComponent(id)}`,
-		title: `${name} — 編輯實例`,
+		title: m.window_edit_instance({ name }),
 		width: 1040,
 		height: 690
 	}),
 	launch: (id: string, name: string): WindowSpec => ({
 		path: `/launch/${encodeURIComponent(id)}`,
-		title: `${name} — 主控台`,
+		title: m.window_console({ name }),
 		width: 760,
 		height: 560
 	}),
 	newInstance: (): WindowSpec => ({
 		path: '/new-instance',
-		title: '新增實例',
+		title: m.window_new_instance(),
 		width: 800,
 		height: 620
 	}),
 	about: (): WindowSpec => ({
 		path: '/about',
-		title: '關於 Hexo Launcher',
+		title: m.window_about(),
 		width: 460,
 		height: 400
 	})

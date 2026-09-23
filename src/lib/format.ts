@@ -1,4 +1,6 @@
 import type { LoaderKind } from './api';
+import { m } from '$lib/paraglide/messages.js';
+import { getLocale } from '$lib/paraglide/runtime.js';
 
 const LOADER_LABELS: Record<LoaderKind, string> = {
 	vanilla: 'Vanilla',
@@ -14,7 +16,7 @@ export function loaderLabel(loader: LoaderKind): string {
 export const LOADERS: LoaderKind[] = ['vanilla', 'fabric', 'forge', 'neoforge'];
 
 export function formatTime(unixSeconds: number): string {
-	if (!unixSeconds) return '從未遊玩';
+	if (!unixSeconds) return m.format_never_played();
 	const d = new Date(unixSeconds * 1000);
 	const pad = (n: number) => String(n).padStart(2, '0');
 	return (
@@ -24,15 +26,15 @@ export function formatTime(unixSeconds: number): string {
 }
 
 export function formatDate(unixSeconds: number): string {
-	return unixSeconds ? formatTime(unixSeconds).split(' ')[0] : '從未遊玩';
+	return unixSeconds ? formatTime(unixSeconds).split(' ')[0] : m.format_never_played();
 }
 
 export function formatDuration(seconds: number): string {
-	if (seconds <= 0) return '0 分';
+	if (seconds <= 0) return m.format_minutes({ minutes: 0 });
 	const hours = Math.floor(seconds / 3600);
 	const minutes = Math.floor((seconds % 3600) / 60);
-	if (hours === 0) return `${minutes} 分`;
-	return `${hours} 小時 ${String(minutes).padStart(2, '0')} 分`;
+	if (hours === 0) return m.format_minutes({ minutes });
+	return m.format_hours_minutes({ hours, minutes: String(minutes).padStart(2, '0') });
 }
 
 export function formatSize(bytes: number): string {
@@ -46,16 +48,23 @@ export function formatSize(bytes: number): string {
 	return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+export function formatCount(n: number): string {
+	return new Intl.NumberFormat(getLocale(), {
+		notation: 'compact',
+		maximumFractionDigits: 1
+	}).format(n);
+}
+
 export function versionTypeLabel(type: string): string {
 	switch (type) {
 		case 'release':
-			return '正式版';
+			return m.version_type_release();
 		case 'snapshot':
-			return '快照';
+			return m.version_type_snapshot();
 		case 'old_beta':
-			return '舊 Beta';
+			return m.version_type_old_beta();
 		case 'old_alpha':
-			return '舊 Alpha';
+			return m.version_type_old_alpha();
 		default:
 			return type;
 	}
