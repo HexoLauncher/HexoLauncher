@@ -159,7 +159,7 @@
 									class="relative grid place-items-center rounded-lg bg-card p-2 shadow-sm
 										transition-shadow duration-150 group-hover:shadow-md"
 								>
-									<InstanceIcon name={item.icon} size={52} />
+									<InstanceIcon name={item.icon} image={item.iconImage} size={52} />
 									{#if showBadge && isRunning}
 										<span
 											class="absolute -bottom-0.75 -right-0.75 size-3.25 rounded-full border-3 border-deep

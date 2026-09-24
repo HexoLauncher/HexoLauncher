@@ -1,5 +1,5 @@
 <script lang="ts">
-	import InstanceIcon from '$lib/InstanceIcon.svelte';
+	import PlayerHead from '$lib/PlayerHead.svelte';
 	import { Icon, Menu, MenuItem, MenuLabel, MenuSeparator, ToolButton } from '$lib/ui';
 	import type { AccountView, LauncherFolder, UiConfig } from '$lib/api';
 	import { m } from '$lib/paraglide/messages.js';
@@ -117,7 +117,7 @@
 				class="max-w-52.5 gap-2.25 py-1 pr-3.25 pl-1.25 not-disabled:hover:bg-btn-hi"
 			>
 				<span class="grid place-items-center rounded-full bg-card p-1">
-					<InstanceIcon name="steve" size={22} />
+					<PlayerHead account={current} size={22} />
 				</span>
 				<span class="overflow-hidden font-medium text-ellipsis whitespace-nowrap text-ink">
 					{current?.playerName ?? m.account_not_signed_in()}

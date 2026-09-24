@@ -11,13 +11,14 @@ use super::{
     EVENT_INSTALL_PROGRESS,
 };
 use crate::error::{CmdError, CmdResult};
-use crate::store::instance_meta::{InstanceLocal, InstanceMeta, InstanceSettings, LocalStore};
+use crate::store::instance_meta::{
+    InstanceLocal, InstanceMeta, InstanceSettings, LocalStore, DEFAULT_ICON,
+};
 use crate::store::now_secs;
 
 /// 每複製幾個檔案回報一次進度，免得檔案很多時事件量爆掉。
 const PROGRESS_EVERY: usize = 64;
 
-const DEFAULT_ICON: &str = "grass";
 
 /// 預設會去找的啟動器資料目錄名稱（相對系統的資料目錄）。
 const KNOWN: [(&str, &str, &str); 4] = [
@@ -231,9 +232,10 @@ async fn import_one(
     }
 
     let cfg = read_cfg(source).await;
-    let meta = InstanceMeta {
+    let icon_key = cfg.get("iconKey").unwrap_or_default();
+    let mut meta = InstanceMeta {
         name: foreign.name,
-        icon: icon_for(cfg.get("iconKey").unwrap_or_default()),
+        icon: icon_for(&icon_key),
         group: group.to_string(),
         notes: foreign.notes,
         mc_version: foreign.mc_version.clone(),
@@ -250,6 +252,11 @@ async fn import_one(
         settings: settings_from(&cfg),
         ..InstanceMeta::default()
     };
+    if let Some(file) = custom_icon_file(source, &icon_key) {
+        if super::icon::copy_icon(&dir, &file).await.is_ok() {
+            meta.icon = super::icon::CUSTOM_ICON.to_string();
+        }
+    }
     meta.save(&dir).await?;
 
     if cfg.flag("OverrideJavaLocation") {
@@ -504,12 +511,24 @@ fn count_mods(game_dir: &Path) -> usize {
 }
 
 /// Prism 的圖示是自己一套，只有名字剛好跟我們的圖示對得上的才沿用。
-fn icon_for(key: String) -> String {
-    match key.as_str() {
-        "grass" | "dirt" | "stone" | "planks" | "brick" | "gold" | "diamond" | "netherrack"
-        | "tnt" | "gear" | "creeper" => key,
+fn icon_for(key: &str) -> String {
+    match key {
+        "grass" | "dirt" | "stone" | "planks" | "brick" | "gold" | "iron" | "diamond"
+        | "netherrack" | "tnt" | "creeper" => key.to_string(),
         _ => DEFAULT_ICON.to_string(),
     }
+}
+
+fn custom_icon_file(source: &Path, key: &str) -> Option<PathBuf> {
+    if key.is_empty() || key == "default" || key.contains(['/', '\\']) || key.contains("..") {
+        return None;
+    }
+    let icons = source.parent()?.parent()?.join("icons");
+    std::fs::read_dir(icons)
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| p.is_file() && p.file_stem().is_some_and(|s| s == key))
 }
 
 fn settings_from(cfg: &Cfg) -> InstanceSettings {

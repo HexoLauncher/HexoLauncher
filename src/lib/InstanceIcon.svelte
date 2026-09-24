@@ -1,196 +1,28 @@
 <script lang="ts">
-	let { name = 'grass', size = 48 }: { name?: string; size?: number } = $props();
+	import { blockIcon } from '$lib/icons';
 
-	type PixelIcon = { palette: string[]; rows: string[] };
+	let {
+		name = 'grass',
+		image = null,
+		size = 48
+	}: { name?: string; image?: string | null; size?: number } = $props();
 
-	const icons: Record<string, PixelIcon> = {
-		grass: {
-			palette: ['#7cb342', '#8bc34a', '#8a6142', '#6f4a31', '#9ccc55'],
-			rows: [
-				'44004400',
-				'00110100',
-				'22222222',
-				'23222232',
-				'22322222',
-				'22223222',
-				'32222223',
-				'22222222'
-			]
-		},
-		dirt: {
-			palette: ['#8a6142', '#6f4a31', '#9b7050'],
-			rows: [
-				'00200020',
-				'01000000',
-				'00001000',
-				'20000200',
-				'00010000',
-				'01000010',
-				'00002000',
-				'00100000'
-			]
-		},
-		stone: {
-			palette: ['#7d7d7d', '#6b6b6b', '#949494'],
-			rows: [
-				'00000000',
-				'01000010',
-				'00020000',
-				'00000100',
-				'02000002',
-				'00010000',
-				'00000200',
-				'01000010'
-			]
-		},
-		planks: {
-			palette: ['#b58c5a', '#9a7448', '#c79c68'],
-			rows: [
-				'00002000',
-				'00000000',
-				'11111111',
-				'00020000',
-				'00000000',
-				'11111111',
-				'00000020',
-				'00000000'
-			]
-		},
-		brick: {
-			palette: ['#a0553f', '#cfc6bd'],
-			rows: [
-				'11111111',
-				'00010001',
-				'00010001',
-				'00010001',
-				'11111111',
-				'01000100',
-				'01000100',
-				'01000100'
-			]
-		},
-		gold: {
-			palette: ['#f0c135', '#ffe98f', '#c79a1e'],
-			rows: [
-				'00000000',
-				'01100022',
-				'01100022',
-				'00000000',
-				'00000000',
-				'02200110',
-				'02200110',
-				'00000000'
-			]
-		},
-		diamond: {
-			palette: ['#4aedd9', '#8ff6ea', '#2fa89c'],
-			rows: [
-				'00000000',
-				'01100002',
-				'01100022',
-				'00000000',
-				'00220000',
-				'02200110',
-				'00000110',
-				'00000000'
-			]
-		},
-		netherrack: {
-			palette: ['#6d2b2b', '#55201f', '#8a3a38'],
-			rows: [
-				'02000010',
-				'00100200',
-				'01000001',
-				'00020010',
-				'20001000',
-				'00100002',
-				'01000100',
-				'00010000'
-			]
-		},
-		tnt: {
-			palette: ['#b33a32', '#e8e4dc', '#2a2a2a', '#8f2b25'],
-			rows: [
-				'00030000',
-				'30000030',
-				'11111111',
-				'12112211',
-				'11111111',
-				'00000300',
-				'30000030',
-				'00003000'
-			]
-		},
-		gear: {
-			palette: ['#9aa0a6', '#6b7176', '#2b3035'],
-			rows: [
-				'.00..00.',
-				'.000000.',
-				'00000000',
-				'00022000',
-				'00022000',
-				'00000000',
-				'.000000.',
-				'.00..00.'
-			]
-		},
-		magitech: {
-			palette: ['#6b3fa0', '#9a63e0', '#452a6e'],
-			rows: [
-				'...00...',
-				'..0110..',
-				'.011110.',
-				'01111110',
-				'01111110',
-				'.011220.',
-				'..0220..',
-				'...22...'
-			]
-		},
-		steve: {
-			palette: ['#b58867', '#8d5a3b', '#3c2a1e', '#ffffff', '#4a7ba7'],
-			rows: [
-				'22222222',
-				'22222222',
-				'00000000',
-				'03400340',
-				'00000000',
-				'01000010',
-				'00111100',
-				'00000000'
-			]
-		},
-		creeper: {
-			palette: ['#6dbb5b', '#5a9e4a', '#2e442d'],
-			rows: [
-				'00000000',
-				'01000010',
-				'02200220',
-				'02200220',
-				'00022000',
-				'00222200',
-				'02200220',
-				'00000000'
-			]
-		}
-	};
+	const custom = $derived(name === 'custom' && !!image);
+	const src = $derived(custom ? image! : blockIcon(name));
 
-	const icon = $derived(icons[name] ?? icons.grass);
+	let natural = $state(0);
 </script>
 
-<svg
+<img
+	{src}
+	alt=""
 	width={size}
 	height={size}
-	viewBox="0 0 8 8"
-	shape-rendering="crispEdges"
-	aria-hidden="true"
-	class="block [image-rendering:pixelated]"
->
-	{#each icon.rows as row, y (y)}
-		{#each row.split('') as cell, x (x)}
-			{#if cell !== '.'}
-				<rect {x} {y} width="1" height="1" fill={icon.palette[Number(cell)]} />
-			{/if}
-		{/each}
-	{/each}
-</svg>
+	draggable="false"
+	class="block object-contain {custom && natural && natural < size
+		? '[image-rendering:pixelated]'
+		: ''}"
+	onload={(e) => (natural = (e.currentTarget as HTMLImageElement).naturalWidth)}
+	style:width="{size}px"
+	style:height="{size}px"
+/>

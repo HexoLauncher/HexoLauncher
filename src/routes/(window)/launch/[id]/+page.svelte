@@ -265,7 +265,7 @@
 	<div class="flex min-h-0 flex-1 flex-col gap-4 px-5.5 pb-2 pt-5">
 		<header class="flex shrink-0 items-center gap-3.25">
 			<span class="grid place-items-center rounded-lg bg-card p-1.75 shadow-sm">
-				<InstanceIcon name={instance?.icon ?? 'grass'} size={40} />
+				<InstanceIcon name={instance?.icon} image={instance?.iconImage} size={40} />
 			</span>
 			<div class="min-w-0 flex-1">
 				<h1 class="overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-semibold">

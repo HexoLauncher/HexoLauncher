@@ -13,7 +13,7 @@
 	import NavList from '$lib/ui/NavList.svelte';
 	import Switch from '$lib/ui/Switch.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
-	import InstanceIcon from '$lib/InstanceIcon.svelte';
+	import PlayerHead from '$lib/PlayerHead.svelte';
 	import * as api from '$lib/api';
 	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
 	import type { Page } from '$lib/ui';
@@ -688,7 +688,7 @@
 									class:selected={selectedAccountId === item.id}
 									onclick={() => (selectedAccountId = item.id)}
 								>
-									<td><InstanceIcon name="steve" size={20} /></td>
+									<td><PlayerHead account={item} size={20} /></td>
 									<td>{item.playerName}</td>
 									<td class="text-muted">{item.kind === 'microsoft' ? m.account_microsoft() : m.account_offline()}</td>
 									<td class="text-muted">

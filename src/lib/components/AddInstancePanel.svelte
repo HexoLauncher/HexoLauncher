@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { Button, CheckRow, Field, Menu, Select, Table, TableBox, TextInput } from '$lib/ui';
+	import { Button, CheckRow, Field, Select, Table, TableBox, TextInput } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
+	import IconPicker from './IconPicker.svelte';
 	import WindowShell from './WindowShell.svelte';
 	import NavList from '$lib/ui/NavList.svelte';
 	import ModpackBrowser from './ModpackBrowser.svelte';
@@ -23,7 +24,6 @@
 	} from '$lib/api';
 	import { loaderLabel } from '$lib/format';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { ICON_CHOICES } from '$lib/icons';
 	import type { Page } from '$lib/ui';
 	import { m } from '$lib/paraglide/messages.js';
 
@@ -61,7 +61,9 @@
 
 	let page = $state('custom');
 	let name = $state('');
-	let icon = $state('grass');
+	let iconChoice = $state<string | null>(null);
+	let iconPath = $state('');
+	let iconFile = $state<string | null>(null);
 	let group = $state('');
 	let loader = $state<LoaderKind>('fabric');
 	let mcVersion = $state('');
@@ -80,6 +82,15 @@
 
 
 	let autoName = '';
+
+	const packIcon = $derived(remoteHit?.iconUrl ?? null);
+	const icon = $derived(iconChoice ?? (packIcon ? 'custom' : 'grass'));
+	const iconImage = $derived(iconFile ?? packIcon);
+	const iconSource = $derived({
+		icon,
+		iconPath: icon === 'custom' && iconFile ? iconPath : null,
+		iconUrl: icon === 'custom' && !iconFile ? packIcon : null
+	});
 
 
 	let result = $state<ModpackInstallResult | null>(null);
@@ -157,7 +168,8 @@
 			const created = await api.createInstance({
 				baseDir,
 				name: name.trim(),
-				icon,
+				icon: iconSource.icon,
+				iconPath: iconSource.iconPath,
 				group,
 				mcVersion,
 				loader,
@@ -179,6 +191,18 @@
 		} catch {
 			error = m.common_no_dialog_paste_file();
 			return null;
+		}
+	}
+
+	async function pickIcon() {
+		const picked = await pickFile(m.file_filter_image(), ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp']);
+		if (!picked) return;
+		try {
+			iconFile = await api.readImageFile(picked);
+			iconPath = picked;
+			iconChoice = 'custom';
+		} catch (e) {
+			error = api.errorMessage(e);
 		}
 	}
 
@@ -324,7 +348,7 @@
 				}
 			});
 
-			const installed = await run({ baseDir, name: instanceName, icon, group });
+			const installed = await run({ baseDir, name: instanceName, ...iconSource, group });
 			if (installed.manualDownloads.length || installed.skipped.length) {
 				result = installed;
 			} else {
@@ -345,27 +369,7 @@
 
 {#snippet identity(placeholder: string)}
 	<div class="flex shrink-0 items-start gap-3">
-		<Menu width="228px">
-			{#snippet trigger(attrs)}
-				<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label={m.common_select_icon()}>
-					<InstanceIcon name={icon} size={34} />
-				</Button>
-			{/snippet}
-			<div class="grid grid-cols-5 gap-0.75 p-0.75">
-				{#each ICON_CHOICES as choice (choice)}
-					<button
-						class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-hover {icon ===
-						choice
-							? 'border-brand bg-brand-soft'
-							: ''}"
-						aria-label={choice}
-						onclick={() => (icon = choice)}
-					>
-						<InstanceIcon name={choice} size={30} />
-					</button>
-				{/each}
-			</div>
-		</Menu>
+		<IconPicker {icon} image={iconImage} onselect={(choice) => (iconChoice = choice)} onpickimage={pickIcon} />
 
 		<div class="min-w-0 flex-1 [--field-label:48px]">
 			<Field label={m.common_name()} for="inst-name">
@@ -425,7 +429,7 @@
 					<ul class="rounded-lg border border-line bg-deep">
 						{#each done.imported as item (item.id)}
 							<li class="flex items-center gap-3 border-b border-line px-3 py-2 last:border-b-0">
-								<InstanceIcon name={item.icon} size={22} />
+								<InstanceIcon name={item.icon} image={item.iconImage} size={22} />
 								<span class="min-w-0 flex-1 truncate text-ink">{item.name}</span>
 								<span class="text-faint">{item.versionId || m.common_unknown_version()}</span>
 							</li>

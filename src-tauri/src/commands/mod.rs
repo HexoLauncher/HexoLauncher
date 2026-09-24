@@ -3,6 +3,7 @@ pub mod auth;
 pub mod content;
 pub mod export;
 pub mod foreign;
+pub mod icon;
 pub mod install;
 pub mod instance;
 pub mod java;
@@ -11,6 +12,7 @@ pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
 pub mod mods;
+pub mod skin;
 pub mod theme;
 pub mod version;
 

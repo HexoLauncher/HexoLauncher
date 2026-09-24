@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { Button, CheckRow, Field, Group, Menu, Pill, SearchField, Select, Table, TableBox, TextInput, Textarea } from '$lib/ui';
+	import { Button, CheckRow, Field, Group, Pill, SearchField, Select, Table, TableBox, TextInput, Textarea } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
-	import InstanceIcon from '$lib/InstanceIcon.svelte';
+	import IconPicker from './IconPicker.svelte';
 	import WindowShell from './WindowShell.svelte';
 	import NavList from '$lib/ui/NavList.svelte';
 	import Switch from '$lib/ui/Switch.svelte';
@@ -25,7 +25,6 @@
 		ServerEntry,
 		WorldEntry
 	} from '$lib/api';
-	import { ICON_CHOICES } from '$lib/icons';
 	import { formatDuration, formatSize, formatTime, loaderLabel } from '$lib/format';
 	import { onMount } from 'svelte';
 	import type { Page } from '$lib/ui';
@@ -84,6 +83,9 @@
 		javaPath: instance.javaPath,
 		settings: { ...instance.settings } as InstanceSettings
 	});
+
+	// svelte-ignore state_referenced_locally
+	let iconImage = $state(instance.iconImage);
 
 	let saved = $state(snapshot());
 	const dirty = $derived(snapshot() !== saved);
@@ -425,6 +427,27 @@
 		}
 	}
 
+	async function pickIcon() {
+		let picked: string | string[] | null;
+		try {
+			const { open } = await import('@tauri-apps/api/dialog');
+			picked = await open({
+				filters: [
+					{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
+				]
+			});
+		} catch {
+			return;
+		}
+		if (typeof picked !== 'string') return;
+		try {
+			iconImage = await api.setInstanceIconImage(baseDir, instance.id, picked);
+			form.icon = 'custom';
+		} catch (e) {
+			fail(m.icon_error_set(), e);
+		}
+	}
+
 	async function pickPack() {
 		try {
 			const { open } = await import('@tauri-apps/api/dialog');
@@ -529,27 +552,12 @@
 			<div class="flex min-h-0 flex-1 flex-col gap-2.5 px-4.5 pb-4.5 pt-3.5">
 				{#if page === 'general'}
 					<div class="flex items-start gap-3">
-						<Menu width="228px">
-							{#snippet trigger(attrs)}
-								<Button {...attrs} class="size-14.5 rounded-lg p-0" aria-label={m.common_select_icon()}>
-									<InstanceIcon name={form.icon} size={34} />
-								</Button>
-							{/snippet}
-							<div class="grid grid-cols-5 gap-0.75 p-0.75">
-								{#each ICON_CHOICES as choice (choice)}
-									<button
-										class="grid place-items-center rounded-sm border border-transparent p-1.25 hover:bg-hover {form.icon ===
-										choice
-											? 'border-brand bg-brand-soft'
-											: ''}"
-										aria-label={choice}
-										onclick={() => (form.icon = choice)}
-									>
-										<InstanceIcon name={choice} size={30} />
-									</button>
-								{/each}
-							</div>
-						</Menu>
+						<IconPicker
+							icon={form.icon}
+							image={iconImage}
+							onselect={(choice) => (form.icon = choice)}
+							onpickimage={pickIcon}
+						/>
 
 						<div class="min-w-0 flex-1 [--field-label:64px]">
 							<Field label={m.common_name()} for="edit-name">

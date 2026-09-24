@@ -13,7 +13,7 @@ use super::install::{progress_emitter, tool_java};
 use super::instance::{build_view, unique_instance_id, InstanceView, EVENT_INSTANCES_CHANGED};
 use super::{instance_dir, minecraft_dir, LoaderKind};
 use crate::error::{CmdError, CmdResult};
-use crate::store::instance_meta::{InstanceMeta, LocalStore};
+use crate::store::instance_meta::{InstanceMeta, LocalStore, DEFAULT_ICON};
 use crate::store::launcher::LauncherConfig;
 use crate::store::now_secs;
 
@@ -61,6 +61,8 @@ pub struct PackTarget {
 
     pub name: Option<String>,
     pub icon: Option<String>,
+    pub icon_path: Option<String>,
+    pub icon_url: Option<String>,
     pub group: Option<String>,
 }
 
@@ -285,12 +287,12 @@ where
     };
 
     let loader_version = pack_loader_version(&info).await;
-    let meta = InstanceMeta {
+    let mut meta = InstanceMeta {
         name,
         icon: target
             .icon
             .filter(|i| !i.is_empty())
-            .unwrap_or_else(|| "grass".to_string()),
+            .unwrap_or_else(|| DEFAULT_ICON.to_string()),
         group: target.group.unwrap_or_default().trim().to_string(),
         loader: LoaderKind::from(&info.loader),
         loader_version,
@@ -298,6 +300,13 @@ where
         created_at: now_secs(),
         ..InstanceMeta::default()
     };
+    super::icon::apply_source(
+        &dir,
+        &mut meta,
+        target.icon_path.as_deref(),
+        target.icon_url.as_deref(),
+    )
+    .await;
     meta.save(&dir).await?;
 
     let mc_dir = minecraft_dir(&base, &id)?;

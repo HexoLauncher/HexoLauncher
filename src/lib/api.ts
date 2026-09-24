@@ -173,6 +173,7 @@ export interface InstanceView {
 	id: string;
 	name: string;
 	icon: string;
+	iconImage: string | null;
 
 	group: string;
 	notes: string;
@@ -235,6 +236,13 @@ export type InstanceFolder =
 	| 'logs'
 	| 'config';
 
+export const readImageFile = (path: string) => invoke<string>('read_image_file', { path });
+
+export const setInstanceIconImage = (baseDir: string, instanceName: string, path: string) =>
+	invoke<string>('set_instance_icon_image', { baseDir, instanceName, path });
+
+export const playerSkin = (uuid: string) => invoke<string | null>('player_skin', { uuid });
+
 export const openInstanceFolder = (
 	baseDir: string,
 	instanceName: string,
@@ -246,6 +254,7 @@ export interface CreateRequest {
 
 	name: string;
 	icon?: string | null;
+	iconPath?: string | null;
 	group?: string | null;
 	mcVersion: string;
 	loader: LoaderKind;
@@ -343,6 +352,8 @@ export interface PackTarget {
 
 	name?: string | null;
 	icon?: string | null;
+	iconPath?: string | null;
+	iconUrl?: string | null;
 	group?: string | null;
 }
 

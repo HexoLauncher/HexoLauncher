@@ -9,6 +9,8 @@ use crate::error::CmdResult;
 
 pub const META_FILE: &str = "hexo.instance.json";
 
+pub const DEFAULT_ICON: &str = "grass";
+
 const LOCAL_FILE: &str = "instances.local.json";
 
 const FORMAT_VERSION: u32 = 1;
@@ -52,7 +54,7 @@ impl Default for InstanceMeta {
         Self {
             format_version: FORMAT_VERSION,
             name: String::new(),
-            icon: "grass".to_string(),
+            icon: DEFAULT_ICON.to_string(),
             group: String::new(),
             notes: String::new(),
             mc_version: String::new(),
@@ -81,7 +83,7 @@ impl InstanceMeta {
             meta.name = fallback_name.to_string();
         }
         if meta.icon.trim().is_empty() {
-            meta.icon = "grass".to_string();
+            meta.icon = DEFAULT_ICON.to_string();
         }
         Ok(meta)
     }

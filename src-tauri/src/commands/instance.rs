@@ -6,7 +6,9 @@ use tauri::Manager;
 
 use super::{instance_dir, minecraft_dir, path_string, validate_instance_name, LoaderKind};
 use crate::error::{CmdError, CmdResult};
-use crate::store::instance_meta::{InstanceLocal, InstanceMeta, InstanceSettings, LocalStore};
+use crate::store::instance_meta::{
+    InstanceLocal, InstanceMeta, InstanceSettings, LocalStore, DEFAULT_ICON,
+};
 use crate::store::now_secs;
 
 pub const EVENT_INSTANCES_CHANGED: &str = "hexo://instances-changed";
@@ -17,6 +19,7 @@ pub struct InstanceView {
     pub id: String,
     pub name: String,
     pub icon: String,
+    pub icon_image: Option<String>,
     pub group: String,
     pub notes: String,
     pub version_id: String,
@@ -120,6 +123,7 @@ pub async fn build_view(
         id: name.to_string(),
         name: meta.name,
         icon: meta.icon,
+        icon_image: super::icon::read_icon(&dir),
         group: meta.group,
         notes: meta.notes,
         version_id: config
@@ -203,6 +207,7 @@ pub struct CreateRequest {
 
     pub name: String,
     pub icon: Option<String>,
+    pub icon_path: Option<String>,
     pub group: Option<String>,
     pub mc_version: String,
     pub loader: LoaderKind,
@@ -218,6 +223,7 @@ pub async fn create_instance(
         base_dir,
         name,
         icon,
+        icon_path,
         group,
         mc_version,
         loader,
@@ -238,11 +244,11 @@ pub async fn create_instance(
 
     tokio::fs::create_dir_all(minecraft_dir(base, &id)?).await?;
 
-    let meta = InstanceMeta {
+    let mut meta = InstanceMeta {
         name,
         icon: icon
             .filter(|i| !i.is_empty())
-            .unwrap_or_else(|| "grass".to_string()),
+            .unwrap_or_else(|| DEFAULT_ICON.to_string()),
         group: group.unwrap_or_default().trim().to_string(),
         mc_version,
         loader,
@@ -250,6 +256,7 @@ pub async fn create_instance(
         created_at: now_secs(),
         ..InstanceMeta::default()
     };
+    super::icon::apply_source(&dir, &mut meta, icon_path.as_deref(), None).await;
     meta.save(&dir).await?;
 
     let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
