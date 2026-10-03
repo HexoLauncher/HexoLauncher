@@ -479,6 +479,7 @@ fn folder_target(base_dir: &Path, name: &str, target: &str) -> CmdResult<PathBuf
         "screenshots" => mc.join("screenshots"),
         "logs" => mc.join("logs"),
         "config" => mc.join("config"),
+        "schematics" => mc.join("schematics"),
         other => return Err(CmdError::launcher(format!("未知的資料夾: {}", other))),
     })
 }

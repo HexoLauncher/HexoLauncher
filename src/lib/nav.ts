@@ -2,7 +2,8 @@ import { goto } from '$app/navigation';
 
 export const routes = {
 	instances: '/',
-	settings: '/settings'
+	settings: '/settings',
+	blueprints: '/blueprints'
 };
 
 export function navigate(path: string) {

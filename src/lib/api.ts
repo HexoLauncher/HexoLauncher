@@ -234,7 +234,8 @@ export type InstanceFolder =
 	| 'saves'
 	| 'screenshots'
 	| 'logs'
-	| 'config';
+	| 'config'
+	| 'schematics';
 
 export const readImageFile = (path: string) => invoke<string>('read_image_file', { path });
 
@@ -728,6 +729,170 @@ export const listInstanceLogs = (baseDir: string, instanceName: string) =>
 
 export const readInstanceLog = (baseDir: string, instanceName: string, fileName: string) =>
 	invoke<string>('read_instance_log', { baseDir, instanceName, fileName });
+
+export interface BlueprintUser {
+	uuid: string;
+	username: string;
+	createdAt: string;
+}
+
+export interface BlueprintSession {
+	server: string;
+	/** 啟動器目前選的帳號；online = Microsoft 帳號，才能登入藍圖庫。 */
+	account: { id: string; playerName: string; online: boolean } | null;
+	user: BlueprintUser | null;
+}
+
+export interface BlueprintTag {
+	slug: string;
+	name: string;
+}
+
+export type RenderStatus = 'pending' | 'rendering' | 'done' | 'failed' | 'unsupported';
+
+export interface BlueprintImage {
+	id: string;
+	url: string;
+	width: number;
+	height: number;
+}
+
+export interface Blueprint {
+	id: string;
+	owner: { uuid: string; username: string };
+	name: string;
+	description: string;
+	format: 'litematic' | 'schem';
+	tags: string[];
+	/** min = null 表示未知；max = null 表示沒有上限 */
+	mcVersions: { min: string | null; max: string | null };
+	dataVersion: number | null;
+	/** [x, y, z] */
+	size: [number, number, number] | null;
+	totalBlocks: number | null;
+	file: { name: string; size: number; sha256: string };
+	cover: { url: string | null; source: 'image' | 'render' | null; imageId: string | null };
+	render: {
+		status: RenderStatus;
+		url: string | null;
+		error: string | null;
+		mcVersion: string | null;
+	};
+	images: BlueprintImage[];
+	downloadCount: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface BlueprintList {
+	items: Blueprint[];
+	page: number;
+	perPage: number;
+	total: number;
+}
+
+export interface BlueprintQuery {
+	q?: string;
+	owner?: string | null;
+	tags?: string[];
+	version?: string | null;
+	page?: number;
+	perPage?: number;
+}
+
+export interface InstalledBlueprint {
+	fileName: string;
+	path: string;
+	existed: boolean;
+}
+
+export interface BlueprintUpload {
+	path: string;
+	name: string;
+	description: string;
+	tags: string[];
+	mcVersionMin: string;
+	mcVersionMax: string;
+}
+
+/** 整份送出；版本欄位空字串代表清除。 */
+export interface BlueprintPatch {
+	name: string;
+	description: string;
+	tags: string[];
+	mcVersionMin: string;
+	mcVersionMax: string;
+}
+
+export const blueprintSession = () => invoke<BlueprintSession>('blueprint_session');
+
+export const blueprintLogin = () => invoke<BlueprintSession>('blueprint_login');
+
+export const blueprintLogout = () => invoke<BlueprintSession>('blueprint_logout');
+
+export const blueprintTags = () => invoke<BlueprintTag[]>('blueprint_tags');
+
+export const blueprintSearch = (query: BlueprintQuery) =>
+	invoke<BlueprintList>('blueprint_search', { query });
+
+export const blueprintGet = (id: string) => invoke<Blueprint>('blueprint_get', { id });
+
+export const blueprintInstall = (baseDir: string, instanceName: string, id: string) =>
+	invoke<InstalledBlueprint>('blueprint_install', { baseDir, instanceName, id });
+
+export const blueprintSaveAs = (id: string, targetPath: string) =>
+	invoke<string>('blueprint_save_as', { id, targetPath });
+
+/** 3D 預覽用的方塊資料（base64），交給 `App.load_preview`。 */
+export const blueprintPreview = (id: string, format: string) =>
+	invoke<string>('blueprint_preview', { id, format });
+
+export const blueprintUpload = (request: BlueprintUpload) =>
+	invoke<Blueprint>('blueprint_upload', { request });
+
+export const blueprintUpdate = (id: string, patch: BlueprintPatch) =>
+	invoke<Blueprint>('blueprint_update', { id, patch });
+
+export const blueprintDelete = (id: string) => invoke<void>('blueprint_delete', { id });
+
+export const blueprintRerender = (id: string) => invoke<Blueprint>('blueprint_rerender', { id });
+
+export const blueprintAddImages = (id: string, paths: string[]) =>
+	invoke<Blueprint>('blueprint_add_images', { id, paths });
+
+export const blueprintDeleteImage = (id: string, imageId: string) =>
+	invoke<Blueprint>('blueprint_delete_image', { id, imageId });
+
+export const blueprintSetCover = (id: string, imageId: string | null) =>
+	invoke<Blueprint>('blueprint_set_cover', { id, imageId });
+
+export interface SchematicFile {
+	name: string;
+	/** 相對 schematics/，用 / 分隔 */
+	relPath: string;
+	path: string;
+	format: 'litematic' | 'schem';
+	size: number;
+	modified: number;
+}
+
+export const listSchematics = (baseDir: string, instanceName: string) =>
+	invoke<SchematicFile[]>('list_schematics', { baseDir, instanceName });
+
+export const deleteSchematic = (baseDir: string, instanceName: string, relPath: string) =>
+	invoke<void>('delete_schematic', { baseDir, instanceName, relPath });
+
+export const importSchematic = (baseDir: string, instanceName: string, source: string) =>
+	invoke<SchematicFile>('import_schematic', { baseDir, instanceName, source });
+
+/** 本機 .litematic 內容（base64），給 3D 預覽用。 */
+export const readSchematic = (path: string) => invoke<string>('read_schematic', { path });
+
+/** 從本機已下載的 client jar 抽出方塊材質；沒有就回傳 null。 */
+export const localBlockAssets = (baseDir: string, version: string, prefer?: string | null) =>
+	invoke<string | null>('local_block_assets', { baseDir, version, prefer });
+
+export const packBlockAssets = (path: string) => invoke<string>('pack_block_assets', { path });
 
 export interface InstallProgress {
 	instanceName: string;

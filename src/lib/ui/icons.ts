@@ -1,6 +1,7 @@
 import type { Component } from 'svelte';
 import LuArrowRight from '~icons/lucide/arrow-right';
 import LuArrowUpFromLine from '~icons/lucide/arrow-up-from-line';
+import LuBlocks from '~icons/lucide/blocks';
 import LuBox from '~icons/lucide/box';
 import LuCheck from '~icons/lucide/check';
 import LuChevronDown from '~icons/lucide/chevron-down';
@@ -11,6 +12,7 @@ import LuCoffee from '~icons/lucide/coffee';
 import LuCopy from '~icons/lucide/copy';
 import LuDownload from '~icons/lucide/download';
 import LuExternalLink from '~icons/lucide/external-link';
+import LuEye from '~icons/lucide/eye';
 import LuFileText from '~icons/lucide/file-text';
 import LuFolder from '~icons/lucide/folder';
 import LuGlobe from '~icons/lucide/globe';
@@ -19,6 +21,8 @@ import LuInfo from '~icons/lucide/info';
 import LuKey from '~icons/lucide/key';
 import LuLayoutGrid from '~icons/lucide/layout-grid';
 import LuList from '~icons/lucide/list';
+import LuLogIn from '~icons/lucide/log-in';
+import LuLogOut from '~icons/lucide/log-out';
 import LuMenu from '~icons/lucide/menu';
 import LuMinus from '~icons/lucide/minus';
 import LuMonitor from '~icons/lucide/monitor';
@@ -29,6 +33,7 @@ import LuPencil from '~icons/lucide/pencil';
 import LuPlay from '~icons/lucide/play';
 import LuPlus from '~icons/lucide/plus';
 import LuRefreshCw from '~icons/lucide/refresh-cw';
+import LuRotateCcw from '~icons/lucide/rotate-ccw';
 import LuRss from '~icons/lucide/rss';
 import LuSearch from '~icons/lucide/search';
 import LuServer from '~icons/lucide/server';
@@ -90,6 +95,11 @@ export const ICONS: Record<string, Component> = {
 	clock: LuClock,
 	rss: LuRss,
 	list: LuList,
+	blocks: LuBlocks,
+	eye: LuEye,
+	login: LuLogIn,
+	logout: LuLogOut,
+	rerender: LuRotateCcw,
 	'win-min': LuMinus,
 	'win-max': LuSquare
 };

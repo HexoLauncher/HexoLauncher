@@ -31,6 +31,7 @@
 
 	const onInstances = $derived(currentPath === '/');
 	const onSettings = $derived(currentPath.startsWith('/settings'));
+	const onBlueprints = $derived(currentPath.startsWith('/blueprints'));
 	const current = $derived(accounts.find((a) => a.selected) ?? null);
 </script>
 
@@ -62,6 +63,7 @@
 		<MenuLabel>{m.menu_view()}</MenuLabel>
 		<MenuItem checked={onInstances} onclick={() => onNavigate('/')}>{m.nav_instances()}</MenuItem>
 		<MenuItem checked={onSettings} onclick={() => onNavigate('/settings')}>{m.nav_settings()}</MenuItem>
+		<MenuItem checked={onBlueprints} onclick={() => onNavigate('/blueprints')}>{m.nav_blueprints()}</MenuItem>
 		<MenuSeparator />
 		<MenuItem checked={view.instanceToolbar} onclick={() => onToggleView('instanceToolbar')}>
 			{m.view_instance_toolbar()}
@@ -84,6 +86,15 @@
 		onclick={() => onNavigate('/settings')}
 	>
 		{@render caption(m.nav_settings())}
+	</ToolButton>
+
+	<ToolButton
+		icon="blocks"
+		active={onBlueprints}
+		aria-current={onBlueprints}
+		onclick={() => onNavigate('/blueprints')}
+	>
+		{@render caption(m.nav_blueprints())}
 	</ToolButton>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>

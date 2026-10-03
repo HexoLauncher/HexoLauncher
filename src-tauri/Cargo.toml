@@ -31,7 +31,8 @@ tauri = { version = "1.8.3", features = [
 
 
 hexomc-lib = "0.1.5"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+sha2 = "0.10"
 futures = "0.3"
 tokio = { version = "1", features = [
     "rt-multi-thread",

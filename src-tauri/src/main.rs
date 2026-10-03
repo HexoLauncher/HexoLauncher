@@ -16,6 +16,10 @@ fn main() {
             if let Ok(dir) = store::store_dir() {
                 let _ = app.asset_protocol_scope().allow_directory(&dir, false);
             }
+            if let Ok(dir) = commands::schematic::block_assets_dir() {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = app.asset_protocol_scope().allow_directory(&dir, false);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -89,6 +93,28 @@ fn main() {
             commands::assets::list_screenshots,
             commands::assets::list_instance_logs,
             commands::assets::read_instance_log,
+            commands::blueprint::blueprint_session,
+            commands::blueprint::blueprint_login,
+            commands::blueprint::blueprint_logout,
+            commands::blueprint::blueprint_tags,
+            commands::blueprint::blueprint_search,
+            commands::blueprint::blueprint_get,
+            commands::blueprint::blueprint_install,
+            commands::blueprint::blueprint_save_as,
+            commands::blueprint::blueprint_preview,
+            commands::blueprint::blueprint_upload,
+            commands::blueprint::blueprint_update,
+            commands::blueprint::blueprint_delete,
+            commands::blueprint::blueprint_rerender,
+            commands::blueprint::blueprint_add_images,
+            commands::blueprint::blueprint_delete_image,
+            commands::blueprint::blueprint_set_cover,
+            commands::schematic::list_schematics,
+            commands::schematic::delete_schematic,
+            commands::schematic::import_schematic,
+            commands::schematic::read_schematic,
+            commands::schematic::local_block_assets,
+            commands::schematic::pack_block_assets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

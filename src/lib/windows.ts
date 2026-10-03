@@ -26,6 +26,23 @@ export const windowSpecs = {
 		width: 800,
 		height: 620
 	}),
+
+	viewer: (
+		source:
+			| { kind: 'remote'; id: string }
+			| { kind: 'local'; path: string; instance?: string | null },
+		name: string
+	): WindowSpec => {
+		const ref = source.kind === 'remote' ? source.id : encodeRef(source.path);
+		const instance =
+			source.kind === 'local' && source.instance ? `/${encodeURIComponent(source.instance)}` : '';
+		return {
+			path: `/viewer/${source.kind}/${ref}${instance}`,
+			title: m.window_viewer({ name }),
+			width: 1100,
+			height: 720
+		};
+	},
 	about: (): WindowSpec => ({
 		path: '/about',
 		title: m.window_about(),
@@ -33,6 +50,19 @@ export const windowSpecs = {
 		height: 400
 	})
 };
+
+export function encodeRef(value: string) {
+	const bytes = new TextEncoder().encode(value);
+	let binary = '';
+	bytes.forEach((b) => (binary += String.fromCharCode(b)));
+	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function decodeRef(ref: string) {
+	const base64 = ref.replace(/-/g, '+').replace(/_/g, '/');
+	const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
+	return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+}
 
 function inTauri() {
 	return typeof window !== 'undefined' && '__TAURI_IPC__' in window;

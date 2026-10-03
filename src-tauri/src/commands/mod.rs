@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod auth;
+pub mod blueprint;
 pub mod content;
 pub mod export;
 pub mod foreign;
@@ -12,6 +13,7 @@ pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
 pub mod mods;
+pub mod schematic;
 pub mod skin;
 pub mod theme;
 pub mod version;
