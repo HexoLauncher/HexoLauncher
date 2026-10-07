@@ -7,7 +7,7 @@ use super::{now_secs, read_json, store_file, write_json};
 use crate::commands::LoaderKind;
 use crate::error::CmdResult;
 
-pub const META_FILE: &str = "hexo.instance.json";
+pub const META_FILE: &str = "nolauncher.instance.json";
 
 pub const DEFAULT_ICON: &str = "grass";
 

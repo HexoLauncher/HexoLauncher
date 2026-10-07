@@ -108,7 +108,7 @@
 	}
 
 	function isJavaMissing(e: unknown) {
-		return !!e && typeof e === 'object' && (e as api.HexoCmdError).kind === 'javaNotFound';
+		return !!e && typeof e === 'object' && (e as api.NolauncherCmdError).kind === 'javaNotFound';
 	}
 
 	const failed = $derived(Object.values(stageState).includes('failed'));

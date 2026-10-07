@@ -14,8 +14,8 @@ use crate::store::{now_secs, read_json, store_dir, store_file, write_json};
 const AUTH_FILE: &str = "blueprint_auth.json";
 const MOJANG_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
 
-/// 藍圖庫網址，不開放使用者修改。打包時用 `HEXO_BLUEPRINT_SERVER` 帶進正式站網址。
-const SERVER: &str = match option_env!("HEXO_BLUEPRINT_SERVER") {
+/// 藍圖庫網址，不開放使用者修改。打包時用 `NOLAUNCHER_BLUEPRINT_SERVER` 帶進正式站網址。
+const SERVER: &str = match option_env!("NOLAUNCHER_BLUEPRINT_SERVER") {
     Some(url) => url,
     None => "http://localhost:8080",
 };

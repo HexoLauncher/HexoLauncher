@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_name": "Hexo Launcher",
+	"app_name": "Nolauncher",
 	"app_version": "版本 {version}",
 	"app_tagline": "遊戲的下載、安裝與啟動由 hexomc-lib 負責。",
 
@@ -75,9 +75,9 @@
 	"window_edit_instance": "{name} — 編輯實例",
 	"window_console": "{name} — 主控台",
 	"window_new_instance": "新增實例",
-	"window_about": "關於 Hexo Launcher",
-	"window_settings_title": "設定 — Hexo Launcher",
-	"window_new_instance_title": "新增實例 — Hexo Launcher",
+	"window_about": "關於 Nolauncher",
+	"window_settings_title": "設定 — Nolauncher",
+	"window_new_instance_title": "新增實例 — Nolauncher",
 	"window_edit_instance_fallback": "編輯實例",
 	"window_launch": "啟動 {name}",
 	"window_launching": "正在啟動",
@@ -135,7 +135,7 @@
 	"menu_new_instance": "新增實例…",
 	"menu_folders": "資料夾",
 	"menu_view": "檢視",
-	"menu_about": "關於 Hexo Launcher",
+	"menu_about": "關於 Nolauncher",
 	"menu_accounts": "帳號",
 
 	"nav_instances": "遊戲實例",

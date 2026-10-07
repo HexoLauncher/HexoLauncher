@@ -188,11 +188,11 @@ impl LauncherConfig {
     }
 }
 
-/// Windows: `%APPDATA%\HexoLauncher`、macOS: `~/Library/Application Support/HexoLauncher`、
-/// Linux: `~/.local/share/HexoLauncher`
+/// Windows: `%APPDATA%\Nolauncher`、macOS: `~/Library/Application Support/Nolauncher`、
+/// Linux: `~/.local/share/Nolauncher`
 pub fn default_base_dir() -> CmdResult<PathBuf> {
     dirs::data_dir()
-        .map(|d| d.join("HexoLauncher"))
+        .map(|d| d.join(super::APP_DIR))
         .or_else(|| std::env::current_dir().ok().map(|d| d.join("mc_data")))
         .ok_or_else(|| CmdError::launcher("無法取得系統資料目錄"))
 }

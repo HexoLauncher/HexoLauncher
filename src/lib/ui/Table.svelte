@@ -10,12 +10,12 @@
 	} = $props();
 </script>
 
-<table class="hexo-table w-full border-separate border-spacing-0 text-left {klass}">
+<table class="nolauncher-table w-full border-separate border-spacing-0 text-left {klass}">
 	{@render children()}
 </table>
 
 <style>
-	.hexo-table :global(th) {
+	.nolauncher-table :global(th) {
 		position: sticky;
 		top: 0;
 		z-index: 2;
@@ -27,41 +27,41 @@
 		color: var(--color-muted);
 	}
 
-	.hexo-table :global(td) {
+	.nolauncher-table :global(td) {
 		overflow: hidden;
 		padding: 7px 10px;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	.hexo-table :global(tbody tr) {
+	.nolauncher-table :global(tbody tr) {
 		transition: background-color 150ms;
 	}
 
-	.hexo-table :global(tbody tr:hover td) {
+	.nolauncher-table :global(tbody tr:hover td) {
 		background: var(--color-hover);
 	}
 
-	.hexo-table :global(tbody td:first-child) {
+	.nolauncher-table :global(tbody td:first-child) {
 		border-start-start-radius: var(--radius-md);
 		border-end-start-radius: var(--radius-md);
 	}
 
-	.hexo-table :global(tbody td:last-child) {
+	.nolauncher-table :global(tbody td:last-child) {
 		border-start-end-radius: var(--radius-md);
 		border-end-end-radius: var(--radius-md);
 	}
 
-	.hexo-table :global(tbody tr.selected td) {
+	.nolauncher-table :global(tbody tr.selected td) {
 		background: var(--color-brand-soft);
 		color: var(--color-ink);
 	}
 
-	.hexo-table :global(tbody tr.selected td:first-child) {
+	.nolauncher-table :global(tbody tr.selected td:first-child) {
 		box-shadow: inset 2px 0 0 var(--color-brand);
 	}
 
-	.hexo-table :global(.dim) {
+	.nolauncher-table :global(.dim) {
 		color: var(--color-muted);
 	}
 </style>

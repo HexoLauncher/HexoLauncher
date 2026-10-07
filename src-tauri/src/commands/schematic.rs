@@ -352,7 +352,7 @@ mod tests {
 
     #[test]
     fn slims_zip_and_folder_packs() {
-        let dir = std::env::temp_dir().join(format!("hexo-slim-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("nolauncher-slim-{}", uuid::Uuid::new_v4()));
         let folder = dir.join("pack");
         std::fs::create_dir_all(folder.join("assets/minecraft/textures/block")).unwrap();
         std::fs::create_dir_all(folder.join("assets/minecraft/sounds")).unwrap();
@@ -392,9 +392,9 @@ mod tests {
 #[cfg(test)]
 mod real_jar {
     #[test]
-    #[ignore = "需要本機的 client jar：HEXO_TEST_JAR=/path/to/1.21.1.jar"]
+    #[ignore = "需要本機的 client jar：NOLAUNCHER_TEST_JAR=/path/to/1.21.1.jar"]
     fn slims_real_client_jar() {
-        let jar = std::env::var("HEXO_TEST_JAR").expect("HEXO_TEST_JAR");
+        let jar = std::env::var("NOLAUNCHER_TEST_JAR").expect("NOLAUNCHER_TEST_JAR");
         let started = std::time::Instant::now();
         let bytes = super::slim_from_zip(std::path::Path::new(&jar)).unwrap();
         let archive = zip::ZipArchive::new(std::io::Cursor::new(bytes.clone())).unwrap();

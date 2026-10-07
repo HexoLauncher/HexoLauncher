@@ -21,7 +21,7 @@ use crate::store::launcher::LauncherConfig;
 
 pub(super) const PAGE_SIZE: usize = 20;
 const CACHE_TTL: Duration = Duration::from_secs(30 * 60);
-const USER_AGENT: &str = concat!("HexoLauncher/", env!("CARGO_PKG_VERSION"));
+const USER_AGENT: &str = concat!("Nolauncher/", env!("CARGO_PKG_VERSION"));
 
 pub(super) const MODRINTH_API: &str = "https://api.modrinth.com/v2";
 const CURSEFORGE_API: &str = "https://api.curseforge.com/v1";

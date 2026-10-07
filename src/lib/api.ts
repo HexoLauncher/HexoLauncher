@@ -5,14 +5,14 @@ import type { ThemeConfig } from '$lib/theme';
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
-export interface HexoCmdError {
+export interface NolauncherCmdError {
 	kind: string;
 	message: string;
 }
 
 export function errorMessage(error: unknown): string {
 	if (error && typeof error === 'object' && 'message' in error) {
-		return String((error as HexoCmdError).message);
+		return String((error as NolauncherCmdError).message);
 	}
 	return String(error);
 }
@@ -92,10 +92,10 @@ export const backgroundImagePath = (name: string) =>
 
 export const clearBackgroundImage = () => invoke<void>('clear_background_image');
 
-export const emitThemeChanged = (theme: ThemeConfig) => emit('hexo://theme-changed', theme);
+export const emitThemeChanged = (theme: ThemeConfig) => emit('nolauncher://theme-changed', theme);
 
 export const onThemeChanged = (handler: (theme: ThemeConfig) => void): Promise<UnlistenFn> =>
-	listen<ThemeConfig>('hexo://theme-changed', (event) => handler(event.payload));
+	listen<ThemeConfig>('nolauncher://theme-changed', (event) => handler(event.payload));
 
 export type AccountKind = 'microsoft' | 'offline';
 
@@ -914,19 +914,19 @@ export interface GameOutput extends GameLogLine {
 export const onInstallProgress = (
 	handler: (progress: InstallProgress) => void
 ): Promise<UnlistenFn> =>
-	listen<InstallProgress>('hexo://install-progress', (event) => handler(event.payload));
+	listen<InstallProgress>('nolauncher://install-progress', (event) => handler(event.payload));
 
 export const onGameStart = (handler: (info: RunningGame) => void): Promise<UnlistenFn> =>
-	listen<RunningGame>('hexo://game-start', (event) => handler(event.payload));
+	listen<RunningGame>('nolauncher://game-start', (event) => handler(event.payload));
 
 export const onGameExit = (handler: (exit: GameExit) => void): Promise<UnlistenFn> =>
-	listen<GameExit>('hexo://game-exit', (event) => handler(event.payload));
+	listen<GameExit>('nolauncher://game-exit', (event) => handler(event.payload));
 
 export const onGameOutput = (handler: (output: GameOutput) => void): Promise<UnlistenFn> =>
-	listen<GameOutput>('hexo://game-output', (event) => handler(event.payload));
+	listen<GameOutput>('nolauncher://game-output', (event) => handler(event.payload));
 
 export const onInstancesChanged = (handler: () => void): Promise<UnlistenFn> =>
-	listen('hexo://instances-changed', () => handler());
+	listen('nolauncher://instances-changed', () => handler());
 
 export interface JavaProgress {
 	version: number;
@@ -939,4 +939,4 @@ export interface JavaProgress {
 }
 
 export const onJavaProgress = (handler: (progress: JavaProgress) => void): Promise<UnlistenFn> =>
-	listen<JavaProgress>('hexo://java-progress', (event) => handler(event.payload));
+	listen<JavaProgress>('nolauncher://java-progress', (event) => handler(event.payload));

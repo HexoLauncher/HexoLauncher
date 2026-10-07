@@ -26,15 +26,15 @@ use serde::{Deserialize, Serialize};
 use crate::error::{CmdError, CmdResult};
 
 /// 安裝進度事件：`{ instanceName, done, total, message }`
-pub const EVENT_INSTALL_PROGRESS: &str = "hexo://install-progress";
+pub const EVENT_INSTALL_PROGRESS: &str = "nolauncher://install-progress";
 /// 遊戲開始事件：內容是 RunningInfo。
-pub const EVENT_GAME_START: &str = "hexo://game-start";
+pub const EVENT_GAME_START: &str = "nolauncher://game-start";
 /// 遊戲結束事件：`{ instanceName, exitCode }`
-pub const EVENT_GAME_EXIT: &str = "hexo://game-exit";
+pub const EVENT_GAME_EXIT: &str = "nolauncher://game-exit";
 /// 遊戲輸出事件（每行一次）：`{ instanceName, kind: "stdout" | "stderr", line }`
-pub const EVENT_GAME_OUTPUT: &str = "hexo://game-output";
+pub const EVENT_GAME_OUTPUT: &str = "nolauncher://game-output";
 /// Java 下載進度事件：`{ version, done, total, message }`；下載階段 done / total 是位元組。
-pub const EVENT_JAVA_PROGRESS: &str = "hexo://java-progress";
+pub const EVENT_JAVA_PROGRESS: &str = "nolauncher://java-progress";
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

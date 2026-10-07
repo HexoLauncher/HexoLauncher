@@ -63,7 +63,7 @@
 	}
 </script>
 
-<svelte:head><title>{m.nav_blueprints()} · Hexo Launcher</title></svelte:head>
+<svelte:head><title>{m.nav_blueprints()} · Nolauncher</title></svelte:head>
 
 <div class="flex min-h-0 flex-1 bg-window">
 	<NavList

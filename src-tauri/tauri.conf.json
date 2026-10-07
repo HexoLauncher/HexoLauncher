@@ -7,7 +7,7 @@
 		"distDir": "../build"
 	},
 	"package": {
-		"productName": "hexolauncher",
+		"productName": "nolauncher",
 		"version": "0.1.0"
 	},
 	"tauri": {
@@ -74,7 +74,7 @@
 				"fullscreen": false,
 				"height": 760,
 				"resizable": true,
-				"title": "Hexo Launcher",
+				"title": "Nolauncher",
 				"width": 1180,
 				"label": "main",
 				"minWidth": 900,

@@ -41,7 +41,7 @@ export async function signOut() {
 
 /** 伺服器說 token 失效時，同步一下畫面上的登入狀態。 */
 export function handleAuthError(error: unknown) {
-	if (error && typeof error === 'object' && (error as api.HexoCmdError).kind === 'blueprintAuth') {
+	if (error && typeof error === 'object' && (error as api.NolauncherCmdError).kind === 'blueprintAuth') {
 		refreshSession();
 	}
 }

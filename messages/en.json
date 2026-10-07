@@ -1,7 +1,7 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
 
-	"app_name": "Hexo Launcher",
+	"app_name": "Nolauncher",
 	"app_version": "Version {version}",
 	"app_tagline": "Downloading, installing and launching the game is handled by hexomc-lib.",
 
@@ -75,9 +75,9 @@
 	"window_edit_instance": "{name} — Edit instance",
 	"window_console": "{name} — Console",
 	"window_new_instance": "New instance",
-	"window_about": "About Hexo Launcher",
-	"window_settings_title": "Settings — Hexo Launcher",
-	"window_new_instance_title": "New instance — Hexo Launcher",
+	"window_about": "About Nolauncher",
+	"window_settings_title": "Settings — Nolauncher",
+	"window_new_instance_title": "New instance — Nolauncher",
 	"window_edit_instance_fallback": "Edit instance",
 	"window_launch": "Launching {name}",
 	"window_launching": "Launching",
@@ -135,7 +135,7 @@
 	"menu_new_instance": "New instance…",
 	"menu_folders": "Folders",
 	"menu_view": "View",
-	"menu_about": "About Hexo Launcher",
+	"menu_about": "About Nolauncher",
 	"menu_accounts": "Accounts",
 
 	"nav_instances": "Instances",

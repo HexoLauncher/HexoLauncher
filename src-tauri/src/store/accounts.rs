@@ -8,9 +8,9 @@ const FILE: &str = "accounts.json";
 
 const REFRESH_MARGIN: u64 = 120;
 
-/// 打包時用 `HEXO_MS_CLIENT_ID` 帶進來的 Azure 應用程式 (client) ID。
+/// 打包時用 `NOLAUNCHER_MS_CLIENT_ID` 帶進來的 Azure 應用程式 (client) ID。
 /// hexomc-lib 0.1.5 起不再內建，登入流程要自己給一組。
-const MS_CLIENT_ID: Option<&str> = option_env!("HEXO_MS_CLIENT_ID");
+const MS_CLIENT_ID: Option<&str> = option_env!("NOLAUNCHER_MS_CLIENT_ID");
 
 pub fn ms_auth() -> CmdResult<MicrosoftAuth> {
     let client_id = MS_CLIENT_ID.unwrap_or_default().trim();

@@ -11,7 +11,7 @@ use crate::store::instance_meta::{
 };
 use crate::store::now_secs;
 
-pub const EVENT_INSTANCES_CHANGED: &str = "hexo://instances-changed";
+pub const EVENT_INSTANCES_CHANGED: &str = "nolauncher://instances-changed";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -199,7 +199,7 @@
 	}
 </script>
 
-<svelte:head><title>Hexo Launcher</title></svelte:head>
+<svelte:head><title>Nolauncher</title></svelte:head>
 <svelte:window onkeydown={shortcut} />
 
 <InstanceGrid

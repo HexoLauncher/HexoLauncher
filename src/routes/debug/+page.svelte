@@ -138,7 +138,7 @@
 	}
 </script>
 
-<h1>HexoLauncher 測試台</h1>
+<h1>Nolauncher 測試台</h1>
 
 <h2>1. 路徑</h2>
 <input size="60" bind:value={baseDir} />
