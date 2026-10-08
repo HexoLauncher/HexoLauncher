@@ -1,0 +1,16 @@
+{
+	"$schema": "../gen/schemas/desktop-schema.json",
+	"identifier": "default",
+	"description": "主視窗與所有二級視窗（實例編輯、啟動、檢視器…）共用的權限",
+	"local": true,
+	"windows": ["*"],
+	"permissions": [
+		"core:default",
+		"core:webview:allow-create-webview-window",
+		"core:window:allow-unminimize",
+		"core:window:allow-set-focus",
+		"core:window:allow-close",
+		"dialog:allow-open",
+		"dialog:allow-save"
+	]
+}

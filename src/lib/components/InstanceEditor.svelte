@@ -455,7 +455,7 @@
 	async function pickIcon() {
 		let picked: string | string[] | null;
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			picked = await open({
 				filters: [
 					{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }
@@ -475,7 +475,7 @@
 
 	async function pickPack() {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const picked = await open({
 				filters: [{ name: m.file_filter_modpack(), extensions: ['mrpack', 'zip'] }]
 			});

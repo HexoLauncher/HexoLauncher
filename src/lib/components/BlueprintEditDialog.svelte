@@ -53,7 +53,7 @@
 	async function addImages() {
 		let picked: string[] = [];
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				multiple: true,
 				filters: [{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'webp'] }]

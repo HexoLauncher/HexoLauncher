@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::install::InstallProgress;
 use super::instance::{build_view, unique_instance_id, InstanceView, EVENT_INSTANCES_CHANGED};
@@ -193,7 +193,7 @@ pub async fn import_foreign_instances(
     }
 
     if !imported.is_empty() {
-        let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+        let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     }
     Ok(ForeignImportResult { imported, failed })
 }
@@ -293,7 +293,7 @@ async fn place_game_dir(
         copy_tree(&source, &target, &mut |_| {
             done += 1;
             if done % PROGRESS_EVERY == 0 || done == total {
-                let _ = app.emit_all(
+                let _ = app.emit(
                     EVENT_INSTALL_PROGRESS,
                     InstallProgress {
                         instance_name: id.clone(),

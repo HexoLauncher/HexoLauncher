@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use futures::stream::{self, StreamExt};
 use hexomc_lib::{download_java_with_progress, JavaInfo, ProgressFn};
 use serde::Serialize;
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::{path_string, EVENT_JAVA_PROGRESS};
 use crate::error::{CmdError, CmdResult};
@@ -134,7 +134,7 @@ fn java_progress(app: tauri::AppHandle, version: u32) -> ProgressFn {
             return;
         }
         *last = (Some(Instant::now()), message.to_string());
-        let _ = app.emit_all(
+        let _ = app.emit(
             EVENT_JAVA_PROGRESS,
             JavaProgress {
                 version,

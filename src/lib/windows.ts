@@ -65,7 +65,7 @@ export function decodeRef(ref: string) {
 }
 
 function inTauri() {
-	return typeof window !== 'undefined' && '__TAURI_IPC__' in window;
+	return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
 function labelFor(path: string) {
@@ -84,9 +84,9 @@ export async function openAppWindow(spec: WindowSpec) {
 	const label = labelFor(spec.path);
 
 	if (inTauri()) {
-		const { WebviewWindow } = await import('@tauri-apps/api/window');
+		const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
 
-		const existing = WebviewWindow.getByLabel(label);
+		const existing = await WebviewWindow.getByLabel(label);
 		if (existing) {
 			await existing.unminimize();
 			await existing.setFocus();
@@ -99,7 +99,8 @@ export async function openAppWindow(spec: WindowSpec) {
 			width: spec.width,
 			height: spec.height,
 			resizable: true,
-			focus: true
+			focus: true,
+			useHttpsScheme: true
 		});
 		return;
 	}
@@ -109,8 +110,8 @@ export async function openAppWindow(spec: WindowSpec) {
 
 export async function closeSelf() {
 	if (inTauri()) {
-		const { appWindow } = await import('@tauri-apps/api/window');
-		await appWindow.close();
+		const { getCurrentWindow } = await import('@tauri-apps/api/window');
+		await getCurrentWindow().close();
 		return;
 	}
 	window.close();

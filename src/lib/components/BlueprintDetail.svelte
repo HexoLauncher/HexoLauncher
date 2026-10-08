@@ -107,7 +107,7 @@
 	async function saveAs() {
 		let path: string | null = null;
 		try {
-			const { save } = await import('@tauri-apps/api/dialog');
+			const { save } = await import('@tauri-apps/plugin-dialog');
 			path = await save({
 				defaultPath: blueprint.file.name,
 				filters: [{ name: m.blueprint_file_filter(), extensions: [blueprint.format] }]

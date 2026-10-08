@@ -117,7 +117,7 @@
 	async function pickBackground() {
 		let picked: string | null = null;
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				filters: [{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] }]
 			});
@@ -226,7 +226,7 @@
 
 	async function browseFolder(current: string): Promise<string | null> {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const picked = await open({ directory: true, defaultPath: current || undefined });
 			return typeof picked === 'string' ? picked : null;
 		} catch {
@@ -245,7 +245,7 @@
 
 	async function pickJavaPath() {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const picked = await open({
 				filters: [{ name: 'Java', extensions: ['exe', ''] }],
 				defaultPath: config.java.path || undefined

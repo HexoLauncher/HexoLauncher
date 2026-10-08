@@ -11,6 +11,7 @@ use state::AppState;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
         .setup(|app| {
             if let Ok(dir) = store::store_dir() {

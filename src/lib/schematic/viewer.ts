@@ -40,7 +40,7 @@ export function base64ToBytes(base64: string): Uint8Array {
 }
 
 export async function fetchLocal(path: string): Promise<Uint8Array> {
-	const { convertFileSrc } = await import('@tauri-apps/api/tauri');
+	const { convertFileSrc } = await import('@tauri-apps/api/core');
 	const response = await fetch(convertFileSrc(path));
 	if (!response.ok) throw new Error(`HTTP ${response.status}: ${path}`);
 	return new Uint8Array(await response.arrayBuffer());

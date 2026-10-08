@@ -3,7 +3,7 @@ use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::Emitter;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -188,7 +188,7 @@ pub async fn import_instance(
     meta.name = display_name;
     meta.save(&target).await?;
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     build_view(&base, &id, &LocalStore::load().await?).await
 }
 

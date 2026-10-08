@@ -185,7 +185,7 @@
 
 	async function pickFile(filterName: string, extensions: string[]) {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const picked = await open({ filters: [{ name: filterName, extensions }] });
 			return typeof picked === 'string' ? picked : null;
 		} catch {
@@ -256,7 +256,7 @@
 
 	async function pickLauncherDir() {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const dir = await open({ directory: true });
 			if (typeof dir === 'string') await selectLauncher(dir);
 		} catch {

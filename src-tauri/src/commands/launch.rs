@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use hexomc_lib::{launch_with_output, LaunchOptions, OutputFn, OutputKind, OutputLine};
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use super::instance::{load_config, record_play};
 use super::java::{java_not_found, resolve_instance_java, JavaDto};
@@ -149,10 +149,10 @@ pub async fn launch_instance(
     };
     state.add_running(process, info.clone())?;
 
-    let _ = app.emit_all(EVENT_GAME_START, info);
+    let _ = app.emit(EVENT_GAME_START, info);
 
     record_play(base, &instance_name, 0, true).await;
-    let _ = app.emit_all(super::instance::EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(super::instance::EVENT_INSTANCES_CHANGED, ());
 
     watch_process(
         app,
@@ -320,7 +320,7 @@ fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
         };
 
         if let Ok(entry) = state.push_log(&instance_name, kind, line) {
-            let _ = app.emit_all(
+            let _ = app.emit(
                 EVENT_GAME_OUTPUT,
                 GameOutput {
                     instance_name: instance_name.clone(),
@@ -356,7 +356,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
             record_play(&watch.base_dir, &watch.instance_name, ended.seconds, false).await;
         }
 
-        let _ = app.emit_all(
+        let _ = app.emit(
             EVENT_GAME_EXIT,
             GameExit {
                 instance_name: watch.instance_name.clone(),
@@ -364,7 +364,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
                 seconds: ended.seconds,
             },
         );
-        let _ = app.emit_all(super::instance::EVENT_INSTANCES_CHANGED, ());
+        let _ = app.emit(super::instance::EVENT_INSTANCES_CHANGED, ());
 
         if !watch.post_exit.is_empty() {
             let _ = run_hook(&watch.post_exit, &watch.hook_vars, "結束後指令").await;

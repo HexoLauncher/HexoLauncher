@@ -41,7 +41,7 @@
 
 	async function pickFile() {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				filters: [{ name: m.blueprint_file_filter(), extensions: ['litematic', 'schem'] }]
 			});
@@ -53,7 +53,7 @@
 
 	async function pickImages() {
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				multiple: true,
 				filters: [{ name: m.file_filter_image(), extensions: ['png', 'jpg', 'jpeg', 'webp'] }]

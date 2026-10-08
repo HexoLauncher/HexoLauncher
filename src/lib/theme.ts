@@ -227,7 +227,7 @@ function setBackground(theme: ThemeConfig, root: HTMLElement) {
 		return Promise.resolve();
 	}
 
-	return Promise.all([import('./api'), import('@tauri-apps/api/tauri')])
+	return Promise.all([import('./api'), import('@tauri-apps/api/core')])
 		.then(([api, tauri]) =>
 			api.backgroundImagePath(theme.background).then((path) => tauri.convertFileSrc(path))
 		)

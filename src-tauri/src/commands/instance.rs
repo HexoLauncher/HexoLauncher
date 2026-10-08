@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use hexomc_lib::InstanceConfig;
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::{instance_dir, minecraft_dir, path_string, validate_instance_name, LoaderKind};
 use crate::error::{CmdError, CmdResult};
@@ -259,7 +259,7 @@ pub async fn create_instance(
     super::icon::apply_source(&dir, &mut meta, icon_path.as_deref(), None).await;
     meta.save(&dir).await?;
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     build_view(base, &id, &LocalStore::load().await?).await
 }
 
@@ -319,7 +319,7 @@ pub async fn save_instance_meta(
         local.save().await?;
     }
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     build_view(base, &instance_name, &LocalStore::load().await?).await
 }
 
@@ -366,7 +366,7 @@ pub async fn delete_instance(
     local.0.remove(&LocalStore::key(base, &instance_name));
     local.save().await?;
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     Ok(())
 }
 
@@ -398,7 +398,7 @@ pub async fn duplicate_instance(
     meta.launch_count = 0;
     meta.save(&target).await?;
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     build_view(base, &id, &LocalStore::load().await?).await
 }
 

@@ -65,7 +65,7 @@
 	async function importFiles() {
 		let picked: string[] = [];
 		try {
-			const { open } = await import('@tauri-apps/api/dialog');
+			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				multiple: true,
 				filters: [{ name: m.blueprint_file_filter(), extensions: ['litematic', 'schem'] }]

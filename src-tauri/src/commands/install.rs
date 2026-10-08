@@ -6,7 +6,7 @@ use hexomc_lib::{
     ProgressFn, VanillaInstaller,
 };
 use serde::Serialize;
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::instance::{build_view, InstanceView, EVENT_INSTANCES_CHANGED};
 use super::java::{java_not_found, pick_java_for_tools, resolve_java};
@@ -105,7 +105,7 @@ pub async fn install_instance(
     )
     .await?;
 
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     build_view(base, &instance_name, &LocalStore::load().await?).await
 }
 
@@ -217,7 +217,7 @@ pub(super) fn progress_emitter(app: &tauri::AppHandle, instance_name: &str) -> P
     let app = app.clone();
     let name = instance_name.to_string();
     Arc::new(move |done, total, message| {
-        let _ = app.emit_all(
+        let _ = app.emit(
             EVENT_INSTALL_PROGRESS,
             InstallProgress {
                 instance_name: name.clone(),

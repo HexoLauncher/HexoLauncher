@@ -7,7 +7,7 @@ use hexomc_lib::{
     ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ProgressFn,
 };
 use serde::{Deserialize, Serialize};
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::install::{progress_emitter, tool_java};
 use super::instance::{build_view, unique_instance_id, InstanceView, EVENT_INSTANCES_CHANGED};
@@ -233,7 +233,7 @@ pub async fn update_modpack_file(
     meta.save(&dir).await?;
 
     let mc_dir = minecraft_dir(&base, &instance_name)?;
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
 
     Ok(ModpackUpdateDto {
         instance: build_view(&base, &instance_name, &LocalStore::load().await?).await?,
@@ -310,7 +310,7 @@ where
     meta.save(&dir).await?;
 
     let mc_dir = minecraft_dir(&base, &id)?;
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     Ok(ModpackInstallDto {
         instance: build_view(&base, &id, &LocalStore::load().await?).await?,
         manual_downloads: manual_download_dtos(manual_downloads, &mc_dir),

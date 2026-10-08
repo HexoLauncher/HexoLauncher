@@ -125,7 +125,7 @@
 
 		let targetPath: string | null = null;
 		try {
-			const { save } = await import('@tauri-apps/api/dialog');
+			const { save } = await import('@tauri-apps/plugin-dialog');
 			targetPath = await save({
 				defaultPath: `${name}.zip`,
 				filters: [{ name: m.file_filter_zip(), extensions: ['zip'] }]

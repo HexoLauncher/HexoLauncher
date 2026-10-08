@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use base64::Engine;
-use tauri::Manager;
+use tauri::Emitter;
 
 use super::instance::EVENT_INSTANCES_CHANGED;
 use super::instance_dir;
@@ -125,6 +125,6 @@ pub async fn set_instance_icon_image(
         ));
     }
     copy_icon(&dir, Path::new(&path)).await?;
-    let _ = app.emit_all(EVENT_INSTANCES_CHANGED, ());
+    let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
     Ok(read_icon(&dir).unwrap_or_default())
 }
