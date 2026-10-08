@@ -646,6 +646,25 @@ export interface ModEntry {
 	enabled: boolean;
 }
 
+export interface ModDependency {
+	modId: string;
+	version: string | null;
+	kind: 'required' | 'optional' | 'incompatible';
+}
+
+export interface ModDetails extends ModEntry {
+	size: number;
+	modified: number;
+	authors: string[];
+	license: string | null;
+	homepage: string | null;
+	sources: string | null;
+	issues: string | null;
+	/** data URL */
+	icon: string | null;
+	dependencies: ModDependency[];
+}
+
 export interface ModUpdateEntry {
 	id: string;
 	modId: string;
@@ -687,6 +706,9 @@ export interface FileEntry {
 
 export const listMods = (baseDir: string, instanceName: string) =>
 	invoke<ModEntry[]>('list_mods', { baseDir, instanceName });
+
+export const modDetails = (baseDir: string, instanceName: string, fileName: string) =>
+	invoke<ModDetails>('mod_details', { baseDir, instanceName, fileName });
 
 export const setModEnabled = (
 	baseDir: string,

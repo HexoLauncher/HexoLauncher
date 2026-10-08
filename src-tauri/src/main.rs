@@ -82,6 +82,7 @@ fn main() {
             commands::launch::game_log,
             commands::launch::clear_game_log,
             commands::mods::list_mods,
+            commands::mods::mod_details,
             commands::mods::set_mod_enabled,
             commands::mods::check_mod_updates,
             commands::mods::apply_mod_update,

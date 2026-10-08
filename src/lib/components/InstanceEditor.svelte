@@ -17,6 +17,7 @@
 		InstanceView,
 		JavaInfo,
 		LoaderKind,
+		ModDetails,
 		ModEntry,
 		ModpackUpdateResult,
 		ModUpdateEntry,
@@ -124,6 +125,7 @@
 	let onlyErrors = $state(false);
 
 	let selectedMod = $state<string | null>(null);
+	let modInfo = $state<ModDetails | null>(null);
 	let wrapLines = $state(true);
 	let colorLog = $state(true);
 	let logSearch = $state('');
@@ -159,6 +161,7 @@
 			switch (target) {
 				case 'mods':
 					mods = await api.listMods(baseDir, instance.id);
+					if (selectedMod && !mods.some((mod) => mod.fileName === selectedMod)) selectedMod = null;
 					break;
 				case 'resourcepacks':
 					resourcePacks = await api.listResourcePacks(baseDir, instance.id);
@@ -342,9 +345,31 @@
 	}
 
 
+	$effect(() => {
+		const fileName = selectedMod;
+		modInfo = null;
+		if (!fileName) return;
+
+		let stale = false;
+		api
+			.modDetails(baseDir, instance.id, fileName)
+			.then((details) => {
+				if (!stale) modInfo = details;
+			})
+			.catch((e) => {
+				if (!stale) fail(m.editor_error_mod_details(), e);
+			});
+		return () => {
+			stale = true;
+		};
+	});
+
 	async function toggleMod(mod: ModEntry) {
 		try {
 			await api.setModEnabled(baseDir, instance.id, mod.fileName, !mod.enabled);
+			if (selectedMod === mod.fileName) {
+				selectedMod = mod.enabled ? `${mod.fileName}.disabled` : mod.fileName.replace(/\.disabled$/, '');
+			}
 			await load('mods', true);
 		} catch (e) {
 			fail(m.editor_error_toggle_mod(), e);
@@ -529,6 +554,99 @@
 				{item.label}
 			</Button>
 		{/each}
+	</div>
+{/snippet}
+
+{#snippet modDetails()}
+	<div class="flex h-46 shrink-0 gap-3.5 rounded-lg border border-line bg-group p-3.5">
+		{#if !selectedMod}
+			<p class="m-auto text-muted">{m.editor_mod_details_hint()}</p>
+		{:else if !modInfo}
+			<span class="m-auto size-5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
+		{:else}
+			{@const info = modInfo}
+			{@const links = [
+				{ label: m.editor_mod_homepage(), url: info.homepage },
+				{ label: m.editor_mod_sources(), url: info.sources },
+				{ label: m.editor_mod_issues(), url: info.issues }
+			].filter((link) => link.url?.startsWith('http'))}
+			<div class="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md bg-deep text-faint">
+				{#if info.icon}
+					<img
+						src={info.icon}
+						alt=""
+						class="size-full object-contain"
+						onload={(e) => {
+							// 小張的像素圖放大時不要糊掉
+							const img = e.currentTarget as HTMLImageElement;
+							if (img.naturalWidth <= 64) img.style.imageRendering = 'pixelated';
+						}}
+					/>
+				{:else}
+					<Icon name="package" size={28} />
+				{/if}
+			</div>
+
+			<div class="flex min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
+				<div class="flex flex-wrap items-center gap-2">
+					<span class="font-semibold text-ink">{info.name}</span>
+					{#if info.version}
+						<span class="font-mono text-[11.5px] text-muted">{info.version}</span>
+					{/if}
+					<Pill accent>{info.loader}</Pill>
+					{#if !info.enabled}
+						<Pill>{m.editor_mod_disabled()}</Pill>
+					{/if}
+				</div>
+				<p class="text-[11.5px] text-faint">
+					<span class="font-mono">{info.modId}</span> ·
+					{m.editor_mod_file_info({ size: formatSize(info.size), time: formatTime(info.modified) })}
+				</p>
+				<p class="whitespace-pre-line" class:text-faint={!info.description}>
+					{info.description ?? m.editor_mod_no_description()}
+				</p>
+
+				<dl class="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+					{#if info.authors.length > 0}
+						<dt class="text-muted">{m.editor_mod_authors()}</dt>
+						<dd>{info.authors.join(', ')}</dd>
+					{/if}
+					{#if info.license}
+						<dt class="text-muted">{m.editor_mod_license()}</dt>
+						<dd>{info.license}</dd>
+					{/if}
+					{#if links.length > 0}
+						<dt class="text-muted">{m.editor_mod_links()}</dt>
+						<dd class="flex flex-wrap gap-2.5">
+							{#each links as link (link.label)}
+								<button
+									type="button"
+									class="cursor-pointer text-brand-fg hover:underline"
+									title={link.url}
+									onclick={() => api.openExternal(link.url!)}>{link.label}</button
+								>
+							{/each}
+						</dd>
+					{/if}
+					{#if info.dependencies.length > 0}
+						<dt class="text-muted">{m.editor_mod_dependencies()}</dt>
+						<dd class="flex flex-wrap gap-1">
+							{#each info.dependencies as dep, i (i)}
+								<Pill class={dep.kind === 'incompatible' ? 'text-danger' : ''}>
+									<span class="font-mono">{dep.modId}</span>
+									{#if dep.version}<span class="text-faint">{dep.version}</span>{/if}
+									{#if dep.kind === 'optional'}
+										<span class="text-faint">· {m.editor_mod_dep_optional()}</span>
+									{:else if dep.kind === 'incompatible'}
+										<span>· {m.editor_mod_dep_incompatible()}</span>
+									{/if}
+								</Pill>
+							{/each}
+						</dd>
+					{/if}
+				</dl>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
@@ -752,6 +870,8 @@
 							{ label: m.editor_mods_folder(), action: () => openFolder('mods') }
 						])}
 					</div>
+
+					{@render modDetails()}
 
 				{:else if page === 'resourcepacks' || page === 'shaderpacks'}
 					{@const packs = page === 'resourcepacks' ? resourcePacks : shaderPacks}

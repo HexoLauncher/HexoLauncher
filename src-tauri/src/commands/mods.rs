@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use base64::Engine;
 use hexomc_lib::{
-    check_updates, detect_mods, update_mod, CurseForgeClient, ModInfo, ModLoader, ModUpdate,
-    ModrinthClient, UpdateSource,
+    check_updates, read_mod_icon, read_mod_info, update_mod, CurseForgeClient, DependencyKind,
+    ModInfo, ModLoader, ModUpdate, ModrinthClient, UpdateSource,
 };
 use serde::Serialize;
 
@@ -27,35 +28,77 @@ pub struct ModDto {
     pub enabled: bool,
 }
 
-impl From<ModInfo> for ModDto {
-    fn from(info: ModInfo) -> Self {
+impl ModDto {
+    fn from_info(info: ModInfo) -> Self {
+        let enabled = !info.file_name.ends_with(DISABLED_SUFFIX);
+        let (name, version) = if info.loader == ModLoader::Unknown {
+            let jar_name = info.file_name.trim_end_matches(DISABLED_SUFFIX);
+            (jar_name.trim_end_matches(".jar").to_string(), String::new())
+        } else {
+            (info.name, info.version)
+        };
+
         Self {
-            file_name: info.file_name,
             file_path: path_string(&info.file_path),
             mod_id: info.mod_id,
-            name: info.name,
-            version: info.version,
             loader: loader_label(&info.loader).to_string(),
             description: info.description,
-            enabled: true,
+            file_name: info.file_name,
+            name,
+            version,
+            enabled,
         }
     }
 }
 
-fn disabled_mod(path: &std::path::Path) -> Option<ModDto> {
-    let file_name = path.file_name()?.to_string_lossy().to_string();
-    let stem = file_name.trim_end_matches(DISABLED_SUFFIX).to_string();
+fn is_mod_file(path: &Path) -> bool {
+    let name = path.to_string_lossy().to_ascii_lowercase();
+    name.ends_with(".jar") || name.ends_with(".jar.disabled")
+}
 
-    Some(ModDto {
-        file_path: path_string(path),
-        mod_id: stem.clone(),
-        name: stem.trim_end_matches(".jar").to_string(),
-        version: String::new(),
-        loader: "unknown".to_string(),
-        description: None,
-        enabled: false,
-        file_name,
-    })
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModDependencyDto {
+    pub mod_id: String,
+    pub version: Option<String>,
+    /// "required" | "optional" | "incompatible"
+    pub kind: DependencyKind,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModDetailsDto {
+    #[serde(flatten)]
+    pub summary: ModDto,
+    pub size: u64,
+    pub modified: u64,
+    pub authors: Vec<String>,
+    pub license: Option<String>,
+    pub homepage: Option<String>,
+    pub sources: Option<String>,
+    pub issues: Option<String>,
+    /// data URL
+    pub icon: Option<String>,
+    pub dependencies: Vec<ModDependencyDto>,
+}
+
+
+const MAX_ICON_BYTES: u64 = 4 * 1024 * 1024;
+
+fn icon_data_url(jar: &Path, icon: &str) -> Option<String> {
+    let mime = match icon.rsplit('.').next()?.to_ascii_lowercase().as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => return None,
+    };
+    let bytes = read_mod_icon(jar, icon, MAX_ICON_BYTES)?;
+    Some(format!(
+        "data:{};base64,{}",
+        mime,
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
 }
 
 const DISABLED_SUFFIX: &str = ".disabled";
@@ -106,22 +149,70 @@ fn to_update_dto(id: String, update: &ModUpdate) -> ModUpdateDto {
 pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec<ModDto>> {
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
 
-    let mut mods: Vec<ModDto> = detect_mods(&mods_dir)
-        .into_iter()
-        .map(ModDto::from)
-        .collect();
-
-    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.to_string_lossy().ends_with(DISABLED_SUFFIX) {
-                mods.extend(disabled_mod(&path));
-            }
-        }
-    }
+    let mut mods = tokio::task::spawn_blocking(move || {
+        let Ok(entries) = std::fs::read_dir(&mods_dir) else {
+            return Vec::new();
+        };
+        entries
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| is_mod_file(path))
+            .filter_map(|path| read_mod_info(&path))
+            .map(ModDto::from_info)
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| CmdError::launcher(e.to_string()))?;
 
     mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     Ok(mods)
+}
+
+#[tauri::command]
+pub async fn mod_details(
+    base_dir: String,
+    instance_name: String,
+    file_name: String,
+) -> CmdResult<ModDetailsDto> {
+    let path = mods_dir(&base_dir, &instance_name, &file_name)?.join(&file_name);
+
+    tokio::task::spawn_blocking(move || {
+        let not_found = || CmdError::launcher(format!("找不到模組: {}", file_name));
+        let file_meta = std::fs::metadata(&path).map_err(|_| not_found())?;
+        let info = read_mod_info(&path).ok_or_else(not_found)?;
+
+        Ok(ModDetailsDto {
+            size: file_meta.len(),
+            modified: file_meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_secs())
+                .unwrap_or(0),
+            authors: info.authors.clone(),
+            license: info.license.clone(),
+            homepage: info.homepage.clone(),
+            sources: info.sources.clone(),
+            issues: info.issues.clone(),
+            icon: info
+                .icon
+                .as_deref()
+                .and_then(|icon| icon_data_url(&path, icon))
+                .or_else(|| icon_data_url(&path, "pack.png")),
+            dependencies: info
+                .dependencies
+                .iter()
+                .map(|d| ModDependencyDto {
+                    mod_id: d.mod_id.clone(),
+                    version: d.version.clone(),
+                    kind: d.kind,
+                })
+                .collect(),
+            summary: ModDto::from_info(info),
+        })
+    })
+    .await
+    .map_err(|e| CmdError::launcher(e.to_string()))?
 }
 
 #[tauri::command]
