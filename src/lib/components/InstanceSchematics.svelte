@@ -202,7 +202,6 @@
 			<Button variant="danger" icon="trash" disabled={!file} onclick={() => (confirmingDelete = true)}>
 				{m.common_delete()}
 			</Button>
-			<p class="mt-2 leading-[1.7] text-faint">{m.blueprint_instance_hint()}</p>
 		</div>
 	</div>
 </div>

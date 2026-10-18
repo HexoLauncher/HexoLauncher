@@ -708,7 +708,6 @@
 	"blueprint_modified": "Modified",
 	"blueprint_loading_files": "Loading…",
 	"blueprint_instance_empty": "This instance's schematics folder is empty. Download blueprints from Browse or import existing files.",
-	"blueprint_instance_hint": "Litematica loads files from .minecraft/schematics. Double-click a file to preview it.",
 	"blueprint_delete_file_title": "Delete schematic",
 	"blueprint_delete_file_confirm": "Delete {file}? This can't be undone.",
 	"blueprint_status_imported": "Imported {count} file(s) into \"{instance}\"",

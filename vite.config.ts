@@ -15,6 +15,11 @@ export default defineConfig({
 		}),
 		sveltekit()
 	],
+	server: {
+		watch: {
+			ignored: ['**/src-tauri/**']
+		}
+	},
 	test: {
 		projects: [
 			{

@@ -708,7 +708,6 @@
 	"blueprint_modified": "修改時間",
 	"blueprint_loading_files": "讀取中…",
 	"blueprint_instance_empty": "這個實例的 schematics 資料夾是空的。可以從「瀏覽藍圖」下載，或匯入現有的檔案。",
-	"blueprint_instance_hint": "Litematica 會讀取 .minecraft/schematics 裡的檔案。按兩下可以預覽。",
 	"blueprint_delete_file_title": "刪除藍圖檔",
 	"blueprint_delete_file_confirm": "確定要刪除 {file} 嗎？這個動作無法復原。",
 	"blueprint_status_imported": "已匯入 {count} 個檔案到「{instance}」",
