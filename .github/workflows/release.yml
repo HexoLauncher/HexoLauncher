@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -59,8 +58,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || 'v__VERSION__' }}
-          releaseName: 'Nolauncher ${{ github.ref_type == ''tag'' && github.ref_name || ''v__VERSION__'' }}'
+          releaseId: ${{ github.event.release.id }}
+          tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || 'v__VERSION__' }}
+          releaseName: 'Nolauncher v__VERSION__'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: true
           prerelease: false
