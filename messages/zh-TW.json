@@ -3,7 +3,7 @@
 
 	"app_name": "Nolauncher",
 	"app_version": "版本 {version}",
-	"app_tagline": "遊戲的下載、安裝與啟動由 hexomc-lib 負責。",
+	"app_tagline": "只是一個功能較多的啟動器而已",
 
 	"common_ok": "確定",
 	"common_cancel": "取消",
@@ -128,7 +128,7 @@
 	"busy_reading_modpack": "正在讀取模組包…",
 	"busy_preparing_install": "正在準備安裝…",
 
-	"statusbar_no_base_dir": "尚未設定資料目錄",
+	"statusbar_no_announcement": "目前沒有新公告",
 	"statusbar_instance_count": "{count} 個實例",
 
 	"menu_main": "主選單",
@@ -331,7 +331,7 @@
 
 	"settings_launch": "啟動",
 	"settings_show_progress_window": "啟動時顯示檔案檢查與下載視窗",
-	"settings_close_progress_when_done": "準備完成、遊戲起來之後自動關閉那個視窗",
+	"settings_close_progress_when_done": "準備完成後自動關閉視窗",
 	"settings_game_log": "遊戲日誌",
 	"settings_keep_log_lines": "保留行數",
 	"settings_play_time": "遊戲時間",
@@ -371,7 +371,7 @@
 	"settings_add_offline": "新增離線…",
 	"settings_set_active": "設為使用中",
 	"settings_api_key": "API 金鑰",
-	"settings_curseforge_placeholder": "（不填就只查 Modrinth）",
+	"settings_curseforge_placeholder": "自定義的 CurseForge API 金鑰",
 
 	"settings_status_accent_reset": "已還原預設強調色",
 	"settings_status_background_updated": "已更新背景圖片",
@@ -714,6 +714,12 @@
 	"blueprint_status_file_deleted": "已刪除 {file}",
 	"blueprint_error_import": "匯入藍圖失敗",
 	"blueprint_error_delete_file": "刪除檔案失敗",
+	"blueprint_search_files": "搜尋藍圖檔",
+	"blueprint_files_no_match": "找不到符合的藍圖檔。",
+	"blueprint_view": "檢視方式",
+	"blueprint_view_list": "列表檢視",
+	"blueprint_view_folder": "資料夾檢視",
+	"blueprint_folder_count": "{count} 個檔案",
 
 	"viewer_canvas_label": "藍圖 3D 預覽",
 	"viewer_collapse": "收合面板",

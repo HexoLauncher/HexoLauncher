@@ -23,6 +23,7 @@ import LuLayoutGrid from '~icons/lucide/layout-grid';
 import LuList from '~icons/lucide/list';
 import LuLogIn from '~icons/lucide/log-in';
 import LuLogOut from '~icons/lucide/log-out';
+import LuMegaphone from '~icons/lucide/megaphone';
 import LuMenu from '~icons/lucide/menu';
 import LuMinus from '~icons/lucide/minus';
 import LuMonitor from '~icons/lucide/monitor';
@@ -94,6 +95,7 @@ export const ICONS: Record<string, Component> = {
 	user: LuUser,
 	clock: LuClock,
 	rss: LuRss,
+	megaphone: LuMegaphone,
 	list: LuList,
 	blocks: LuBlocks,
 	eye: LuEye,

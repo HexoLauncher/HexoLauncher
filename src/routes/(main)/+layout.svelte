@@ -100,10 +100,8 @@
 	{#if app.config.ui.statusBar}
 		<StatusBar
 			message={app.status}
-			baseDir={app.baseDir}
 			instanceCount={app.instances.length}
 			account={selectedAccount()?.playerName ?? m.account_not_signed_in()}
-			onOpenBaseDir={() => openFolder('base')}
 		/>
 	{/if}
 </div>
