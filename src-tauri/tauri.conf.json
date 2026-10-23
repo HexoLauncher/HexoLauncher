@@ -34,6 +34,7 @@
 	},
 	"bundle": {
 		"active": true,
+		"createUpdaterArtifacts": true,
 		"category": "DeveloperTool",
 		"copyright": "",
 		"targets": "all",
@@ -64,6 +65,12 @@
 			"deb": {
 				"depends": []
 			}
+		}
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2RTE5NkU1OEQ4REY2RTkKUldUcDlvMk41WmJocHZHd2w0dW05Rkd6ZG5mUWxvV2ZqY0VzN0NxMDU1Q2pmMkFVcEpjRGMwWFcK",
+			"endpoints": ["https://github.com/HexoLauncher/HexoLauncher/releases/latest/download/latest.json"]
 		}
 	}
 }

@@ -14,13 +14,11 @@ use crate::store::{now_secs, read_json, store_dir, store_file, write_json};
 const AUTH_FILE: &str = "blueprint_auth.json";
 const MOJANG_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
 
-/// 藍圖庫網址，不開放使用者修改。打包時用 `NOLAUNCHER_BLUEPRINT_SERVER` 帶進正式站網址。
 const SERVER: &str = match option_env!("NOLAUNCHER_BLUEPRINT_SERVER") {
     Some(url) => url,
     None => "http://localhost:8080",
 };
 
-/// 下載過的藍圖檔放這裡，檔名是 sha256，預覽和裝進實例都先找這裡。
 pub fn cache_dir() -> CmdResult<PathBuf> {
     Ok(store_dir()?.join("blueprint-cache"))
 }
@@ -139,12 +137,10 @@ struct ServerError {
 #[serde(rename_all = "camelCase")]
 struct StoredSession {
     token: String,
-    /// JWT 的 exp（unix 秒）；讀不到就是 0，交給伺服器回 401 判斷。
     expires_at: u64,
     user: User,
 }
 
-/// key 是 `<伺服器網址>|<無連字號的 UUID>`，換帳號或換站都不會拿錯 token。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct AuthStore {
@@ -309,7 +305,6 @@ async fn send_json<T: serde::de::DeserializeOwned>(
     Ok(send(request).await?.json().await?)
 }
 
-/// 帶 JWT 送出；伺服器說 token 無效就把存著的登入狀態清掉。
 async fn send_authed(
     auth: &Authed,
     request: reqwest::RequestBuilder,
@@ -330,7 +325,6 @@ async fn authed_json<T: serde::de::DeserializeOwned>(
     Ok(send_authed(auth, request).await?.json().await?)
 }
 
-/// 伺服器的 id 都是 UUID，先擋掉會改變網址路徑的字元。
 fn check_id(id: &str) -> CmdResult<&str> {
     let ok = !id.is_empty() && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
     if !ok {
@@ -493,7 +487,6 @@ fn extension_of(blueprint: &Blueprint) -> &'static str {
     }
 }
 
-/// 取得藍圖檔內容。快取裡有同樣 sha256 的就不再下載（也不會灌下載次數）。
 async fn fetch_file(blueprint: &Blueprint) -> CmdResult<Vec<u8>> {
     let sha = blueprint.file.sha256.to_ascii_lowercase();
     let cached = cache_dir()?.join(format!("{}.{}", sha, extension_of(blueprint)));
@@ -520,7 +513,6 @@ async fn fetch_file(blueprint: &Blueprint) -> CmdResult<Vec<u8>> {
     Ok(bytes)
 }
 
-/// 去掉路徑分隔符等不能當檔名的字元。
 pub fn safe_file_name(name: &str, fallback: &str) -> String {
     let cleaned: String = name
         .chars()
@@ -538,7 +530,6 @@ pub fn safe_file_name(name: &str, fallback: &str) -> String {
     }
 }
 
-/// `dir` 裡沒被用過的檔名：`name.ext`、`name (2).ext`…
 async fn free_path(dir: &Path, file_name: &str) -> PathBuf {
     let candidate = dir.join(file_name);
     if !candidate.exists() {
@@ -559,11 +550,9 @@ async fn free_path(dir: &Path, file_name: &str) -> PathBuf {
 pub struct InstalledBlueprint {
     pub file_name: String,
     pub path: String,
-    /// 實例裡已經有一模一樣的檔案，這次沒有寫入。
     pub existed: bool,
 }
 
-/// 下載到實例的 `.minecraft/schematics`（Litematica 讀取的資料夾）。
 #[tauri::command]
 pub async fn blueprint_install(
     base_dir: String,
@@ -610,8 +599,6 @@ pub async fn blueprint_save_as(id: String, target_path: String) -> CmdResult<Str
     Ok(target_path)
 }
 
-/// 給 3D 預覽用：伺服器解析好的方塊資料（base64），交給 wasm 的 `App.load_preview`。
-/// 走 `/preview` 而不是 `/download`，不用抓整個檔案，也不會算一次下載。
 #[tauri::command]
 pub async fn blueprint_preview(id: String, format: String) -> CmdResult<String> {
     if format != "litematic" {
@@ -685,7 +672,6 @@ pub async fn blueprint_upload(request: UploadRequest) -> CmdResult<Blueprint> {
     .await
 }
 
-/// 編輯表單整份送出；版本欄位空字串代表清除。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "snake_case", deserialize = "camelCase"))]
 pub struct BlueprintPatch {

@@ -24,7 +24,8 @@
 		PackEntry,
 		RunningGame,
 		ServerEntry,
-		WorldEntry
+		WorldEntry,
+		WorldGameMode
 	} from '$lib/api';
 	import { formatDuration, formatSize, formatTime, loaderLabel } from '$lib/format';
 	import { onMount } from 'svelte';
@@ -126,6 +127,14 @@
 
 	let selectedMod = $state<string | null>(null);
 	let modInfo = $state<ModDetails | null>(null);
+	let selectedPack = $state<string | null>(null);
+	let selectedWorld = $state<string | null>(null);
+	let worldSearch = $state('');
+	let pendingDelete = $state<{
+		kind: 'world' | 'resourcepacks' | 'shaderpacks';
+		id: string;
+		name: string;
+	} | null>(null);
 	let wrapLines = $state(true);
 	let colorLog = $state(true);
 	let logSearch = $state('');
@@ -165,12 +174,15 @@
 					break;
 				case 'resourcepacks':
 					resourcePacks = await api.listResourcePacks(baseDir, instance.id);
+					if (!resourcePacks.some((p) => p.fileName === selectedPack)) selectedPack = null;
 					break;
 				case 'shaderpacks':
 					shaderPacks = await api.listShaderPacks(baseDir, instance.id);
+					if (!shaderPacks.some((p) => p.fileName === selectedPack)) selectedPack = null;
 					break;
 				case 'worlds':
 					worlds = await api.listWorlds(baseDir, instance.id);
+					if (!worlds.some((w) => w.folder === selectedWorld)) selectedWorld = null;
 					break;
 				case 'servers':
 					servers = await api.listServers(baseDir, instance.id);
@@ -194,6 +206,7 @@
 	}
 
 	$effect(() => {
+		selectedPack = null;
 		load(page);
 	});
 
@@ -383,6 +396,62 @@
 			report(m.editor_status_mod_removed({ file: fileName }));
 		} catch (e) {
 			fail(m.editor_error_remove_mod(), e);
+		}
+	}
+
+	const WORLD_MODES: Record<WorldGameMode, string> = {
+		survival: m.editor_world_mode_survival(),
+		creative: m.editor_world_mode_creative(),
+		adventure: m.editor_world_mode_adventure(),
+		spectator: m.editor_world_mode_spectator(),
+		unknown: m.editor_world_mode_unknown()
+	};
+
+	const activeShader = $derived(shaderPacks.find((p) => p.active) ?? null);
+	const currentPack = $derived(
+		(page === 'resourcepacks' ? resourcePacks : shaderPacks).find((p) => p.fileName === selectedPack) ?? null
+	);
+	const currentWorld = $derived(worlds.find((w) => w.folder === selectedWorld) ?? null);
+	const worldsSize = $derived(worlds.reduce((sum, w) => sum + w.size, 0));
+	const visibleWorlds = $derived.by(() => {
+		const q = worldSearch.trim().toLowerCase();
+		if (!q) return worlds;
+		return worlds.filter((w) => w.name.toLowerCase().includes(q) || w.folder.toLowerCase().includes(q));
+	});
+
+	async function setShader(pack: PackEntry | null) {
+		try {
+			await api.setActiveShader(baseDir, instance.id, pack?.fileName ?? null);
+			await load('shaderpacks', true);
+			report(pack ? m.editor_status_shader_applied({ name: pack.name }) : m.editor_status_shader_disabled());
+		} catch (e) {
+			fail(m.editor_error_shader(), e);
+		}
+	}
+
+	async function openWorld(world: WorldEntry) {
+		try {
+			await api.openWorldFolder(baseDir, instance.id, world.folder);
+		} catch (e) {
+			fail(m.editor_error_open_folder(), e);
+		}
+	}
+
+	async function confirmDelete() {
+		const target = pendingDelete;
+		if (!target) return;
+		pendingDelete = null;
+		try {
+			if (target.kind === 'world') {
+				await api.deleteWorld(baseDir, instance.id, target.id);
+				await load('worlds', true);
+			} else {
+				await api.deletePack(baseDir, instance.id, target.kind, target.id);
+				await load(target.kind, true);
+			}
+			report(m.editor_status_deleted({ name: target.name }));
+		} catch (e) {
+			fail(m.editor_error_delete(), e);
 		}
 	}
 
@@ -874,78 +943,191 @@
 					{@render modDetails()}
 
 				{:else if page === 'resourcepacks' || page === 'shaderpacks'}
-					{@const packs = page === 'resourcepacks' ? resourcePacks : shaderPacks}
+					{@const kind = page as 'resourcepacks' | 'shaderpacks'}
+					{@const packs = kind === 'resourcepacks' ? resourcePacks : shaderPacks}
+					{@const isShader = kind === 'shaderpacks'}
+					<div class="flex shrink-0 items-center gap-2.5 rounded-lg border border-line bg-group px-3.5 py-2.5">
+						<Icon
+							name={isShader ? 'sun' : 'image'}
+							size={16}
+							class={isShader && activeShader ? 'text-brand-fg' : 'text-faint'}
+						/>
+						<span class="min-w-0 flex-1 truncate">
+							{#if !isShader}
+								<span class="text-muted">{m.editor_resourcepacks_note()}</span>
+							{:else if activeShader}
+								{m.editor_shader_current({ name: activeShader.name })}
+							{:else}
+								<span class="text-muted">{m.editor_shader_none()}</span>
+							{/if}
+						</span>
+						{#if isShader && running}
+							<span class="shrink-0 text-[11.5px] text-faint">{m.editor_shader_running()}</span>
+						{/if}
+					</div>
+
 					<div class="flex min-h-0 flex-1 gap-2.25">
 						<TableBox>
 							<Table>
 								<thead>
-									<tr><th style="width:45%">{m.common_name()}</th><th>{m.editor_pack_type()}</th><th>{m.editor_pack_location()}</th></tr>
+									<tr>
+										<th style="width:28px"></th>
+										<th style="width:44%">{m.common_name()}</th>
+										<th style="width:80px">{m.editor_pack_type()}</th>
+										<th style="width:90px">{m.editor_pack_size()}</th>
+										<th>{m.editor_pack_modified()}</th>
+									</tr>
 								</thead>
 								<tbody>
 									{#each packs as pack (pack.path)}
-										<tr>
-											<td>{pack.name}</td>
+										<tr
+											class:selected={selectedPack === pack.fileName}
+											title={pack.path}
+											onclick={() => (selectedPack = pack.fileName)}
+											ondblclick={() => isShader && !running && !pack.active && setShader(pack)}
+										>
+											<td>
+												{#if pack.active}
+													<Icon
+														name="check"
+														size={14}
+														class="text-brand-fg"
+													/>
+												{/if}
+											</td>
+											<td class="overflow-hidden text-ellipsis" class:font-semibold={pack.active}>{pack.name}</td>
 											<td class="text-muted">{pack.isFolder ? m.editor_pack_folder() : m.editor_pack_archive()}</td>
-											<td class="overflow-hidden text-ellipsis font-mono text-[11px] text-muted"
-												>{pack.path}</td
-											>
+											<td class="text-muted">{formatSize(pack.size)}</td>
+											<td class="text-muted">{formatTime(pack.modified)}</td>
 										</tr>
 									{/each}
 								</tbody>
 							</Table>
 							{#if packs.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
-									{page === 'resourcepacks' ? m.editor_resourcepacks_empty() : m.editor_shaderpacks_empty()}
+									{isShader ? m.editor_shaderpacks_empty() : m.editor_resourcepacks_empty()}
 								</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
 							{
-								label:
-									page === 'resourcepacks'
-										? m.editor_download_resourcepacks()
-										: m.editor_download_shaderpacks(),
-								action: () => (browse = page === 'resourcepacks' ? 'resourcepack' : 'shader')
+								label: isShader ? m.editor_download_shaderpacks() : m.editor_download_resourcepacks(),
+								action: () => (browse = isShader ? 'shader' : 'resourcepack')
 							},
-							{ label: m.common_reload(), action: () => load(page, true) },
+							...(isShader
+								? [
+										{
+											label: m.editor_shader_apply(),
+											disabled: !currentPack || currentPack.active || !!running,
+											action: () => currentPack && setShader(currentPack)
+										},
+										{
+											label: m.editor_shader_disable(),
+											disabled: !activeShader || !!running,
+											action: () => setShader(null)
+										}
+									]
+								: []),
 							{
-								label: m.common_open_folder(),
-								action: () => openFolder(page === 'resourcepacks' ? 'resourcepacks' : 'shaderpacks')
-							}
+								label: m.common_delete(),
+								disabled: !currentPack,
+								action: () =>
+									currentPack &&
+									(pendingDelete = { kind, id: currentPack.fileName, name: currentPack.name })
+							},
+							{ label: m.common_reload(), action: () => load(kind, true) },
+							{ label: m.common_open_folder(), action: () => openFolder(kind) }
 						])}
 					</div>
 
 				{:else if page === 'worlds'}
+					<div class="flex shrink-0 items-center gap-2.5">
+						<SearchField
+							class="flex-1 bg-deep"
+							placeholder={m.editor_world_search()}
+							aria-label={m.editor_world_search()}
+							bind:value={worldSearch}
+						/>
+						{#if worlds.length > 0}
+							<span class="shrink-0 text-[11.5px] text-faint">
+								{m.editor_world_summary({ count: worlds.length, size: formatSize(worldsSize) })}
+							</span>
+						{/if}
+					</div>
+
 					<div class="flex min-h-0 flex-1 gap-2.25">
-						<TableBox>
-							<Table>
-								<thead>
-									<tr><th style="width:44px"></th><th style="width:45%">{m.common_name()}</th><th>{m.editor_world_folder()}</th></tr>
-								</thead>
-								<tbody>
-									{#each worlds as world (world.path)}
-										<tr>
-											<td>
-												{#if world.icon}
-													<img src={world.icon} alt="" class="size-6 rounded-sm" />
-												{/if}
-											</td>
-											<td>{world.name}</td>
-											<td class="overflow-hidden text-ellipsis font-mono text-[11px] text-muted"
-												>{world.path}</td
-											>
-										</tr>
-									{/each}
-								</tbody>
-							</Table>
+						<TableBox class="flex flex-col gap-0.5 pt-1">
+							{#each visibleWorlds as world (world.folder)}
+								{@const selected = selectedWorld === world.folder}
+								<button
+									type="button"
+									class="flex w-full cursor-pointer items-center gap-3 rounded-md border px-2.5 py-2 text-left transition-colors duration-150
+										{selected ? 'border-brand-line bg-brand-soft' : 'border-transparent hover:bg-btn'}"
+									title={world.path}
+									onclick={() => (selectedWorld = world.folder)}
+									ondblclick={() => openWorld(world)}
+								>
+									<div class="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md bg-group text-faint">
+										{#if world.icon}
+											<img src={world.icon} alt="" class="size-full object-cover [image-rendering:pixelated]" />
+										{:else}
+											<Icon name="globe" size={22} />
+										{/if}
+									</div>
+
+									<div class="flex min-w-0 flex-1 flex-col gap-0.5">
+										<div class="flex min-w-0 items-center gap-1.5">
+											<span class="truncate font-semibold text-ink">{world.name}</span>
+											{#if world.hardcore}
+												<Pill class="text-danger">{m.editor_world_hardcore()}</Pill>
+											{:else if world.gameMode}
+												<Pill accent={world.gameMode === 'creative'}>{WORLD_MODES[world.gameMode]}</Pill>
+											{/if}
+											{#if world.cheats}
+												<Pill>{m.editor_world_cheats()}</Pill>
+											{/if}
+										</div>
+										<p class="truncate text-[11.5px] text-faint">
+											<span class="font-mono">{world.folder}</span>
+											{#if world.version}
+												· <span title={m.editor_world_version()}>{world.version}</span>
+											{/if}
+										</p>
+									</div>
+
+									<div class="flex shrink-0 flex-col items-end gap-0.5 text-[11.5px]">
+										<span class="text-muted" title={m.editor_world_last_played()}>{formatTime(world.lastPlayed)}</span>
+										<span class="text-faint" title={m.editor_world_size()}>{formatSize(world.size)}</span>
+									</div>
+								</button>
+							{/each}
 							{#if worlds.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_worlds_empty()}</p>
+							{:else if visibleWorlds.length === 0}
+								<p class="px-3 py-4 text-center text-muted">{m.editor_worlds_no_match()}</p>
 							{/if}
 						</TableBox>
-						{@render sideButtons([
-							{ label: m.common_reload(), action: () => load('worlds', true) },
-							{ label: m.common_open_folder(), action: () => openFolder('saves') }
-						])}
+						<div class="flex w-34.5 shrink-0 flex-col gap-1">
+							{@render sideButtons([
+								{
+									label: m.editor_world_open(),
+									disabled: !currentWorld,
+									action: () => currentWorld && openWorld(currentWorld)
+								},
+								{
+									label: m.common_delete(),
+									disabled: !currentWorld || !!running,
+									action: () =>
+										currentWorld &&
+										(pendingDelete = { kind: 'world', id: currentWorld.folder, name: currentWorld.name })
+								},
+								{ label: m.common_reload(), action: () => load('worlds', true) },
+								{ label: m.editor_world_saves_folder(), action: () => openFolder('saves') }
+							])}
+							{#if running}
+								<p class="px-1 text-[11.5px] leading-normal text-faint">{m.editor_world_running()}</p>
+							{/if}
+						</div>
 					</div>
 
 				{:else if page === 'servers'}
@@ -1236,6 +1418,21 @@
 				}}
 			/>
 		</div>
+	</Dialog>
+{/if}
+
+{#if pendingDelete}
+	{@const target = pendingDelete}
+	<Dialog title={m.common_delete()} width="420px" onclose={() => (pendingDelete = null)}>
+		<p class="px-5 py-5 leading-[1.75]">
+			{target.kind === 'world'
+				? m.editor_world_delete_confirm({ name: target.name })
+				: m.editor_pack_delete_confirm({ name: target.name })}
+		</p>
+		{#snippet footer()}
+			<Button variant="destructive" onclick={confirmDelete}>{m.common_delete()}</Button>
+			<Button onclick={() => (pendingDelete = null)}>{m.common_cancel()}</Button>
+		{/snippet}
 	</Dialog>
 {/if}
 

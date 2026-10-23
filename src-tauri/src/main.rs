@@ -12,6 +12,7 @@ use state::AppState;
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState::default())
         .setup(|app| {
             if let Ok(dir) = store::store_dir() {
@@ -91,6 +92,10 @@ fn main() {
             commands::assets::list_resource_packs,
             commands::assets::list_shader_packs,
             commands::assets::list_worlds,
+            commands::assets::set_active_shader,
+            commands::assets::delete_pack,
+            commands::assets::open_world_folder,
+            commands::assets::delete_world,
             commands::assets::list_servers,
             commands::assets::list_screenshots,
             commands::assets::list_instance_logs,

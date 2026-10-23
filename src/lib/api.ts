@@ -678,14 +678,27 @@ export interface ModUpdateEntry {
 export interface PackEntry {
 	name: string;
 	path: string;
+	fileName: string;
 	isFolder: boolean;
+	size: number;
+	modified: number;
+	active: boolean;
 }
+
+export type WorldGameMode = 'survival' | 'creative' | 'adventure' | 'spectator' | 'unknown';
 
 export interface WorldEntry {
 	name: string;
+	folder: string;
 	path: string;
 
 	icon: string | null;
+	gameMode: WorldGameMode | null;
+	hardcore: boolean;
+	cheats: boolean;
+	version: string | null;
+	lastPlayed: number;
+	size: number;
 }
 
 export interface ServerEntry {
@@ -737,8 +750,24 @@ export const listResourcePacks = (baseDir: string, instanceName: string) =>
 export const listShaderPacks = (baseDir: string, instanceName: string) =>
 	invoke<PackEntry[]>('list_shader_packs', { baseDir, instanceName });
 
+export const setActiveShader = (baseDir: string, instanceName: string, fileName: string | null) =>
+	invoke<void>('set_active_shader', { baseDir, instanceName, fileName });
+
+export const deletePack = (
+	baseDir: string,
+	instanceName: string,
+	kind: 'resourcepacks' | 'shaderpacks',
+	fileName: string
+) => invoke<void>('delete_pack', { baseDir, instanceName, kind, fileName });
+
 export const listWorlds = (baseDir: string, instanceName: string) =>
 	invoke<WorldEntry[]>('list_worlds', { baseDir, instanceName });
+
+export const openWorldFolder = (baseDir: string, instanceName: string, folder: string) =>
+	invoke<void>('open_world_folder', { baseDir, instanceName, folder });
+
+export const deleteWorld = (baseDir: string, instanceName: string, folder: string) =>
+	invoke<void>('delete_world', { baseDir, instanceName, folder });
 
 export const listServers = (baseDir: string, instanceName: string) =>
 	invoke<ServerEntry[]>('list_servers', { baseDir, instanceName });
