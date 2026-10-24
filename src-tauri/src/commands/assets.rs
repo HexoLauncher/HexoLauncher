@@ -12,10 +12,10 @@ use hexomc_lib::assets::nbt::{self, Nbt};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackDto {
+    pub icon: Option<String>,
     pub name: String,
     pub path: String,
     pub file_name: String,
-    /// true = folder，false = .zip
     pub is_folder: bool,
     pub size: u64,
     pub modified: u64,
@@ -66,9 +66,41 @@ fn file_name_of(path: &Path) -> String {
         .to_string()
 }
 
+fn pack_icon(path: &Path, is_folder: bool) -> Option<String> {
+    const MAX_BYTES: u64 = 4 * 1024 * 1024;
+    for name in [
+        "pack.png",
+        "icon.png",
+        "shaders/pack.png",
+        "shaders/icon.png",
+    ] {
+        let bytes = if is_folder {
+            std::fs::File::open(path.join(name)).ok().and_then(|file| {
+                let mut bytes = Vec::new();
+                std::io::Read::read_to_end(
+                    &mut std::io::Read::take(file, MAX_BYTES + 1),
+                    &mut bytes,
+                )
+                .ok()?;
+                (bytes.len() as u64 <= MAX_BYTES).then_some(bytes)
+            })
+        } else {
+            hexomc_lib::read_mod_icon(path, name, MAX_BYTES)
+        };
+        if let Some(bytes) = bytes.filter(|bytes| bytes.starts_with(b"\x89PNG\r\n\x1a\n")) {
+            return Some(format!(
+                "data:image/png;base64,{}",
+                base64::engine::general_purpose::STANDARD.encode(bytes)
+            ));
+        }
+    }
+    None
+}
+
 fn pack_dto(name: String, path: &Path, is_folder: bool, active: bool) -> PackDto {
     let meta = std::fs::metadata(path).ok();
     PackDto {
+        icon: pack_icon(path, is_folder),
         name,
         path: path_string(path),
         file_name: file_name_of(path),
@@ -402,7 +434,6 @@ pub struct FileEntry {
     pub name: String,
     pub path: String,
     pub size: u64,
-    /// 修改時間（unix 秒）
     pub modified: u64,
 }
 

@@ -28,7 +28,7 @@
 		WorldGameMode
 	} from '$lib/api';
 	import { formatDuration, formatSize, formatTime, loaderLabel } from '$lib/format';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import type { Page } from '$lib/ui';
 	import { m } from '$lib/paraglide/messages.js';
 
@@ -76,18 +76,16 @@
 	let busy = $state('');
 
 
-	// svelte-ignore state_referenced_locally
-	let form = $state({
+	let form = $state(untrack(() => ({
 		name: instance.name,
 		icon: instance.icon,
 		group: instance.group,
 		notes: instance.notes,
 		javaPath: instance.javaPath,
 		settings: { ...instance.settings } as InstanceSettings
-	});
+	})));
 
-	// svelte-ignore state_referenced_locally
-	let iconImage = $state(instance.iconImage);
+	let iconImage = $state(untrack(() => instance.iconImage));
 
 	let saved = $state(snapshot());
 	const dirty = $derived(snapshot() !== saved);
@@ -105,6 +103,17 @@
 
 
 	let mods = $state<ModEntry[]>([]);
+	let modSearch = $state('');
+	const visibleMods = $derived.by(() => {
+		const query = modSearch.trim().toLowerCase();
+		return query
+			? mods.filter((mod) =>
+				[mod.name, mod.fileName, mod.modId, mod.version].some((value) =>
+					value.toLowerCase().includes(query)
+				)
+			)
+			: mods;
+	});
 	let modUpdates = $state<ModUpdateEntry[]>([]);
 	let resourcePacks = $state<PackEntry[]>([]);
 	let shaderPacks = $state<PackEntry[]>([]);
@@ -603,16 +612,6 @@
 			version: m.editor_version_java({ version: instance.javaVersion }),
 			note: m.editor_version_runtime()
 		},
-		{
-			name: m.editor_version_assets(),
-			version: instance.assetsId || m.common_dash(),
-			note: m.editor_version_assets_note()
-		},
-		{
-			name: m.editor_version_main_class(),
-			version: instance.mainClass || m.common_dash(),
-			note: m.editor_version_main_class_note()
-		}
 	]);
 </script>
 
@@ -627,10 +626,8 @@
 {/snippet}
 
 {#snippet modDetails()}
-	<div class="flex h-46 shrink-0 gap-3.5 rounded-lg border border-line bg-group p-3.5">
-		{#if !selectedMod}
-			<p class="m-auto text-muted">{m.editor_mod_details_hint()}</p>
-		{:else if !modInfo}
+	<div data-mod-details class="flex h-46 shrink-0 gap-3.5 rounded-lg border border-line bg-group p-3.5">
+		{#if !modInfo}
 			<span class="m-auto size-5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
 		{:else}
 			{@const info = modInfo}
@@ -646,7 +643,6 @@
 						alt=""
 						class="size-full object-contain"
 						onload={(e) => {
-							// 小張的像素圖放大時不要糊掉
 							const img = e.currentTarget as HTMLImageElement;
 							if (img.naturalWidth <= 64) img.style.imageRendering = 'pixelated';
 						}}
@@ -718,6 +714,18 @@
 		{/if}
 	</div>
 {/snippet}
+
+<svelte:window
+	onclick={(event) => {
+		if (
+			selectedMod &&
+			event.target instanceof Element &&
+			!event.target.closest('[data-mod-row], [data-mod-details]')
+		) {
+			selectedMod = null;
+		}
+	}}
+/>
 
 <WindowShell>
 	<div class="flex min-h-0 flex-1">
@@ -861,6 +869,12 @@
 						])}
 					</div>
 				{:else if page === 'mods'}
+					<SearchField
+						class="shrink-0 bg-deep"
+						placeholder={m.content_search_mod()}
+						aria-label={m.content_search_mod()}
+						bind:value={modSearch}
+					/>
 					{#if modUpdates.length > 0}
 						<div class="shrink-0 rounded-lg border border-line bg-deep p-2.5">
 							<p class="mb-2 font-medium">{m.editor_mod_updates()}</p>
@@ -893,12 +907,12 @@
 										<th style="width:34%">{m.common_name()}</th>
 										<th>{m.common_version()}</th>
 										<th>{m.editor_mod_file()}</th>
-										<th style="width:80px">{m.editor_mod_loader()}</th>
 									</tr>
 								</thead>
 								<tbody>
-									{#each mods as mod (mod.fileName)}
+									{#each visibleMods as mod (mod.fileName)}
 										<tr
+											data-mod-row
 											class:selected={selectedMod === mod.fileName}
 											onclick={() => (selectedMod = mod.fileName)}
 										>
@@ -918,13 +932,14 @@
 											>
 											<td class="text-muted">{mod.version || m.common_dash()}</td>
 											<td class="text-muted">{mod.fileName}</td>
-											<td class="text-muted">{mod.loader}</td>
 										</tr>
 									{/each}
 								</tbody>
 							</Table>
 							{#if mods.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_mods_empty()}</p>
+							{:else if visibleMods.length === 0}
+								<p class="px-3 py-4 text-center text-muted">{m.content_empty_mod()}</p>
 							{/if}
 						</TableBox>
 						{@render sideButtons([
@@ -940,31 +955,14 @@
 						])}
 					</div>
 
-					{@render modDetails()}
+					{#if selectedMod}
+						{@render modDetails()}
+					{/if}
 
 				{:else if page === 'resourcepacks' || page === 'shaderpacks'}
 					{@const kind = page as 'resourcepacks' | 'shaderpacks'}
 					{@const packs = kind === 'resourcepacks' ? resourcePacks : shaderPacks}
 					{@const isShader = kind === 'shaderpacks'}
-					<div class="flex shrink-0 items-center gap-2.5 rounded-lg border border-line bg-group px-3.5 py-2.5">
-						<Icon
-							name={isShader ? 'sun' : 'image'}
-							size={16}
-							class={isShader && activeShader ? 'text-brand-fg' : 'text-faint'}
-						/>
-						<span class="min-w-0 flex-1 truncate">
-							{#if !isShader}
-								<span class="text-muted">{m.editor_resourcepacks_note()}</span>
-							{:else if activeShader}
-								{m.editor_shader_current({ name: activeShader.name })}
-							{:else}
-								<span class="text-muted">{m.editor_shader_none()}</span>
-							{/if}
-						</span>
-						{#if isShader && running}
-							<span class="shrink-0 text-[11.5px] text-faint">{m.editor_shader_running()}</span>
-						{/if}
-					</div>
 
 					<div class="flex min-h-0 flex-1 gap-2.25">
 						<TableBox>
@@ -995,7 +993,18 @@
 													/>
 												{/if}
 											</td>
-											<td class="overflow-hidden text-ellipsis" class:font-semibold={pack.active}>{pack.name}</td>
+											<td class:font-semibold={pack.active}>
+												<div class="flex min-w-0 items-center gap-2.5">
+													<div class="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md bg-deep text-faint">
+														{#if pack.icon}
+															<img src={pack.icon} alt="" class="size-full object-contain" />
+														{:else}
+															<Icon name={isShader ? 'sun' : 'image'} size={24} />
+														{/if}
+													</div>
+													<span class="truncate">{pack.name}</span>
+												</div>
+											</td>
 											<td class="text-muted">{pack.isFolder ? m.editor_pack_folder() : m.editor_pack_archive()}</td>
 											<td class="text-muted">{formatSize(pack.size)}</td>
 											<td class="text-muted">{formatTime(pack.modified)}</td>

@@ -676,6 +676,7 @@ export interface ModUpdateEntry {
 }
 
 export interface PackEntry {
+	icon: string | null;
 	name: string;
 	path: string;
 	fileName: string;

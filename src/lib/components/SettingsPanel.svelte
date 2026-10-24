@@ -390,7 +390,6 @@
 								<option value={option.id}>{option.label}</option>
 							{/each}
 						</Select>
-						<span class="text-faint">{m.settings_language_desc()}</span>
 					</div>
 				</Field>
 				<Switch
