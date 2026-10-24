@@ -503,6 +503,9 @@
 	"editor_update_pack": "更新模組包…",
 
 	"editor_mod_updates": "可以更新的模組",
+	"editor_mod_update_all": "全部更新",
+	"editor_status_mod_updates_done": "已更新 {count} 個模組。",
+	"editor_status_mod_updates_partial": "已更新 {updated} 個模組，{failed} 個更新失敗",
 	"editor_mod_update_detail": "{from} → {to}（{source}）",
 	"editor_mod_file": "檔案",
 	"editor_mod_enable": "啟用 {name}",

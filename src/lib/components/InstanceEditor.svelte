@@ -480,15 +480,38 @@
 		}
 	}
 
-	async function applyUpdate(update: ModUpdateEntry) {
-		busy = m.editor_busy_update_mod({ name: update.name });
+	async function applyUpdates(updates: ModUpdateEntry[]) {
+		if (busy || updates.length === 0) return;
+		const pending = [...updates];
+		const failures: string[] = [];
+		let completed = 0;
 		try {
-			await api.applyModUpdate(baseDir, instance.id, update.id);
-			modUpdates = modUpdates.filter((u) => u.id !== update.id);
+			for (const [index, update] of pending.entries()) {
+				busy = m.common_progress_count({
+					message: m.editor_busy_update_mod({ name: update.name }),
+					done: index + 1,
+					total: pending.length
+				});
+				try {
+					await api.applyModUpdate(baseDir, instance.id, update.id);
+					modUpdates = modUpdates.filter((item) => item.id !== update.id);
+					completed += 1;
+				} catch (e) {
+					failures.push(`${update.name}: ${api.errorMessage(e)}`);
+				}
+			}
 			await load('mods', true);
-			report(m.editor_status_mod_updated({ name: update.name, version: update.newVersion }));
-		} catch (e) {
-			fail(m.editor_error_update(), e);
+			if (failures.length > 0) {
+				status = m.common_error_detail({
+					prefix: m.editor_status_mod_updates_partial({ updated: completed, failed: failures.length }),
+					message: failures.join('; ')
+				});
+			} else if (pending.length === 1) {
+				const update = pending[0];
+				report(m.editor_status_mod_updated({ name: update.name, version: update.newVersion }));
+			} else {
+				report(m.editor_status_mod_updates_done({ count: completed }));
+			}
 		} finally {
 			busy = '';
 		}
@@ -876,11 +899,16 @@
 						bind:value={modSearch}
 					/>
 					{#if modUpdates.length > 0}
-						<div class="shrink-0 rounded-lg border border-line bg-deep p-2.5">
-							<p class="mb-2 font-medium">{m.editor_mod_updates()}</p>
-							<div class="flex flex-col gap-1">
+						<div class="flex max-h-[40%] min-h-0 shrink flex-col rounded-lg border border-line bg-deep p-2.5">
+							<div class="mb-2 flex shrink-0 items-center justify-between gap-2.5">
+								<p class="font-medium">{m.editor_mod_updates()}</p>
+								<Button variant="primary" disabled={!!busy} onclick={() => applyUpdates(modUpdates)}>
+									{m.editor_mod_update_all()}
+								</Button>
+							</div>
+							<div class="flex min-h-0 flex-col gap-1 overflow-y-auto overscroll-contain">
 								{#each modUpdates as update (update.id)}
-									<div class="flex items-center gap-2.5">
+									<div class="flex shrink-0 items-center gap-2.5">
 										<span class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">
 											{update.name}
 											<span class="text-faint">
@@ -891,7 +919,7 @@
 												})}
 											</span>
 										</span>
-										<Button onclick={() => applyUpdate(update)}>{m.common_update()}</Button>
+										<Button disabled={!!busy} onclick={() => applyUpdates([update])}>{m.common_update()}</Button>
 									</div>
 								{/each}
 							</div>
