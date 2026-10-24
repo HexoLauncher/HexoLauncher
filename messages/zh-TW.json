@@ -5,6 +5,12 @@
 	"app_version": "版本 {version}",
 	"app_tagline": "只是一個功能較多的啟動器而已",
 
+	"update_title": "有新版本",
+	"update_available": "目前是 {current}，可以更新到 {version}。",
+	"update_downloading": "正在下載更新，完成後會自動重新啟動…",
+	"update_install": "立即更新",
+	"update_later": "稍後",
+
 	"common_ok": "確定",
 	"common_cancel": "取消",
 	"common_close": "關閉",

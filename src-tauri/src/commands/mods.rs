@@ -9,7 +9,7 @@ use hexomc_lib::{
 use serde::Serialize;
 
 use super::instance::load_config;
-use super::{minecraft_dir, path_string, LoaderKind};
+use super::{minecraft_dir, path_string, validate_file_name, LoaderKind};
 use crate::error::{CmdError, CmdResult};
 use crate::state::AppState;
 
@@ -244,9 +244,7 @@ pub async fn set_mod_enabled(
 }
 
 fn mods_dir(base_dir: &str, instance_name: &str, file_name: &str) -> CmdResult<std::path::PathBuf> {
-    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
-        return Err(CmdError::launcher(format!("檔名不合法: {}", file_name)));
-    }
+    validate_file_name(file_name)?;
     Ok(minecraft_dir(Path::new(base_dir), instance_name)?.join("mods"))
 }
 

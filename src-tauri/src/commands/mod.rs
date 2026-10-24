@@ -18,7 +18,7 @@ pub mod skin;
 pub mod theme;
 pub mod version;
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use hexomc_lib::{resolve_forge_version, LoaderType, ModLoader};
 use serde::{Deserialize, Serialize};
@@ -110,6 +110,18 @@ pub fn validate_instance_name(name: &str) -> CmdResult<()> {
     Ok(())
 }
 
+pub fn validate_file_name(name: &str) -> CmdResult<()> {
+    let mut parts = Path::new(name).components();
+    let single = matches!(
+        (parts.next(), parts.next()),
+        (Some(Component::Normal(_)), None)
+    );
+    if !single || name.contains(['/', '\\', ':']) {
+        return Err(CmdError::launcher(format!("檔名不合法: {}", name)));
+    }
+    Ok(())
+}
+
 pub fn instance_dir(base_dir: &Path, name: &str) -> CmdResult<PathBuf> {
     validate_instance_name(name)?;
     Ok(base_dir.join("instance").join(name))
@@ -121,4 +133,19 @@ pub fn minecraft_dir(base_dir: &Path, name: &str) -> CmdResult<PathBuf> {
 
 pub fn path_string(path: &Path) -> String {
     path.to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_file_name;
+
+    #[test]
+    fn file_names_cannot_escape() {
+        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "C:x", "C:\\x", "/etc", "x:y"] {
+            assert!(validate_file_name(bad).is_err(), "{:?}", bad);
+        }
+        for ok in ["sodium.jar", "a..b.zip", "New World", "latest.log"] {
+            assert!(validate_file_name(ok).is_ok(), "{:?}", ok);
+        }
+    }
 }

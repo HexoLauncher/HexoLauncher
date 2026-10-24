@@ -4,6 +4,8 @@
 	import { page } from '$app/state';
 	import MainToolbar from '$lib/components/MainToolbar.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
+	import UpdateDialog from '$lib/components/UpdateDialog.svelte';
+	import { check, type Update } from '@tauri-apps/plugin-updater';
 	import * as api from '$lib/api';
 	import {
 		app,
@@ -20,6 +22,8 @@
 	import { m } from '$lib/paraglide/messages.js';
 
 	let { children }: { children: Snippet } = $props();
+
+	let update = $state<Update | null>(null);
 
 	onMount(() => {
 		const unlisteners: Array<() => void> = [];
@@ -40,6 +44,9 @@
 		);
 
 		init();
+		check()
+			.then((found) => (update = found))
+			.catch((e) => console.warn('update check failed', e));
 		return () => unlisteners.forEach((un) => un());
 	});
 
@@ -105,3 +112,7 @@
 		/>
 	{/if}
 </div>
+
+{#if update}
+	<UpdateDialog {update} onclose={() => (update = null)} />
+{/if}

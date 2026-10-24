@@ -3,8 +3,9 @@ use std::path::{Path, PathBuf};
 use base64::Engine;
 use hexomc_lib::{detect_resource_packs, detect_shader_packs};
 use serde::Serialize;
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
-use super::{minecraft_dir, path_string};
+use super::{minecraft_dir, path_string, validate_file_name as check_name};
 use crate::error::{CmdError, CmdResult};
 use hexomc_lib::assets::nbt::{self, Nbt};
 
@@ -34,13 +35,6 @@ pub struct WorldDto {
     pub version: Option<String>,
     pub last_played: u64,
     pub size: u64,
-}
-
-fn check_name(name: &str) -> CmdResult<()> {
-    if name.is_empty() || name.contains('/') || name.contains('\\') || name.contains("..") {
-        return Err(CmdError::launcher(format!("檔名不合法: {}", name)));
-    }
-    Ok(())
 }
 
 fn modified_secs(meta: &std::fs::Metadata) -> u64 {
@@ -238,9 +232,12 @@ pub async fn set_active_shader(
         .collect();
     if targets.is_empty() {
         let oculus = std::fs::read_dir(mc.join("mods")).is_ok_and(|entries| {
-            entries
-                .flatten()
-                .any(|e| e.file_name().to_string_lossy().to_lowercase().contains("oculus"))
+            entries.flatten().any(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .to_lowercase()
+                    .contains("oculus")
+            })
         });
         targets.push(mc.join(SHADER_PROPERTIES[usize::from(oculus)]));
     }
@@ -254,7 +251,11 @@ pub async fn set_active_shader(
                 Some(name) => set_property(&text, "shaderPack", &escape_property(name)),
                 None => text,
             };
-            set_property(&text, "enableShaders", if file_name.is_some() { "true" } else { "false" })
+            set_property(
+                &text,
+                "enableShaders",
+                if file_name.is_some() { "true" } else { "false" },
+            )
         };
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
@@ -385,7 +386,11 @@ pub async fn open_world_folder(
 }
 
 #[tauri::command]
-pub async fn delete_world(base_dir: String, instance_name: String, folder: String) -> CmdResult<()> {
+pub async fn delete_world(
+    base_dir: String,
+    instance_name: String,
+    folder: String,
+) -> CmdResult<()> {
     let path = world_dir(&base_dir, &instance_name, &folder)?;
     tokio::fs::remove_dir_all(&path).await?;
     Ok(())
@@ -460,21 +465,19 @@ pub async fn read_instance_log(
     instance_name: String,
     file_name: String,
 ) -> CmdResult<String> {
-    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
-        return Err(CmdError::launcher(format!(
-            "檔名不合法: {}",
-            file_name
-        )));
-    }
+    check_name(&file_name)?;
 
     let path = minecraft_dir(Path::new(&base_dir), &instance_name)?
         .join("logs")
         .join(&file_name);
 
-    let bytes = tokio::fs::read(&path).await?;
-    let start = bytes.len().saturating_sub(LOG_TAIL_BYTES as usize);
-    // 遊戲的日誌不見得是合法 UTF-8（舊版、或 mod 亂輸出），壞掉的位元組換成替代字元。
-    Ok(String::from_utf8_lossy(&bytes[start..]).to_string())
+    let mut file = tokio::fs::File::open(&path).await?;
+    let len = file.metadata().await?.len();
+    file.seek(std::io::SeekFrom::Start(len.saturating_sub(LOG_TAIL_BYTES)))
+        .await?;
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes).await?;
+    Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -547,17 +550,28 @@ mod tests {
         let text = set_property(text, "shaderPack", &escape_property("BSL v8.2:x.zip"));
         let text = set_property(&text, "enableShaders", "true");
         assert!(text.starts_with("#comment\nenableShaders=true\nmaxShadowRenderDistance=32\n"));
-        assert_eq!(property(&text, "shaderPack").as_deref(), Some("BSL v8.2:x.zip"));
+        assert_eq!(
+            property(&text, "shaderPack").as_deref(),
+            Some("BSL v8.2:x.zip")
+        );
     }
 
     #[test]
     fn active_shader_respects_disabled_flag() {
         let mc = temp_dir("shader");
         std::fs::create_dir_all(mc.join("config")).unwrap();
-        std::fs::write(mc.join("config/iris.properties"), "shaderPack=Complementary.zip\nenableShaders=true\n").unwrap();
+        std::fs::write(
+            mc.join("config/iris.properties"),
+            "shaderPack=Complementary.zip\nenableShaders=true\n",
+        )
+        .unwrap();
         assert_eq!(active_shader(&mc).as_deref(), Some("Complementary.zip"));
 
-        std::fs::write(mc.join("config/iris.properties"), "shaderPack=Complementary.zip\nenableShaders=false\n").unwrap();
+        std::fs::write(
+            mc.join("config/iris.properties"),
+            "shaderPack=Complementary.zip\nenableShaders=false\n",
+        )
+        .unwrap();
         assert_eq!(active_shader(&mc), None);
 
         std::fs::remove_file(mc.join("config/iris.properties")).unwrap();

@@ -14,17 +14,20 @@ use crate::store::{now_secs, read_json, store_dir, store_file, write_json};
 const AUTH_FILE: &str = "blueprint_auth.json";
 const MOJANG_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
 
-const SERVER: &str = match option_env!("NOLAUNCHER_BLUEPRINT_SERVER") {
-    Some(url) => url,
-    None => "http://localhost:8080",
+const SERVER: Option<&str> = match option_env!("NOLAUNCHER_BLUEPRINT_SERVER") {
+    Some(url) if !url.is_empty() => Some(url),
+    _ if cfg!(debug_assertions) => Some("http://localhost:8080"),
+    _ => None,
 };
 
 pub fn cache_dir() -> CmdResult<PathBuf> {
     Ok(store_dir()?.join("blueprint-cache"))
 }
 
-fn server_url() -> String {
-    SERVER.trim_end_matches('/').to_string()
+fn server_url() -> CmdResult<String> {
+    SERVER
+        .map(|url| url.trim_end_matches('/').to_string())
+        .ok_or_else(|| CmdError::new("blueprintUnavailable", "這個版本沒有設定藍圖庫伺服器"))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,7 +201,7 @@ pub struct BlueprintSession {
 }
 
 async fn current_session() -> CmdResult<(BlueprintSession, Option<String>)> {
-    let server = server_url();
+    let server = server_url()?;
     let store = AccountStore::load().await?;
     let selected = store
         .selected
@@ -344,7 +347,7 @@ pub async fn blueprint_session() -> CmdResult<BlueprintSession> {
 
 #[tauri::command]
 pub async fn blueprint_login() -> CmdResult<BlueprintSession> {
-    let server = server_url();
+    let server = server_url()?;
     let account = accounts::resolve(None).await?;
     let (Some(access_token), Some(uuid)) = (account.access_token, account.uuid) else {
         return Err(CmdError::new(
@@ -407,7 +410,7 @@ pub async fn blueprint_logout() -> CmdResult<BlueprintSession> {
 
 #[tauri::command]
 pub async fn blueprint_tags() -> CmdResult<Vec<Tag>> {
-    let server = server_url();
+    let server = server_url()?;
     send_json(http().get(format!("{}/tags", server))).await
 }
 
@@ -437,7 +440,7 @@ impl Default for BlueprintQuery {
 
 #[tauri::command]
 pub async fn blueprint_search(query: BlueprintQuery) -> CmdResult<BlueprintList> {
-    let server = server_url();
+    let server = server_url()?;
     let mut params: Vec<(&str, String)> = vec![
         ("page", query.page.max(1).to_string()),
         ("per_page", query.per_page.clamp(1, 100).to_string()),
@@ -471,7 +474,7 @@ pub async fn blueprint_search(query: BlueprintQuery) -> CmdResult<BlueprintList>
 
 #[tauri::command]
 pub async fn blueprint_get(id: String) -> CmdResult<Blueprint> {
-    let server = server_url();
+    let server = server_url()?;
     send_json(http().get(blueprint_url(&server, &id)?)).await
 }
 
@@ -496,7 +499,7 @@ async fn fetch_file(blueprint: &Blueprint) -> CmdResult<Vec<u8>> {
         }
     }
 
-    let server = server_url();
+    let server = server_url()?;
     let url = format!("{}/download", blueprint_url(&server, &blueprint.id)?);
     let bytes = send(http().get(url)).await?.bytes().await?.to_vec();
     if sha256_hex(&bytes) != sha {
@@ -604,7 +607,7 @@ pub async fn blueprint_preview(id: String, format: String) -> CmdResult<String> 
     if format != "litematic" {
         return Err(CmdError::launcher("目前只能預覽 .litematic"));
     }
-    let server = server_url();
+    let server = server_url()?;
     let url = format!("{}/preview", blueprint_url(&server, &id)?);
     let bytes = send(http().get(url)).await?.bytes().await?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))

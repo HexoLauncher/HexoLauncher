@@ -215,17 +215,15 @@ pub async fn install_content(
     })
 }
 
-/// 下載網址加上要存成的檔名
 struct RemoteFile {
     url: String,
     name: String,
     sha1: Option<String>,
 }
 
-/// 平台給的檔名直接當路徑用會有風險，只留最後一段。
 fn safe_file_name(raw: &str, kind: ContentKind) -> String {
     let name = raw
-        .rsplit(['/', '\\'])
+        .rsplit(['/', '\\', ':'])
         .next()
         .unwrap_or_default()
         .trim()
