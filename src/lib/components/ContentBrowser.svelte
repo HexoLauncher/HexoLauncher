@@ -2,6 +2,7 @@
 	import { Button, CheckRow, Pill, Select, TextInput } from '$lib/ui';
 	import { onMount } from 'svelte';
 	import Icon from '$lib/ui/Icon.svelte';
+	import Dialog from '$lib/ui/Dialog.svelte';
 	import * as api from '$lib/api';
 	import type {
 		ContentDetail,
@@ -86,6 +87,11 @@
 
 	let busy = $state(false);
 	let status = $state('');
+	let includeOptional = $state(true);
+	let installPlan = $state<api.ModInstallPlan | null>(null);
+	let preparing = $state(false);
+	let committing = $state(false);
+	let disposed = false;
 
 	let list = $state<HTMLElement>();
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -106,7 +112,11 @@
 
 	onMount(() => {
 		search();
-		return () => clearTimeout(timer);
+		return () => {
+			disposed = true;
+			clearTimeout(timer);
+			if (installPlan) api.discardModInstall(installPlan.id).catch(() => {});
+		};
 	});
 
 	function searchSoon() {
@@ -164,7 +174,7 @@
 	}
 
 	function choose(item: PackHit) {
-		if (hit?.id === item.id) return;
+		if (busy || hit?.id === item.id) return;
 		clearSelection();
 		hit = item;
 		status = '';
@@ -210,11 +220,25 @@
 	async function install() {
 		const item = hit;
 		const picked = version;
-		if (!item || !picked) return;
+		if (!item || !picked || busy) return;
 
 		busy = true;
 		status = '';
 		try {
+			if (kind === 'mod') {
+				preparing = true;
+				const plan = await api.prepareModInstall({
+					baseDir,
+					instanceName: instance.id,
+					platform,
+					projectId: item.id,
+					versionId: picked.id,
+					includeOptional
+				});
+				if (disposed) await api.discardModInstall(plan.id);
+				else installPlan = plan;
+				return;
+			}
 			const installed = await api.installContent({
 				baseDir,
 				instanceName: instance.id,
@@ -228,6 +252,32 @@
 		} catch (e) {
 			status = api.errorMessage(e);
 		} finally {
+			preparing = false;
+			busy = false;
+		}
+	}
+
+	function cancelInstall() {
+		if (committing || !installPlan) return;
+		const id = installPlan.id;
+		installPlan = null;
+		api.discardModInstall(id).catch((e) => (status = api.errorMessage(e)));
+	}
+
+	async function confirmInstall() {
+		if (!installPlan || committing || installPlan.items.some((item) => item.conflict)) return;
+		const plan = installPlan;
+		committing = true;
+		busy = true;
+		try {
+			const installed = await api.commitModInstall(plan.id);
+			status = m.content_installed({ file: installed.fileName });
+			oninstalled(installed.fileName);
+		} catch (e) {
+			status = api.errorMessage(e);
+		} finally {
+			installPlan = null;
+			committing = false;
 			busy = false;
 		}
 	}
@@ -264,13 +314,13 @@
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
-		<Select class="w-28" bind:value={platform} onchange={reset} aria-label={m.content_platform()}>
+		<Select class="w-28" bind:value={platform} onchange={reset} disabled={busy} aria-label={m.content_platform()}>
 			{#each PLATFORMS as p (p.id)}
 				<option value={p.id}>{p.label}</option>
 			{/each}
 		</Select>
-		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={TEXT[kind].search} aria-label={TEXT[kind].search} />
-		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label={m.common_sort()}>
+		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} disabled={busy} placeholder={TEXT[kind].search} aria-label={TEXT[kind].search} />
+		<Select class="w-26" bind:value={sort} onchange={() => search()} disabled={busy} aria-label={m.common_sort()}>
 			{#each SORTS as s (s.id)}
 				<option value={s.id}>{s.label}</option>
 			{/each}
@@ -278,9 +328,15 @@
 	</div>
 
 	<CheckRow compact class="shrink-0">
-		<input type="checkbox" bind:checked={matchVersion} onchange={reset} />
+		<input type="checkbox" bind:checked={matchVersion} onchange={reset} disabled={busy} />
 		{m.content_filter_compatible({ target: compatLabel })}
 	</CheckRow>
+	{#if kind === 'mod'}
+		<CheckRow compact class="shrink-0">
+			<input type="checkbox" bind:checked={includeOptional} disabled={busy} />
+			{m.content_include_optional()}
+		</CheckRow>
+	{/if}
 
 	<div class="flex min-h-0 flex-1 gap-2.5">
 		<div
@@ -485,8 +541,36 @@
 	</div>
 
 	{#if busy || status}
-		<p class="shrink-0 truncate px-0.5 text-muted" role="status">
-			{busy ? m.content_downloading() : status}
+		<p class="max-h-24 shrink-0 overflow-y-auto break-words px-0.5 text-muted" role="status">
+			{busy ? (preparing ? m.content_preparing_mods() : m.content_downloading()) : status}
 		</p>
 	{/if}
 </div>
+
+{#if installPlan}
+	{@const plan = installPlan}
+	<Dialog title={m.content_install_plan_title()} width="640px" onclose={cancelInstall}>
+		<div class="flex min-h-0 flex-col gap-3 overflow-y-auto px-4.5 py-4">
+			{#each plan.items as item (item.fileName)}
+				<div class="flex shrink-0 flex-col gap-1 rounded-lg border border-line p-2.5">
+					<div class="flex items-center gap-2">
+						<span class="min-w-0 flex-1 break-words font-medium">{item.name} {item.version}</span>
+						<Pill>{item.dependency ? m.content_dependency() : m.content_selected_mod()}</Pill>
+					</div>
+					<span class="break-all text-[11.5px] text-faint">{item.fileName}</span>
+					{#if item.conflict}
+						<p class="break-words text-danger">{m.content_mod_conflict({ file: item.conflict })}</p>
+					{:else}
+						<span class="text-muted">{item.installed ? m.content_mod_already_installed() : m.content_mod_ready()}</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+		{#snippet footer()}
+			<Button disabled={committing} onclick={cancelInstall}>{m.common_cancel()}</Button>
+			<Button variant="primary" disabled={committing || plan.items.some((item) => item.conflict)} onclick={confirmInstall}>
+				{committing ? m.content_installing_mods() : m.common_install()}
+			</Button>
+		{/snippet}
+	</Dialog>
+{/if}

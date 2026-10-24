@@ -480,6 +480,33 @@ export interface InstalledContent {
 	path: string;
 }
 
+export interface ModInstallPlan {
+	id: string;
+	items: {
+		name: string;
+		fileName: string;
+		version: string;
+		dependency: boolean;
+		installed: boolean;
+		conflict: string | null;
+	}[];
+}
+
+export const prepareModInstall = (args: {
+	baseDir: string;
+	instanceName: string;
+	platform: ContentPlatform;
+	projectId: string;
+	versionId: string;
+	includeOptional: boolean;
+}) => invoke<ModInstallPlan>('prepare_mod_install', args);
+
+export const commitModInstall = (planId: string) =>
+	invoke<InstalledContent>('commit_mod_install', { planId });
+
+export const discardModInstall = (planId: string) =>
+	invoke<void>('discard_mod_install', { planId });
+
 export interface GalleryImage {
 	url: string;
 	title: string;

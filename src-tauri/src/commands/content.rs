@@ -11,6 +11,8 @@ use super::modpack_browse::{
 use super::{minecraft_dir, path_string, LoaderKind};
 use crate::error::{CmdError, CmdResult};
 
+pub mod install;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ContentKind {
@@ -108,7 +110,6 @@ pub struct ContentVersion {
     pub published: i64,
     pub file_name: String,
     pub loaders: Vec<String>,
-    /// false = Not allowed to download
     pub downloadable: bool,
 }
 
@@ -189,6 +190,9 @@ pub async fn install_content(
     project_id: String,
     version_id: String,
 ) -> CmdResult<InstalledContent> {
+    if kind == ContentKind::Mod {
+        return Err(CmdError::new("installPlanRequired", "Prepare a mod installation plan first."));
+    }
     let file = match platform {
         Platform::Modrinth => modrinth_file(segment(&version_id)?).await?,
         Platform::CurseForge => {
