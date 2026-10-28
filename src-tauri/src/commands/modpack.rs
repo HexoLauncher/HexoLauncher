@@ -3,7 +3,7 @@ use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use hexomc_lib::{
     detect_modpack_format, install_modpack_files, read_cf_manifest, read_mrpack_index,
-    resolve_forge_version, update_modpack, CurseForgeClient, HexoError, LoaderType, ManualDownload,
+    resolve_forge_version, update_modpack, Browser, CurseForgeClient, HexoError, LoaderType, ManualDownload,
     ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ProgressFn,
 };
 use serde::{Deserialize, Serialize};
@@ -131,6 +131,11 @@ pub(super) async fn install_local_pack(
         install_modpack_files(&path, &id, &base, curseforge.as_ref(), progress).await
     })
     .await
+}
+
+pub(super) async fn browser() -> CmdResult<Browser> {
+    let key = LauncherConfig::load().await?.api.curseforge_api_key;
+    Ok(Browser::new().with_curseforge_key(key))
 }
 
 pub(super) async fn curseforge_key() -> CmdResult<String> {

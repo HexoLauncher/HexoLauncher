@@ -416,14 +416,20 @@ export interface SearchPage {
 	nextOffset: number | null;
 }
 
+export type ReleaseType = 'release' | 'beta' | 'alpha' | 'archived';
+
 export interface RemoteVersion {
 	id: string;
 	name: string;
 	mcVersion: string;
-
-	kind: string;
+	gameVersions: string[];
+	loaders: string[];
+	releaseType: ReleaseType;
 
 	published: number;
+	fileName: string;
+	/** false = 作者不允許第三方下載 */
+	downloadable: boolean;
 }
 
 export const searchModpacks = (request: ModpackSearchRequest) =>
@@ -461,19 +467,7 @@ export interface ContentSearchRequest {
 	offset: number;
 }
 
-export interface ContentVersion {
-	id: string;
-	name: string;
-	mcVersion: string;
-
-	kind: string;
-
-	published: number;
-	fileName: string;
-	loaders: string[];
-	/** false = 作者不允許第三方下載 */
-	downloadable: boolean;
-}
+export type ContentVersion = RemoteVersion;
 
 export interface InstalledContent {
 	fileName: string;
@@ -513,7 +507,7 @@ export interface GalleryImage {
 }
 
 export interface ContentLink {
-	label: string;
+	kind: 'website' | 'source' | 'issues' | 'wiki' | 'discord';
 	url: string;
 }
 
@@ -542,6 +536,9 @@ export const getContentDetail = (args: {
 	kind: ContentKind;
 	projectId: string;
 }) => invoke<ContentDetail>('get_content_detail', args);
+
+export const getModpackDetail = (platform: ModpackPlatform, packId: string) =>
+	invoke<ContentDetail>('get_modpack_detail', { platform, packId });
 
 export const searchContent = (request: ContentSearchRequest) =>
 	invoke<SearchPage>('search_content', { request });

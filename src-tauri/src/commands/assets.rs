@@ -1,13 +1,15 @@
 use std::path::{Path, PathBuf};
 
 use base64::Engine;
-use hexomc_lib::{detect_resource_packs, detect_shader_packs};
+use hexomc_lib::{
+    detect_maps, detect_resource_packs, detect_servers, detect_shader_packs, dir_size, GameMode,
+    ServerEntry,
+};
 use serde::Serialize;
 use tokio::io::{AsyncReadExt, AsyncSeekExt};
 
 use super::{minecraft_dir, path_string, validate_file_name as check_name};
 use crate::error::{CmdError, CmdResult};
-use hexomc_lib::assets::nbt::{self, Nbt};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +31,7 @@ pub struct WorldDto {
     pub folder: String,
     pub path: String,
     pub icon: Option<String>,
-    pub game_mode: Option<String>,
+    pub game_mode: Option<GameMode>,
     pub hardcore: bool,
     pub cheats: bool,
     pub version: Option<String>,
@@ -43,20 +45,6 @@ fn modified_secs(meta: &std::fs::Metadata) -> u64 {
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_secs())
         .unwrap_or_default()
-}
-
-fn dir_size(dir: &Path) -> u64 {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return 0;
-    };
-    entries
-        .flatten()
-        .map(|entry| match entry.file_type() {
-            Ok(t) if t.is_dir() => dir_size(&entry.path()),
-            Ok(t) if t.is_file() => entry.metadata().map(|m| m.len()).unwrap_or_default(),
-            _ => 0,
-        })
-        .sum()
 }
 
 fn file_name_of(path: &Path) -> String {
@@ -322,75 +310,31 @@ pub async fn delete_pack(
     Ok(())
 }
 
-fn int(value: &Nbt) -> Option<i64> {
-    match value {
-        Nbt::Byte(v) => Some(*v as i64),
-        Nbt::Short(v) => Some(*v as i64),
-        Nbt::Int(v) => Some(*v as i64),
-        Nbt::Long(v) => Some(*v),
-        _ => None,
-    }
-}
-
-fn read_world(path: &Path) -> Option<WorldDto> {
-    let bytes = std::fs::read(path.join("level.dat")).ok()?;
-    let folder = file_name_of(path);
-    let root = nbt::parse(&bytes);
-    let data = root.as_ref().and_then(|r| r.get("Data"));
-    let get = |key: &str| data.and_then(|d| d.get(key));
-
-    Some(WorldDto {
-        name: get("LevelName")
-            .and_then(Nbt::as_str)
-            .filter(|s| !s.trim().is_empty())
-            .unwrap_or(&folder)
-            .to_string(),
-        path: path_string(path),
-        icon: std::fs::read(path.join("icon.png")).ok().map(|bytes| {
-            format!(
-                "data:image/png;base64,{}",
-                base64::engine::general_purpose::STANDARD.encode(bytes)
-            )
-        }),
-        game_mode: get("GameType").and_then(int).map(|mode| {
-            match mode {
-                0 => "survival",
-                1 => "creative",
-                2 => "adventure",
-                3 => "spectator",
-                _ => "unknown",
-            }
-            .to_string()
-        }),
-        hardcore: get("hardcore").and_then(int).unwrap_or_default() != 0,
-        cheats: get("allowCommands").and_then(int).unwrap_or_default() != 0,
-        version: get("Version")
-            .and_then(|v| v.get("Name"))
-            .and_then(Nbt::as_str)
-            .map(str::to_string),
-        last_played: get("LastPlayed")
-            .and_then(int)
-            .map(|ms| (ms / 1000).max(0) as u64)
-            .unwrap_or_default(),
-        size: dir_size(path),
-        folder,
-    })
+fn png_data_url(base64: &str) -> String {
+    format!("data:image/png;base64,{}", base64)
 }
 
 #[tauri::command]
 pub async fn list_worlds(base_dir: String, instance_name: String) -> CmdResult<Vec<WorldDto>> {
-    let saves = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("saves");
+    let mc = minecraft_dir(Path::new(&base_dir), &instance_name)?;
     tokio::task::spawn_blocking(move || {
-        let Ok(entries) = std::fs::read_dir(&saves) else {
-            return Vec::new();
-        };
-        let mut worlds: Vec<WorldDto> = entries
-            .flatten()
-            .filter(|e| e.path().is_dir())
-            .filter_map(|e| read_world(&e.path()))
-            .collect();
-        worlds.sort_by(|a, b| b.last_played.cmp(&a.last_played));
-        worlds
+        detect_maps(&mc)
+            .into_iter()
+            .map(|world| WorldDto {
+                name: world.name,
+                folder: world.folder,
+                path: path_string(&world.path),
+                icon: world.icon.map(|bytes| {
+                    png_data_url(&base64::engine::general_purpose::STANDARD.encode(bytes))
+                }),
+                game_mode: world.game_mode,
+                hardcore: world.hardcore,
+                cheats: world.cheats,
+                version: world.version,
+                last_played: world.last_played,
+                size: world.size,
+            })
+            .collect()
     })
     .await
     .map_err(|e| CmdError::launcher(e.to_string()))
@@ -511,51 +455,16 @@ pub async fn read_instance_log(
     Ok(String::from_utf8_lossy(&bytes).to_string())
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ServerDto {
-    pub name: String,
-    pub address: String,
-
-    pub icon: Option<String>,
-    pub accept_textures: bool,
-}
-
 #[tauri::command]
-pub async fn list_servers(base_dir: String, instance_name: String) -> CmdResult<Vec<ServerDto>> {
-    let path = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("servers.dat");
-
-    let Ok(bytes) = tokio::fs::read(&path).await else {
-        return Ok(Vec::new());
-    };
-    let Some(root) = nbt::parse(&bytes) else {
-        return Ok(Vec::new());
-    };
-    let Some(servers) = root.get("servers").and_then(Nbt::as_list) else {
-        return Ok(Vec::new());
-    };
-
-    Ok(servers
-        .iter()
-        .map(|entry| ServerDto {
-            name: entry
-                .get("name")
-                .and_then(Nbt::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            address: entry
-                .get("ip")
-                .and_then(Nbt::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            icon: entry
-                .get("icon")
-                .and_then(Nbt::as_str)
-                .filter(|s| !s.is_empty())
-                .map(|s| format!("data:image/png;base64,{}", s)),
-            accept_textures: matches!(entry.get("acceptTextures"), Some(Nbt::Byte(1))),
-        })
-        .collect())
+pub async fn list_servers(base_dir: String, instance_name: String) -> CmdResult<Vec<ServerEntry>> {
+    let mc = minecraft_dir(Path::new(&base_dir), &instance_name)?;
+    let mut servers = tokio::task::spawn_blocking(move || detect_servers(&mc))
+        .await
+        .map_err(|e| CmdError::launcher(e.to_string()))?;
+    for server in &mut servers {
+        server.icon = server.icon.as_deref().map(png_data_url);
+    }
+    Ok(servers)
 }
 
 #[cfg(test)]
@@ -567,12 +476,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
-    }
-
-    fn tag(out: &mut Vec<u8>, id: u8, key: &str) {
-        out.push(id);
-        out.extend((key.len() as u16).to_be_bytes());
-        out.extend(key.as_bytes());
     }
 
     #[test]
@@ -621,42 +524,5 @@ mod tests {
         .unwrap();
         assert_eq!(enabled_resource_packs(&mc), ["Faithful 32x.zip"]);
         let _ = std::fs::remove_dir_all(&mc);
-    }
-
-    #[test]
-    fn read_world_parses_level_dat() {
-        let saves = temp_dir("world");
-        let world = saves.join("New World (1)");
-        std::fs::create_dir_all(&world).unwrap();
-
-        let mut dat = Vec::new();
-        tag(&mut dat, 10, "");
-        tag(&mut dat, 10, "Data");
-        tag(&mut dat, 8, "LevelName");
-        dat.extend((5u16).to_be_bytes());
-        dat.extend(b"Hello");
-        tag(&mut dat, 3, "GameType");
-        dat.extend(1i32.to_be_bytes());
-        tag(&mut dat, 1, "hardcore");
-        dat.push(1);
-        tag(&mut dat, 4, "LastPlayed");
-        dat.extend(1_700_000_000_123i64.to_be_bytes());
-        tag(&mut dat, 10, "Version");
-        tag(&mut dat, 8, "Name");
-        dat.extend((6u16).to_be_bytes());
-        dat.extend(b"1.21.4");
-        dat.extend([0, 0, 0]);
-        std::fs::write(world.join("level.dat"), &dat).unwrap();
-
-        let info = read_world(&world).unwrap();
-        assert_eq!(info.name, "Hello");
-        assert_eq!(info.folder, "New World (1)");
-        assert_eq!(info.game_mode.as_deref(), Some("creative"));
-        assert!(info.hardcore);
-        assert!(!info.cheats);
-        assert_eq!(info.version.as_deref(), Some("1.21.4"));
-        assert_eq!(info.last_played, 1_700_000_000);
-        assert_eq!(info.size, dat.len() as u64);
-        let _ = std::fs::remove_dir_all(&saves);
     }
 }

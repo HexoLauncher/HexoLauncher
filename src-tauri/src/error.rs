@@ -38,6 +38,28 @@ impl From<HexoError> for CmdError {
             HexoError::InstanceNotFound(_) => "instanceNotFound",
             HexoError::DownloadFailed { .. } => "downloadFailed",
             HexoError::ProcessorFailed(_) => "processorFailed",
+            HexoError::UnsupportedPlatform(_) => {
+                return Self::new(
+                    "unsupportedPlatform",
+                    "ATLauncher 與 FTB 只提供模組包，沒辦法單獨下載模組或材質",
+                )
+            }
+            HexoError::InvalidId(id) => return Self::launcher(format!("ID 不合法: {:?}", id)),
+            HexoError::MissingApiKey => {
+                return Self::new(
+                    "curseforgeKeyMissing",
+                    "使用 CurseForge 需要 API 金鑰，請先到「設定」填入",
+                )
+            }
+            HexoError::DownloadBlocked { website, .. } => {
+                let mut message =
+                    "作者不允許第三方下載這個檔案，請到 CurseForge 網站下載後再自行安裝".to_string();
+                if let Some(url) = website {
+                    message.push_str(&format!("：{}", url));
+                }
+                return Self::new("downloadBlocked", message);
+            }
+            HexoError::Dependency(_) => "modInstall",
             HexoError::Other(_) => "other",
         };
         Self::new(kind, err.to_string())

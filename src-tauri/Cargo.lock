@@ -64,7 +64,6 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "dirs 5.0.1",
- "futures",
  "hexomc-lib",
  "open",
  "reqwest 0.12.28",
@@ -78,7 +77,6 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "uuid",
- "winreg",
  "zip 2.4.2",
 ]
 
@@ -1437,9 +1435,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexomc-lib"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23367ffcc84bfe0643efb532a06dfbe2ea858a91b607c11495759bc53ea16273"
+checksum = "998ade07959ec8fc23e83add7d2aa5029c088d124e50091a0a6fd6df2c5fe55e"
 dependencies = [
  "async-trait",
  "digest",
@@ -1462,6 +1460,7 @@ dependencies = [
  "toml 0.8.2",
  "uuid",
  "which",
+ "winreg",
  "xml-rs",
  "zip 2.4.2",
 ]

@@ -23,8 +23,8 @@ export const windowSpecs = {
 	newInstance: (): WindowSpec => ({
 		path: '/new-instance',
 		title: m.window_new_instance(),
-		width: 800,
-		height: 620
+		width: 1040,
+		height: 690
 	}),
 
 	viewer: (

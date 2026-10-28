@@ -1,16 +1,13 @@
 {
 	"$schema": "https://inlang.com/schema/inlang-message-format",
-
 	"app_name": "Nolauncher",
 	"app_version": "版本 {version}",
 	"app_tagline": "只是一個功能較多的啟動器而已",
-
 	"update_title": "有新版本",
 	"update_available": "目前是 {current}，可以更新到 {version}。",
 	"update_downloading": "正在下載更新，完成後會自動重新啟動…",
 	"update_install": "立即更新",
 	"update_later": "稍後",
-
 	"common_ok": "確定",
 	"common_cancel": "取消",
 	"common_close": "關閉",
@@ -60,24 +57,19 @@
 	"common_close_menu": "關閉選單",
 	"common_minimize": "最小化",
 	"common_maximize": "最大化",
-
 	"file_filter_zip": "壓縮檔",
 	"file_filter_modpack": "模組包",
 	"file_filter_image": "圖片",
-
 	"format_never_played": "從未遊玩",
 	"format_minutes": "{minutes} 分",
 	"format_hours_minutes": "{hours} 小時 {minutes} 分",
-
 	"version_type_release": "正式版",
 	"version_type_snapshot": "快照",
 	"version_type_old_beta": "舊 Beta",
 	"version_type_old_alpha": "舊 Alpha",
-
 	"release_beta": "測試版",
 	"release_alpha": "Alpha",
 	"release_archived": "已封存",
-
 	"window_edit_instance": "{name} — 編輯實例",
 	"window_console": "{name} — 主控台",
 	"window_new_instance": "新增實例",
@@ -87,7 +79,6 @@
 	"window_edit_instance_fallback": "編輯實例",
 	"window_launch": "啟動 {name}",
 	"window_launching": "正在啟動",
-
 	"status_ready": "就緒",
 	"status_game_exited": "{name} 已結束",
 	"status_game_crashed": "{name} 異常結束（代碼 {code}）",
@@ -103,7 +94,6 @@
 	"status_no_version_info": "這個實例沒有版本資訊，請用「編輯 → 版本」重新指定",
 	"status_repaired": "{name} 已修復完成",
 	"status_refreshed": "已重新整理實例清單",
-
 	"error_load_config": "無法讀取啟動器設定",
 	"error_load_instances": "無法讀取實例清單",
 	"error_load_accounts": "無法讀取帳號",
@@ -120,7 +110,6 @@
 	"error_repair": "修復失敗",
 	"error_version_list": "無法取得版本清單：{message}",
 	"error_loader_unsupported": "{loader} 沒有支援 {version}（{message}）",
-
 	"busy_duplicating": "正在複製實例…",
 	"busy_packing": "正在打包實例…",
 	"busy_repairing": "正在修復 {name}…",
@@ -133,22 +122,18 @@
 	"busy_copying": "正在複製…",
 	"busy_reading_modpack": "正在讀取模組包…",
 	"busy_preparing_install": "正在準備安裝…",
-
 	"statusbar_no_announcement": "目前沒有新公告",
 	"statusbar_instance_count": "{count} 個實例",
-
 	"menu_main": "主選單",
 	"menu_new_instance": "新增實例…",
 	"menu_folders": "資料夾",
 	"menu_view": "檢視",
 	"menu_about": "關於 Nolauncher",
 	"menu_accounts": "帳號",
-
 	"nav_instances": "遊戲實例",
 	"nav_settings": "設定",
 	"view_instance_toolbar": "實例工具列",
 	"view_status_bar": "狀態列",
-
 	"folder_instances": "實例資料夾",
 	"folder_base": "資料根目錄",
 	"folder_store": "啟動器設定資料夾",
@@ -160,16 +145,13 @@
 	"folder_logs": "日誌",
 	"folder_instance": "實例資料夾",
 	"folder_open_instances": "開啟實例資料夾",
-
 	"account_not_signed_in": "尚未登入",
 	"account_needs_relogin": "需重新登入",
 	"account_offline": "離線",
 	"account_microsoft": "Microsoft",
 	"account_none": "還沒有任何帳號",
 	"account_manage": "管理帳號…",
-
 	"copy_suffix": "{name} 的副本",
-
 	"dialog_delete_instance_title": "刪除實例",
 	"dialog_delete_confirm": "確定要刪除「{name}」嗎？",
 	"dialog_delete_desc": "這個實例的所有世界、模組與設定都會一併移除，而且無法復原。",
@@ -181,7 +163,6 @@
 	"export_include_saves": "包含世界存檔",
 	"export_include_screenshots": "包含螢幕截圖",
 	"export_choose_location": "選擇位置並匯出",
-
 	"group_ungrouped": "未分組",
 	"instance_state_not_installed": "尚未安裝",
 	"instance_state_needs_repair": "需要修復",
@@ -194,7 +175,6 @@
 	"grid_loading": "正在讀取實例…",
 	"grid_no_match": "沒有符合「{query}」的實例。",
 	"grid_empty": "還沒有任何實例。",
-
 	"action_launch": "啟動",
 	"action_stop": "終止",
 	"action_edit": "編輯",
@@ -208,14 +188,12 @@
 	"action_duplicate_instance": "複製實例",
 	"action_export": "匯出…",
 	"action_download_files": "下載檔案",
-
 	"info_running_pid": "執行中 · PID {pid}",
 	"info_running_since": "{time} 起 · {player}",
 	"info_not_downloaded": "尚未下載遊戲檔案",
 	"info_last_played": "上次遊玩",
 	"info_total_time": "總時數",
 	"info_mods": "模組",
-
 	"version_table_date": "發布日期",
 	"version_table_type": "類型",
 	"version_loading": "正在取得版本清單…",
@@ -223,21 +201,19 @@
 	"version_no_available": "沒有可用版本",
 	"filter_title": "篩選",
 	"filter_old": "舊版本",
-
 	"sort_relevance": "相關性",
 	"sort_downloads": "熱門",
 	"sort_updated": "最近更新",
 	"sort_name": "名稱",
-
 	"modpack_search": "搜尋模組包",
 	"modpack_mc_version": "MC 版本",
 	"modpack_mc_version_aria": "Minecraft 版本",
 	"modpack_none_found": "找不到符合的模組包",
+	"modpack_pick": "選一個模組包",
 	"modpack_install_optional": "安裝選用模組",
 	"modpack_no_installable_version": "沒有可安裝的版本",
 	"list_load_more": "載入更多（{loaded} / {total}）",
 	"list_total": "共 {total} 個",
-
 	"content_platform": "平台",
 	"content_search_mod": "搜尋模組",
 	"content_include_optional": "同時安裝選用依賴（必要依賴會自動加入）",
@@ -254,9 +230,9 @@
 	"content_empty_mod": "找不到符合的模組",
 	"content_empty_resourcepack": "找不到符合的資源包",
 	"content_empty_shader": "找不到符合的光影包",
-	"content_pick_mod": "選一個模組看介紹",
-	"content_pick_resourcepack": "選一個資源包看介紹",
-	"content_pick_shader": "選一個光影包看介紹",
+	"content_pick_mod": "選一個模組",
+	"content_pick_resourcepack": "選一個資源包",
+	"content_pick_shader": "選一個光影包",
 	"content_filter_compatible": "只顯示相容 {target} 的版本",
 	"content_no_compatible_version": "沒有相容的版本",
 	"content_loading_detail": "正在讀取介紹…",
@@ -264,12 +240,13 @@
 	"content_downloads": "{count} 次下載",
 	"content_updated": "{date} 更新",
 	"content_supported_versions": "支援版本：",
+	"content_link_source": "原始碼",
+	"content_link_issues": "問題回報",
 	"content_no_description": "這個項目沒有提供詳細說明。",
 	"content_open_image": "開啟原圖",
 	"content_installed": "已安裝 {file}",
 	"content_downloading": "正在下載…",
 	"content_not_downloadable": "不可自動下載",
-
 	"add_page_custom": "自訂",
 	"add_page_modpack": "匯入模組包",
 	"add_page_launcher": "從其他啟動器",
@@ -308,7 +285,6 @@
 	"add_skipped": "不支援而略過的項目：{items}",
 	"add_created_title": "已建立「{name}」",
 	"add_created_desc": "實例已經出現在主視窗的清單裡。",
-
 	"settings_page_launcher": "啟動器",
 	"settings_page_theme": "外觀",
 	"settings_page_minecraft": "遊戲與啟動",
@@ -316,7 +292,6 @@
 	"settings_page_commands": "自訂指令",
 	"settings_page_accounts": "帳號",
 	"settings_page_apis": "API",
-
 	"settings_folders": "資料夾",
 	"settings_base_dir": "資料根目錄",
 	"settings_restore_default": "還原預設",
@@ -328,7 +303,6 @@
 	"settings_show_running_badge": "在實例圖示上顯示執行狀態",
 	"settings_language": "語言",
 	"settings_language_system": "跟隨系統",
-
 	"settings_theme": "主題",
 	"settings_accent": "強調色",
 	"settings_accent_custom": "自訂",
@@ -342,7 +316,6 @@
 	"settings_opacity": "介面不透明度",
 	"settings_background_dim": "背景變暗",
 	"settings_background_blur": "背景模糊",
-
 	"settings_launch": "啟動",
 	"settings_show_progress_window": "啟動時顯示檔案檢查與下載視窗",
 	"settings_close_progress_when_done": "準備完成後自動關閉視窗",
@@ -352,7 +325,6 @@
 	"settings_record_play_time": "記錄每個實例的遊玩時間",
 	"settings_version_list": "版本清單",
 	"settings_include_snapshots": "預設顯示快照版本",
-
 	"settings_memory": "記憶體",
 	"settings_min_memory": "最小配置",
 	"settings_max_memory": "最大配置",
@@ -368,13 +340,11 @@
 	"settings_java_auto": "自動挑選",
 	"settings_jvm_args": "JVM 參數",
 	"settings_jvm_extra_args": "額外參數",
-
 	"settings_commands": "自訂指令",
 	"settings_pre_launch": "啟動前執行",
 	"settings_post_exit": "結束後執行",
 	"settings_command_placeholder": "例如：backup.bat",
 	"settings_command_variables": "可用變數：",
-
 	"settings_account_name": "使用者名稱",
 	"settings_account_type": "類型",
 	"settings_account_status": "狀態",
@@ -386,7 +356,6 @@
 	"settings_set_active": "設為使用中",
 	"settings_api_key": "API 金鑰",
 	"settings_curseforge_placeholder": "自定義的 CurseForge API 金鑰",
-
 	"settings_status_accent_reset": "已還原預設強調色",
 	"settings_status_background_updated": "已更新背景圖片",
 	"settings_status_background_removed": "已移除背景圖片",
@@ -412,7 +381,6 @@
 	"settings_status_account_removed": "已移除帳號",
 	"settings_status_offline_added": "已新增離線帳號",
 	"settings_status_action_failed": "{action}失敗：{message}",
-
 	"login_title": "Microsoft 登入",
 	"login_desc": "在瀏覽器輸入這組代碼完成授權。",
 	"login_reopen": "重新開啟 {url}",
@@ -422,7 +390,6 @@
 	"offline_player_name": "玩家名稱",
 	"offline_name_hint": "只能用英數字與底線。",
 	"offline_add": "新增",
-
 	"theme_mode_dark": "黑暗",
 	"theme_mode_light": "明亮",
 	"theme_mode_system": "跟隨系統",
@@ -432,7 +399,6 @@
 	"theme_preset_emerald": "翠綠",
 	"theme_preset_ocean": "深海",
 	"theme_preset_amethyst": "紫晶",
-
 	"editor_page_general": "一般",
 	"editor_page_console": "遊戲日誌",
 	"editor_page_version": "版本",
@@ -445,12 +411,10 @@
 	"editor_page_notes": "記事",
 	"editor_page_logs": "日誌檔",
 	"editor_page_settings": "設定",
-
 	"editor_browse_mod": "下載模組",
 	"editor_browse_resourcepack": "下載資源包",
 	"editor_browse_shader": "下載光影包",
 	"editor_needs_repair": "遊戲檔案不完整，請到「版本」修復",
-
 	"editor_error_load": "讀取失敗",
 	"editor_error_output": "讀取遊戲輸出失敗",
 	"editor_error_running": "讀取執行狀態失敗",
@@ -466,7 +430,6 @@
 	"editor_error_install": "安裝失敗",
 	"editor_error_update_pack": "更新模組包失敗",
 	"editor_error_no_dialog_pack": "這個環境沒有系統對話框，無法選擇模組包檔案",
-
 	"editor_status_stop_requested": "已要求遊戲結束",
 	"editor_status_saved": "已儲存",
 	"editor_status_mod_removed": "已移除 {file}",
@@ -476,18 +439,15 @@
 	"editor_status_done": "已完成",
 	"editor_status_pack_updated": "模組包已更新",
 	"editor_status_added": "已加入 {file}",
-
 	"editor_busy_check_updates": "正在比對 Modrinth / CurseForge…",
 	"editor_busy_update_mod": "正在更新 {name}…",
 	"editor_busy_install_version": "正在安裝新版本…",
 	"editor_busy_repair": "正在修復遊戲檔案…",
 	"editor_busy_update_pack": "正在更新模組包…",
-
 	"editor_state": "狀態",
 	"editor_folder_name": "資料夾名稱",
 	"editor_location": "位置",
 	"editor_play_time_launches": "{duration}（啟動 {count} 次）",
-
 	"editor_online_mode": "正版登入",
 	"editor_offline_mode": "離線模式",
 	"editor_not_running": "未執行",
@@ -500,7 +460,6 @@
 	"editor_line_progress": "{visible} / {total} 行",
 	"editor_copy": "複製",
 	"editor_clear": "清空",
-
 	"editor_version_note": "說明",
 	"editor_version_required": "必要",
 	"editor_version_unknown": "未知",
@@ -510,7 +469,6 @@
 	"editor_version_runtime": "執行環境",
 	"editor_change_version": "變更版本…",
 	"editor_update_pack": "更新模組包…",
-
 	"editor_mod_updates": "可以更新的模組",
 	"editor_mod_update_all": "全部更新",
 	"editor_status_mod_updates_done": "已更新 {count} 個模組。",
@@ -535,7 +493,6 @@
 	"editor_mod_dep_optional": "選用",
 	"editor_mod_dep_incompatible": "不相容",
 	"editor_error_mod_details": "讀取模組資訊失敗",
-
 	"editor_pack_type": "類型",
 	"editor_pack_folder": "資料夾",
 	"editor_pack_archive": "壓縮檔",
@@ -543,7 +500,6 @@
 	"editor_shaderpacks_empty": "沒有光影包。",
 	"editor_download_resourcepacks": "下載資源包…",
 	"editor_download_shaderpacks": "下載光影包…",
-
 	"editor_worlds_empty": "還沒有任何世界存檔。",
 	"editor_pack_size": "大小",
 	"editor_pack_modified": "修改時間",
@@ -578,22 +534,18 @@
 	"editor_server_accept": "接受",
 	"editor_server_prompt": "詢問",
 	"editor_servers_empty": "還沒有加過伺服器。",
-
 	"editor_screenshot_name": "檔名",
 	"editor_screenshot_size": "大小",
 	"editor_screenshot_taken": "拍攝時間",
 	"editor_screenshots_empty": "還沒有螢幕截圖。",
-
 	"editor_notes_placeholder": "為這個實例寫點筆記…",
 	"editor_notes_aria": "實例記事",
-
 	"editor_log_file": "日誌檔案",
 	"editor_log_none": "沒有日誌檔",
 	"editor_log_search": "搜尋日誌…",
 	"editor_log_size": "{name}（{size}）",
 	"editor_log_empty_file": "這個檔案是空的。",
 	"editor_log_no_files": "這個實例還沒有日誌。",
-
 	"editor_java_executable": "Java 執行檔",
 	"editor_java_follow_launcher": "跟隨啟動器設定",
 	"editor_java_option": "Java {version} — {path}",
@@ -602,7 +554,6 @@
 	"editor_min_memory": "最小記憶體",
 	"editor_max_memory": "最大記憶體",
 	"editor_jvm_args_field": "參數",
-
 	"editor_change_version_title": "變更版本",
 	"editor_change_version_desc": "世界與模組留在原地，但模組不一定相容新版本。",
 	"editor_pack_updated_title": "模組包已更新",
@@ -612,12 +563,10 @@
 	"editor_pack_removed": "已移除 {count} 個舊版檔案",
 	"editor_pack_skipped": "有 {count} 個檔案被跳過",
 	"editor_pack_nothing_manual": "沒有需要手動處理的檔案。",
-
 	"instance_not_found": "找不到實例",
 	"instance_route_param": "路由參數",
 	"instance_route_param_empty": "（空的）",
 	"instance_loading": "正在讀取實例…",
-
 	"launch_stage_read": "讀取實例資訊",
 	"launch_stage_check": "檢查遊戲檔案",
 	"launch_stage_download": "下載遊戲檔案",
@@ -644,13 +593,10 @@
 	"launch_java_downloading_unknown": "下載 Java {version}：{done}",
 	"launch_java_extracting": "解壓縮 Java {version}…",
 	"launch_java_preparing": "準備 Java {version}…",
-
 	"about_data_dir": "資料目錄",
 	"about_store_dir": "設定目錄",
-
 	"nav_blueprints": "藍圖",
 	"window_viewer": "3D 預覽 - {name}",
-
 	"blueprint_tab_browse": "瀏覽藍圖",
 	"blueprint_tab_mine": "我的上傳",
 	"blueprint_tab_instances": "實例藍圖",
@@ -666,7 +612,6 @@
 	"blueprint_status_signed_in": "已登入藍圖庫：{name}",
 	"blueprint_status_signed_out": "已登出藍圖庫",
 	"blueprint_error_sign_in": "登入藍圖庫失敗",
-
 	"blueprint_upload": "上傳藍圖",
 	"blueprint_upload_this": "上傳到藍圖庫",
 	"blueprint_upload_title": "上傳藍圖",
@@ -693,7 +638,6 @@
 	"blueprint_set_cover": "設為封面",
 	"blueprint_cover_use_render": "封面改回自動渲染",
 	"blueprint_render_image": "自動渲染",
-
 	"blueprint_search_placeholder": "搜尋藍圖名稱",
 	"blueprint_any_version": "所有版本",
 	"blueprint_supports_version": "支援 {version}",
@@ -723,7 +667,6 @@
 	"blueprint_delete_title": "刪除藍圖",
 	"blueprint_delete_confirm": "確定要刪除「{name}」嗎？",
 	"blueprint_delete_desc": "藍圖檔、封面與所有截圖都會從藍圖庫移除，已經下載到實例裡的檔案不受影響。",
-
 	"blueprint_busy_downloading": "下載中…",
 	"blueprint_busy_uploading": "上傳中…",
 	"blueprint_busy_images": "上傳截圖中…",
@@ -737,7 +680,6 @@
 	"blueprint_error_download": "下載藍圖失敗",
 	"blueprint_error_save": "藍圖庫操作失敗",
 	"blueprint_error_images": "藍圖已上傳，但截圖上傳失敗",
-
 	"blueprint_instance": "實例",
 	"blueprint_import_files": "匯入檔案…",
 	"blueprint_folder": "資料夾",
@@ -757,7 +699,6 @@
 	"blueprint_view_list": "列表檢視",
 	"blueprint_view_folder": "資料夾檢視",
 	"blueprint_folder_count": "{count} 個檔案",
-
 	"viewer_canvas_label": "藍圖 3D 預覽",
 	"viewer_collapse": "收合面板",
 	"viewer_expand": "展開面板",

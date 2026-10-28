@@ -68,6 +68,7 @@ fn main() {
             commands::modpack::update_modpack_file,
             commands::modpack_browse::search_modpacks,
             commands::modpack_browse::list_modpack_versions,
+            commands::modpack_browse::get_modpack_detail,
             commands::modpack_browse::install_remote_modpack,
             commands::content::search_content,
             commands::content::list_content_versions,
