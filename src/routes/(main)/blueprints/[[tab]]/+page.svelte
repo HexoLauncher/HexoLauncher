@@ -5,6 +5,7 @@
 	import NavList from '$lib/ui/NavList.svelte';
 	import type { Page } from '$lib/ui';
 	import BlueprintBrowser from '$lib/components/BlueprintBrowser.svelte';
+	import BlueprintTermsDialog from '$lib/components/BlueprintTermsDialog.svelte';
 	import BlueprintUploadDialog from '$lib/components/BlueprintUploadDialog.svelte';
 	import InstanceSchematics from '$lib/components/InstanceSchematics.svelte';
 	import PlayerHead from '$lib/PlayerHead.svelte';
@@ -25,11 +26,12 @@
 
 	let upload = $state<{ path: string; mcVersion: string } | null>(null);
 
+	const accountId = $derived(account?.id);
+
 	let refreshKey = $state(0);
 
-
 	$effect(() => {
-		void account?.id;
+		void accountId;
 		refreshSession();
 	});
 
@@ -37,13 +39,20 @@
 		refreshTags();
 	});
 
-	async function login() {
+	async function login(termsVersion?: string) {
 		try {
-			await signIn();
-			report(m.blueprint_status_signed_in({ name: hub.session?.user?.username ?? '' }));
+			if (await signIn(termsVersion)) {
+				report(m.blueprint_status_signed_in({ name: hub.session?.user?.username ?? '' }));
+			}
 		} catch (e) {
 			reportError(m.blueprint_error_sign_in(), e);
 		}
+	}
+
+	function agreeTerms() {
+		const version = hub.terms?.version;
+		hub.terms = null;
+		if (version) login(version);
 	}
 
 	async function logout() {
@@ -87,7 +96,7 @@
 					<Button icon="logout" onclick={logout}>{m.blueprint_sign_out()}</Button>
 				{:else if hub.session?.account?.online}
 					<span class="truncate">{m.blueprint_not_signed_in()}</span>
-					<Button icon="login" disabled={hub.signingIn} onclick={login}>
+					<Button icon="login" disabled={hub.signingIn} onclick={() => login()}>
 						{#if hub.signingIn}<Spinner />{/if}
 						{m.blueprint_sign_in()}
 					</Button>
@@ -134,7 +143,7 @@
 				<div class="flex flex-col items-center gap-3">
 					<p>{m.blueprint_mine_sign_in()}</p>
 					{#if hub.session?.account?.online}
-						<Button variant="primary" icon="login" disabled={hub.signingIn} onclick={login}>
+						<Button variant="primary" icon="login" disabled={hub.signingIn} onclick={() => login()}>
 							{m.blueprint_sign_in()}
 						</Button>
 					{/if}
@@ -147,6 +156,10 @@
 		{/if}
 	</div>
 </div>
+
+{#if hub.terms}
+	<BlueprintTermsDialog terms={hub.terms} onagree={agreeTerms} onclose={() => (hub.terms = null)} />
+{/if}
 
 {#if upload}
 	<BlueprintUploadDialog

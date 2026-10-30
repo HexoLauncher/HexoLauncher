@@ -1,19 +1,24 @@
 import * as api from './api';
-import type { Blueprint, BlueprintSession, BlueprintTag, InstanceView } from './api';
+import type { Blueprint, BlueprintSession, BlueprintTag, BlueprintTerms, InstanceView } from './api';
 
 export const hub = $state({
 	session: null as BlueprintSession | null,
+	terms: null as BlueprintTerms | null,
 	tags: [] as BlueprintTag[],
 	/** 連不上藍圖庫時的訊息。 */
 	offline: '',
 	signingIn: false
 });
 
+let sessionSeq = 0;
+
 export async function refreshSession() {
+	const seq = ++sessionSeq;
 	try {
-		hub.session = await api.blueprintSession();
+		const session = await api.blueprintSession();
+		if (seq === sessionSeq) hub.session = session;
 	} catch (e) {
-		hub.offline = api.errorMessage(e);
+		if (seq === sessionSeq) hub.offline = api.errorMessage(e);
 	}
 }
 
@@ -26,17 +31,43 @@ export async function refreshTags() {
 	}
 }
 
-export async function signIn() {
+function isTermsError(error: unknown) {
+	return !!error && typeof error === 'object' && (error as api.NolauncherCmdError).kind === 'blueprintTerms';
+}
+
+export async function signIn(termsVersion?: string): Promise<boolean> {
 	hub.signingIn = true;
 	try {
-		hub.session = await api.blueprintLogin();
+		if (!termsVersion) {
+			const terms = await api.blueprintTerms();
+			if (terms && !terms.accepted) {
+				hub.terms = terms;
+				return false;
+			}
+		}
+		const seq = ++sessionSeq;
+		let session: api.BlueprintSession;
+		try {
+			session = await api.blueprintLogin(termsVersion);
+		} catch (e) {
+			if (!isTermsError(e)) throw e;
+			const terms = await api.blueprintTerms();
+			if (!terms) throw e;
+			hub.terms = { ...terms, accepted: false };
+			return false;
+		}
+		if (seq === sessionSeq) hub.session = session;
+		else await refreshSession();
+		return true;
 	} finally {
 		hub.signingIn = false;
 	}
 }
 
 export async function signOut() {
-	hub.session = await api.blueprintLogout();
+	const seq = ++sessionSeq;
+	const session = await api.blueprintLogout();
+	if (seq === sessionSeq) hub.session = session;
 }
 
 /** 伺服器說 token 失效時，同步一下畫面上的登入狀態。 */

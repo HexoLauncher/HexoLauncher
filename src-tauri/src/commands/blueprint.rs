@@ -35,6 +35,7 @@ fn server_url() -> CmdResult<String> {
 pub struct User {
     pub uuid: String,
     pub username: String,
+    #[serde(alias = "createdAt")]
     pub created_at: String,
 }
 
@@ -148,6 +149,21 @@ struct StoredSession {
 #[serde(rename_all = "camelCase", default)]
 struct AuthStore {
     sessions: HashMap<String, StoredSession>,
+    terms: HashMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TermsResponse {
+    version: String,
+    content: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BlueprintTerms {
+    pub version: String,
+    pub content: String,
+    pub accepted: bool,
 }
 
 impl AuthStore {
@@ -285,7 +301,11 @@ async fn error_from(response: reqwest::Response) -> CmdError {
         Err(_) if !body.trim().is_empty() => format!("HTTP {}: {}", status.as_u16(), body.trim()),
         Err(_) => format!("HTTP {}", status.as_u16()),
     };
-    let kind = if status == reqwest::StatusCode::UNAUTHORIZED {
+    let terms_required = serde_json::from_str::<ServerError>(&body)
+        .is_ok_and(|err| err.error == "terms_required");
+    let kind = if terms_required {
+        "blueprintTerms"
+    } else if status == reqwest::StatusCode::UNAUTHORIZED {
         "blueprintAuth"
     } else {
         "blueprint"
@@ -346,8 +366,31 @@ pub async fn blueprint_session() -> CmdResult<BlueprintSession> {
 }
 
 #[tauri::command]
-pub async fn blueprint_login() -> CmdResult<BlueprintSession> {
+pub async fn blueprint_terms() -> CmdResult<Option<BlueprintTerms>> {
     let server = server_url()?;
+    let response = http().get(format!("{}/terms", server)).send().await?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !response.status().is_success() {
+        return Err(error_from(response).await);
+    }
+    let terms: TermsResponse = response.json().await?;
+    let auth = AuthStore::load().await?;
+    Ok(Some(BlueprintTerms {
+        accepted: auth.terms.get(&server) == Some(&terms.version),
+        version: terms.version,
+        content: terms.content,
+    }))
+}
+
+#[tauri::command]
+pub async fn blueprint_login(terms_version: Option<String>) -> CmdResult<BlueprintSession> {
+    let server = server_url()?;
+    let terms_version = match terms_version {
+        Some(version) => Some(version),
+        None => AuthStore::load().await?.terms.get(&server).cloned(),
+    };
     let account = accounts::resolve(None).await?;
     let (Some(access_token), Some(uuid)) = (account.access_token, account.uuid) else {
         return Err(CmdError::new(
@@ -356,7 +399,12 @@ pub async fn blueprint_login() -> CmdResult<BlueprintSession> {
         ));
     };
 
-    let challenge: Challenge = send_json(http().post(format!("{}/auth/challenge", server))).await?;
+    let challenge: Challenge = send_json(
+        http()
+            .post(format!("{}/auth/challenge", server))
+            .header(reqwest::header::CONTENT_LENGTH, 0),
+    )
+    .await?;
 
     let joined = http()
         .post(MOJANG_JOIN)
@@ -381,11 +429,15 @@ pub async fn blueprint_login() -> CmdResult<BlueprintSession> {
         &serde_json::json!({
             "username": account.player_name,
             "server_id": challenge.server_id,
+            "terms_version": terms_version,
         }),
     ))
     .await?;
 
     let mut auth = AuthStore::load().await?;
+    if let Some(version) = terms_version {
+        auth.terms.insert(server.clone(), version);
+    }
     auth.sessions.insert(
         session_key(&server, &uuid),
         StoredSession {
@@ -706,7 +758,11 @@ pub async fn blueprint_delete(id: String) -> CmdResult<()> {
 pub async fn blueprint_rerender(id: String) -> CmdResult<Blueprint> {
     let auth = authed().await?;
     let url = format!("{}/rerender", blueprint_url(&auth.server, &id)?);
-    authed_json(&auth, http().post(url)).await
+    authed_json(
+        &auth,
+        http().post(url).header(reqwest::header::CONTENT_LENGTH, 0),
+    )
+    .await
 }
 
 fn image_mime(path: &Path) -> Option<&'static str> {
@@ -801,6 +857,26 @@ mod tests {
             session_key("http://x", "0B6F6A1E-2C2F-4A57-9B7E-3F7C1D2A9E10"),
             session_key("http://x", "0b6f6a1e2c2f4a579b7e3f7c1d2a9e10")
         );
+    }
+
+    #[test]
+    fn auth_store_round_trips() {
+        let user: User = serde_json::from_value(serde_json::json!({
+            "uuid": "u", "username": "Steve", "created_at": "2026-01-01T00:00:00Z"
+        }))
+        .unwrap();
+        let mut store = AuthStore::default();
+        store.sessions.insert(
+            "k".into(),
+            StoredSession {
+                token: "t".into(),
+                expires_at: 1,
+                user,
+            },
+        );
+        let json = serde_json::to_string(&store).unwrap();
+        let back: AuthStore = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.sessions["k"].user.created_at, "2026-01-01T00:00:00Z");
     }
 
     #[test]

@@ -900,9 +900,18 @@ export interface BlueprintPatch {
 	mcVersionMax: string;
 }
 
+export interface BlueprintTerms {
+	version: string;
+	content: string;
+	accepted: boolean;
+}
+
 export const blueprintSession = () => invoke<BlueprintSession>('blueprint_session');
 
-export const blueprintLogin = () => invoke<BlueprintSession>('blueprint_login');
+export const blueprintTerms = () => invoke<BlueprintTerms | null>('blueprint_terms');
+
+export const blueprintLogin = (termsVersion?: string) =>
+	invoke<BlueprintSession>('blueprint_login', { termsVersion: termsVersion ?? null });
 
 export const blueprintLogout = () => invoke<BlueprintSession>('blueprint_logout');
 

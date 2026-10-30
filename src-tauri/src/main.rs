@@ -106,6 +106,7 @@ fn main() {
             commands::assets::list_instance_logs,
             commands::assets::read_instance_log,
             commands::blueprint::blueprint_session,
+            commands::blueprint::blueprint_terms,
             commands::blueprint::blueprint_login,
             commands::blueprint::blueprint_logout,
             commands::blueprint::blueprint_tags,
