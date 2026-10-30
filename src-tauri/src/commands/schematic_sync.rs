@@ -309,7 +309,7 @@ fn read_manifest(path: &Path) -> BTreeMap<String, Stamp> {
 
 fn write_manifest(path: &Path, files: &BTreeMap<String, Stamp>) -> std::io::Result<()> {
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(files)?)?;
+    std::fs::write(&tmp, serde_json::to_vec(files)?)?;
     std::fs::rename(&tmp, path)
 }
 

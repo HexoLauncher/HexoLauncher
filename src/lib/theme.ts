@@ -149,13 +149,13 @@ const RAMP = {
 
 const LIGHT: Record<keyof typeof RAMP, number> = {
 	inputOff: -0.02,
-	row: 0.35,
-	window: 0.55,
-	group: 0.82,
+	row: 0.12,
+	window: 0.2,
+	group: 0.55,
 	btnLo: -0.03,
 	btnOff: -0.025,
-	raised: 0.95,
-	card: 0.9,
+	raised: 0.85,
+	card: 0.7,
 	line: -0.08,
 	btn: -0.05,
 	btnHi: -0.09,

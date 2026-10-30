@@ -2,7 +2,7 @@
 	"$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
 	"productName": "nolauncher",
 	"mainBinaryName": "nolauncher",
-	"version": "0.1.2-beta.2",
+	"version": "0.1.3",
 	"identifier": "io.github.nolauncher.launcher",
 	"build": {
 		"beforeBuildCommand": "pnpm run build",
