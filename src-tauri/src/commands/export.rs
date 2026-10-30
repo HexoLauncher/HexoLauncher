@@ -79,35 +79,39 @@ fn write_archive(
     let mut file_count = 0;
     let mut buffer = Vec::new();
 
-    let mut pending = vec![source.to_path_buf()];
+    let mut pending = vec![(source.to_path_buf(), String::new())];
+    let mut visited = std::collections::HashSet::new();
 
-    while let Some(dir) = pending.pop() {
+    while let Some((dir, prefix)) = pending.pop() {
+        if let Ok(real) = std::fs::canonicalize(&dir) {
+            if !visited.insert(real) {
+                continue;
+            }
+        }
         for entry in std::fs::read_dir(&dir)? {
             let entry = entry?;
             let path = entry.path();
-            let Ok(relative) = path.strip_prefix(source) else {
+            let name = format!("{}{}", prefix, entry.file_name().to_string_lossy());
+            let Ok(meta) = std::fs::metadata(&path) else {
                 continue;
             };
-            let name = zip_name(relative);
+            let is_dir = meta.is_dir();
 
-            if skip(
-                &name,
-                entry.file_type()?.is_dir(),
-                include_saves,
-                include_screenshots,
-            ) {
+            if skip(&name, is_dir, include_saves, include_screenshots) {
                 continue;
             }
 
-            if entry.file_type()?.is_dir() {
+            if is_dir {
                 zip.add_directory(format!("{}/", name), options)
                     .map_err(zip_error)?;
-                pending.push(path);
+                pending.push((path, format!("{}/", name)));
                 continue;
             }
 
             buffer.clear();
-            File::open(&path)?.read_to_end(&mut buffer)?;
+            File::open(&path)
+                .and_then(|mut file| file.read_to_end(&mut buffer))
+                .map_err(|e| CmdError::launcher(format!("無法讀取 {}: {}", name, e)))?;
             zip.start_file(&name, options).map_err(zip_error)?;
             zip.write_all(&buffer)?;
             file_count += 1;
@@ -121,10 +125,6 @@ fn write_archive(
         file_count,
         bytes: std::fs::metadata(target).map(|m| m.len()).unwrap_or(0),
     })
-}
-
-fn zip_name(relative: &Path) -> String {
-    relative.to_string_lossy().replace('\\', "/")
 }
 
 fn skip(name: &str, is_dir: bool, include_saves: bool, include_screenshots: bool) -> bool {
@@ -229,4 +229,35 @@ fn extract(archive: &Path, target: &Path) -> CmdResult<()> {
         std::io::copy(&mut entry, &mut out)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn follows_linked_game_folder() {
+        let root = std::env::temp_dir().join(format!("nolauncher-export-{}", uuid::Uuid::new_v4()));
+        let external = root.join("prism/.minecraft");
+        std::fs::create_dir_all(external.join("mods")).unwrap();
+        std::fs::write(external.join("mods/a.jar"), "mod").unwrap();
+        std::fs::create_dir_all(external.join("logs")).unwrap();
+        std::fs::write(external.join("logs/latest.log"), "log").unwrap();
+        let source = root.join("instance/a");
+        std::fs::create_dir_all(&source).unwrap();
+        std::fs::write(source.join(META_FILE), "{}").unwrap();
+        super::super::foreign::link_dir(&external, &source.join(".minecraft"))
+            .await
+            .unwrap();
+
+        let target = root.join("out.zip");
+        let result = write_archive(&source, &target, false, false).unwrap();
+        assert_eq!(result.file_count, 2);
+        let mut archive = ZipArchive::new(File::open(&target).unwrap()).unwrap();
+        assert!(archive.by_name(".minecraft/mods/a.jar").is_ok());
+        assert!(archive.by_name(".minecraft/logs/latest.log").is_err());
+
+        super::super::foreign::unlink(&source.join(".minecraft")).await.unwrap();
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

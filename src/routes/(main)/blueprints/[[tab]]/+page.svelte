@@ -129,7 +129,7 @@
 				role="alert"
 			>
 				<span class="min-w-0 flex-1 leading-[1.6]">
-					{m.blueprint_server_unreachable({ server: hub.session?.server ?? '' })}
+					{m.blueprint_server_unreachable()}
 					<span class="text-muted">{hub.offline}</span>
 				</span>
 				<Button onclick={retry}>{m.common_retry()}</Button>

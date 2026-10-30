@@ -50,6 +50,17 @@ export interface ApiConfig {
 	curseforgeApiKey: string;
 }
 
+export type DownloadSource = 'official' | 'bmclapi' | 'custom';
+
+export interface DownloadConfig {
+	source: DownloadSource;
+	customUrl: string;
+}
+
+export interface SchematicsConfig {
+	sync: boolean;
+}
+
 export interface LauncherConfig {
 	formatVersion: number;
 
@@ -60,6 +71,8 @@ export interface LauncherConfig {
 	java: JavaConfig;
 	commands: CommandsConfig;
 	api: ApiConfig;
+	schematics: SchematicsConfig;
+	download: DownloadConfig;
 }
 
 export interface Paths {
@@ -372,7 +385,7 @@ export const listForeignInstances = (path: string) =>
 export const importForeignInstances = (request: ForeignImportRequest) =>
 	invoke<ForeignImportResult>('import_foreign_instances', { request });
 
-export type ModpackFormat = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
+export type ModpackFormat = 'modrinth' | 'curseforge' | 'hmcl' | 'mcbbs' | 'atlauncher' | 'ftb';
 
 export interface ModpackPreview {
 	format: ModpackFormat;
@@ -1007,6 +1020,18 @@ export const deleteSchematic = (baseDir: string, instanceName: string, relPath: 
 export const importSchematic = (baseDir: string, instanceName: string, source: string) =>
 	invoke<SchematicFile>('import_schematic', { baseDir, instanceName, source });
 
+export interface SchematicSyncReport {
+	enabled: boolean;
+	sharedDir: string;
+	changed: string[];
+	pending: string[];
+	failed: { instance: string; message: string }[];
+	renamed: number;
+}
+
+export const setSchematicSync = (baseDir: string, enabled: boolean) =>
+	invoke<SchematicSyncReport>('set_schematic_sync', { baseDir, enabled });
+
 /** 本機 .litematic 內容（base64），給 3D 預覽用。 */
 export const readSchematic = (path: string) => invoke<string>('read_schematic', { path });
 
@@ -1027,7 +1052,39 @@ export interface GameExit {
 	instanceName: string;
 	exitCode: number | null;
 	seconds: number;
+	crashed: boolean;
 }
+
+export type CrashCause =
+	| { kind: 'javaTooOld'; requiredJava: number | null }
+	| { kind: 'javaTooNew' }
+	| { kind: 'outOfMemory' }
+	| { kind: 'heapTooLarge' }
+	| { kind: 'graphicsDriver' }
+	| { kind: 'missingDependencies'; details: string[] }
+	| { kind: 'incompatibleMods'; details: string[] }
+	| { kind: 'duplicateMods'; details: string[] }
+	| { kind: 'mixinFailure'; mods: string[] }
+	| { kind: 'corruptedModFile'; files: string[] }
+	| { kind: 'corruptedConfig'; files: string[] }
+	| { kind: 'suspectedMods'; mods: string[] }
+	| { kind: 'openJ9' }
+	| { kind: 'nativeCrash'; frame: string | null };
+
+export interface CrashAnalysis {
+	instanceName: string;
+	exitCode: number | null;
+	causes: CrashCause[];
+	crashReport: string | null;
+	jvmReport: string | null;
+	logTail: string[];
+}
+
+export const crashAnalysis = (instanceName: string) =>
+	invoke<CrashAnalysis | null>('crash_analysis', { instanceName });
+
+export const openCrashFile = (instanceName: string, kind: 'crashReport' | 'jvmReport') =>
+	invoke<void>('open_crash_file', { instanceName, kind });
 
 export interface GameOutput extends GameLogLine {
 	instanceName: string;

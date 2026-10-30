@@ -2,7 +2,8 @@ use std::future::Future;
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use hexomc_lib::{
-    detect_modpack_format, install_modpack_files, read_cf_manifest, read_mrpack_index,
+    detect_modpack_format, install_modpack_files, read_cf_manifest, read_hmcl_pack,
+    read_mcbbs_manifest, read_mrpack_index,
     resolve_forge_version, update_modpack, Browser, CurseForgeClient, HexoError, LoaderType, ManualDownload,
     ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ProgressFn,
 };
@@ -22,6 +23,8 @@ use crate::store::now_secs;
 pub enum PackFormat {
     Modrinth,
     CurseForge,
+    Hmcl,
+    Mcbbs,
     AtLauncher,
     Ftb,
 }
@@ -154,7 +157,7 @@ async fn read_pack_file(path: &Path) -> CmdResult<ModpackPreview> {
     let format = detect_modpack_format(path).await.map_err(|e| match e {
         HexoError::Other(_) => CmdError::new(
             "notModpack",
-            "這不是 Modrinth（.mrpack）或 CurseForge 模組包；「匯出實例」產生的壓縮檔請改用「從壓縮檔匯入」",
+            "這不是 Modrinth（.mrpack）、CurseForge 或 HMCL 模組包；「匯出實例」產生的壓縮檔請改用「從壓縮檔匯入」",
         ),
         other => other.into(),
     })?;
@@ -174,12 +177,37 @@ async fn read_pack_file(path: &Path) -> CmdResult<ModpackPreview> {
             let count = manifest.files.iter().filter(|f| f.required).count();
             ModpackPreview::new(PackFormat::CurseForge, manifest.info()?, count)
         }
+        ModpackFormat::Hmcl => {
+            let info = read_hmcl_pack(path).await?.info()?;
+            let count = count_zip_files(path, "minecraft/").await?.saturating_sub(1);
+            ModpackPreview::new(PackFormat::Hmcl, info, count)
+        }
+        ModpackFormat::Mcbbs => {
+            let info = read_mcbbs_manifest(path).await?.info()?;
+            let count = count_zip_files(path, "overrides/").await?;
+            ModpackPreview::new(PackFormat::Mcbbs, info, count)
+        }
     })
+}
+
+async fn count_zip_files(path: &Path, prefix: &'static str) -> CmdResult<usize> {
+    let path = path.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        let file = std::fs::File::open(&path)?;
+        let archive = zip::ZipArchive::new(std::io::BufReader::new(file))
+            .map_err(|e| CmdError::new("zip", e.to_string()))?;
+        Ok(archive
+            .file_names()
+            .filter(|n| n.starts_with(prefix) && !n.ends_with('/'))
+            .count())
+    })
+    .await
+    .map_err(|e| CmdError::launcher(e.to_string()))?
 }
 
 /// 就地把既有實例換成另一個版本的模組包。
 ///
-/// 只支援 Modrinth（.mrpack）與 CurseForge 壓縮檔；ATLauncher / FTB 的線上包沒有這種
+/// 只支援 Modrinth（.mrpack）、CurseForge 與 HMCL 壓縮檔；ATLauncher / FTB 的線上包沒有這種
 /// 本機檔案，lib 也沒有對應的更新入口。
 #[tauri::command]
 pub async fn update_modpack_file(

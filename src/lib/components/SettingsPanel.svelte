@@ -16,7 +16,14 @@
 	import PlayerHead from '$lib/PlayerHead.svelte';
 	import WardrobeDialog from './WardrobeDialog.svelte';
 	import * as api from '$lib/api';
-	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
+	import type {
+		AccountView,
+		DeviceCode,
+		JavaCandidate,
+		LauncherConfig,
+		Paths,
+		SchematicSyncReport
+	} from '$lib/api';
 	import type { Page } from '$lib/ui';
 	import {
 		MODES,
@@ -60,6 +67,7 @@
 		{ id: 'minecraft', label: m.settings_page_minecraft(), icon: 'box' },
 		{ id: 'java', label: 'Java', icon: 'coffee' },
 		{ id: 'commands', label: m.settings_page_commands(), icon: 'terminal' },
+		{ id: 'blueprints', label: m.settings_page_blueprints(), icon: 'blocks' },
 		{ id: 'accounts', label: m.settings_page_accounts(), icon: 'user' },
 		{ id: 'apis', label: m.settings_page_apis(), icon: 'key' }
 	];
@@ -227,6 +235,31 @@
 	}
 
 
+	let syncBusy = $state(false);
+	let syncReport = $state<SchematicSyncReport | null>(null);
+	const sharedSchematicsDir = $derived(
+		syncReport?.sharedDir ?? [paths.baseDir, 'schematics'].join(paths.baseDir.includes('\\') ? '\\' : '/')
+	);
+
+	async function setSchematicSync(enabled: boolean) {
+		syncBusy = true;
+		syncReport = null;
+		try {
+			syncReport = await api.setSchematicSync(paths.baseDir, enabled);
+			config.schematics.sync = syncReport.enabled;
+			report(
+				enabled
+					? m.settings_status_schematic_sync_on({ count: syncReport.changed.length })
+					: m.settings_status_schematic_sync_off({ count: syncReport.changed.length })
+			);
+		} catch (e) {
+			config.schematics.sync = !enabled;
+			report(m.settings_status_schematic_sync_failed({ message: api.errorMessage(e) }));
+		} finally {
+			syncBusy = false;
+		}
+	}
+
 	async function browseFolder(current: string): Promise<string | null> {
 		try {
 			const { open } = await import('@tauri-apps/plugin-dialog');
@@ -368,6 +401,35 @@
 						</Button>
 					{/if}
 				</div>
+			</Group>
+
+			<Group title={m.settings_download()}>
+				<Field label={m.settings_download_source()} for="download-source">
+					<Select
+						id="download-source"
+						style="width:260px"
+						bind:value={config.download.source}
+						onchange={() => save(true)}
+					>
+						<option value="official">{m.settings_download_official()}</option>
+						<option value="bmclapi">{m.settings_download_bmclapi()}</option>
+						<option value="custom">{m.settings_download_custom()}</option>
+					</Select>
+				</Field>
+				{#if config.download.source === 'custom'}
+					<Field label={m.settings_download_custom_url()} for="download-custom-url">
+						<TextInput
+							id="download-custom-url"
+							placeholder="https://mirror.example.com"
+							spellcheck={false}
+							bind:value={config.download.customUrl}
+							onchange={() => save(true)}
+						/>
+					</Field>
+				{/if}
+				<p class="px-0.5 pb-1 leading-[1.7] text-faint">
+					{config.download.source === 'custom' ? m.settings_download_custom_hint() : m.settings_download_hint()}
+				</p>
 			</Group>
 
 			<Group title={m.settings_launcher_store()}>
@@ -671,6 +733,45 @@
 					<code class="rounded-sm border border-line bg-deep px-1 py-px font-mono">{name}</code>
 				{/each}
 			</p>
+
+		{:else if page === 'blueprints'}
+			<Group title={m.settings_schematic_sync()}>
+				<Switch
+					label={m.settings_schematic_sync_enable()}
+					disabled={syncBusy}
+					bind:checked={config.schematics.sync}
+					onchange={setSchematicSync}
+				/>
+				<p class="px-0.5 pb-1 leading-[1.7] text-faint">{m.settings_schematic_sync_hint()}</p>
+				<Field label={m.settings_schematic_sync_dir()} for="schematic-dir">
+					<TextInput id="schematic-dir" value={sharedSchematicsDir} readonly />
+				</Field>
+				{#if syncBusy}
+					<p class="px-0.5 py-1 text-muted">{m.settings_schematic_sync_busy()}</p>
+				{/if}
+				{#if syncReport}
+					<div class="flex flex-col gap-1 px-0.5 py-1 leading-[1.7] text-muted">
+						{#if syncReport.renamed > 0}
+							<p>{m.settings_schematic_sync_renamed({ count: syncReport.renamed })}</p>
+						{/if}
+						{#if syncReport.pending.length > 0}
+							<p>
+								{m.settings_schematic_sync_pending({
+									names: syncReport.pending.join(m.common_list_separator())
+								})}
+							</p>
+						{/if}
+						{#each syncReport.failed as failure (failure.instance)}
+							<p class="text-danger">
+								{m.settings_schematic_sync_instance_failed({
+									name: failure.instance,
+									message: failure.message
+								})}
+							</p>
+						{/each}
+					</div>
+				{/if}
+			</Group>
 
 		{:else if page === 'accounts'}
 			<div class="flex min-h-0 flex-1 gap-2.25">

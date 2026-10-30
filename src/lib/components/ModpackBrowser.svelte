@@ -7,6 +7,7 @@
 	import * as api from '$lib/api';
 	import type { ContentDetail, ModpackPlatform, ModpackSort, PackHit, RemoteVersion } from '$lib/api';
 	import { formatCount, formatDate } from '$lib/format';
+	import { releaseVersions, withCurrent } from '$lib/versions';
 	import { m } from '$lib/paraglide/messages.js';
 
 
@@ -53,6 +54,8 @@
 	let query = $state('');
 	let sort = $state<ModpackSort>('relevance');
 	let mcVersion = $state('');
+	let mcVersions = $state<string[]>([]);
+	releaseVersions().then((list) => (mcVersions = list)).catch(() => {});
 
 	let hits = $state<PackHit[]>([]);
 	let total = $state(0);
@@ -172,7 +175,12 @@
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
 	<div class="flex shrink-0 gap-1.75">
 		<TextInput class="min-w-0 flex-1" bind:value={query} oninput={searchSoon} onkeydown={(e) => e.key === 'Enter' && search()} placeholder={m.modpack_search()} aria-label={m.modpack_search()} />
-		<TextInput class="w-24" bind:value={mcVersion} onchange={() => search()} placeholder={m.modpack_mc_version()} aria-label={m.modpack_mc_version_aria()} />
+		<Select class="w-28" bind:value={mcVersion} onchange={() => search()} aria-label={m.modpack_mc_version_aria()}>
+			<option value="">{m.modpack_all_versions()}</option>
+			{#each withCurrent(mcVersions, mcVersion) as v (v)}
+				<option value={v}>{v}</option>
+			{/each}
+		</Select>
 		<Select class="w-26" bind:value={sort} onchange={() => search()} aria-label={m.common_sort()}>
 			{#each sorts as s (s.id)}
 				<option value={s.id}>{s.label}</option>

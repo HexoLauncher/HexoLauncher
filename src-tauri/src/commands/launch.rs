@@ -76,6 +76,7 @@ pub struct GameExit {
     pub instance_name: String,
     pub exit_code: Option<i32>,
     pub seconds: u64,
+    pub crashed: bool,
 }
 
 #[tauri::command]
@@ -101,7 +102,9 @@ pub async fn launch_instance(
     let dir = instance_dir(base, &instance_name)?;
     let config = load_config(base, &instance_name).await?;
 
+    let sync_guard = state.schematic_sync.lock().await;
     let launcher = LauncherConfig::load().await?;
+    let _ = super::schematic_sync::apply(base, &instance_name, launcher.schematics.sync).await;
     let meta = InstanceMeta::load(&dir, &instance_name).await?;
     let local = LocalStore::load().await?.get(base, &instance_name);
     let account = accounts::resolve(account_id.as_deref()).await?;
@@ -147,7 +150,9 @@ pub async fn launch_instance(
         player_name: player_name.clone(),
         online,
     };
+    let info_started_at = info.started_at;
     state.add_running(process, info.clone())?;
+    drop(sync_guard);
 
     let _ = app.emit(EVENT_GAME_START, info);
 
@@ -158,6 +163,7 @@ pub async fn launch_instance(
         app,
         Watch {
             instance_name: instance_name.clone(),
+            started_at: info_started_at,
             base_dir: base.to_path_buf(),
             record_play_time: launcher.game.record_play_time,
             post_exit: commands.1,
@@ -333,6 +339,7 @@ fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
 
 struct Watch {
     instance_name: String,
+    started_at: u64,
     base_dir: PathBuf,
     record_play_time: bool,
     post_exit: String,
@@ -356,12 +363,30 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
             record_play(&watch.base_dir, &watch.instance_name, ended.seconds, false).await;
         }
 
+        let crash = if ended.killed {
+            None
+        } else {
+            let state = app.state::<AppState>();
+            super::crash::analyze(
+                &state,
+                &watch.base_dir,
+                &watch.instance_name,
+                watch.started_at,
+                ended.exit_code,
+            )
+            .await
+        };
+        let crashed = crash.is_some();
+        let _ = app.state::<AppState>().set_crash(&watch.instance_name, crash);
+        super::schematic_sync::sync_after_exit(&app.state::<AppState>(), &watch.base_dir, &watch.instance_name).await;
+
         let _ = app.emit(
             EVENT_GAME_EXIT,
             GameExit {
                 instance_name: watch.instance_name.clone(),
                 exit_code: ended.exit_code,
                 seconds: ended.seconds,
+                crashed,
             },
         );
         let _ = app.emit(super::instance::EVENT_INSTANCES_CHANGED, ());

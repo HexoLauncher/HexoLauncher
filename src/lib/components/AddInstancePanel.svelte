@@ -55,6 +55,8 @@
 	const FORMAT_LABELS: Record<api.ModpackFormat, string> = {
 		modrinth: 'Modrinth',
 		curseforge: 'CurseForge',
+		hmcl: 'HMCL',
+		mcbbs: 'HMCL (MCBBS)',
 		atlauncher: 'ATLauncher',
 		ftb: 'FTB'
 	};

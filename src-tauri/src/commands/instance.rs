@@ -360,6 +360,12 @@ pub async fn delete_instance(
             super::foreign::unlink(&mc).await?;
         }
     }
+    let schematics = mc.join("schematics");
+    if let Ok(meta) = tokio::fs::symlink_metadata(&schematics).await {
+        if super::foreign::is_link(&meta) {
+            super::foreign::unlink(&schematics).await?;
+        }
+    }
     tokio::fs::remove_dir_all(&dir).await?;
 
     let mut local = LocalStore::load().await?;

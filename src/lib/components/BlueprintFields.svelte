@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { Field, TextInput, Textarea } from '$lib/ui';
+	import { Field, Select, TextInput, Textarea } from '$lib/ui';
 	import { hub, instanceVersions, isRelease } from '$lib/blueprints.svelte';
 	import { app } from '$lib/state.svelte';
+	import { releaseVersions, withCurrent } from '$lib/versions';
 	import { m } from '$lib/paraglide/messages.js';
 
 	const MAX_TAGS = 5;
@@ -24,7 +25,12 @@
 		minPlaceholder?: string;
 	} = $props();
 
-	const versions = $derived(instanceVersions(app.instances));
+	let releases = $state<string[]>([]);
+	releaseVersions().then((list) => (releases = list)).catch(() => {});
+
+	const versions = $derived(
+		withCurrent(releases.length ? releases : instanceVersions(app.instances), mcVersionMin, mcVersionMax)
+	);
 
 	function toggle(slug: string) {
 		if (tags.includes(slug)) tags = tags.filter((t) => t !== slug);
@@ -71,26 +77,18 @@
 
 <Field label={m.blueprint_versions()} for="bp-min">
 	<div class="flex items-center gap-2">
-		<TextInput
-			id="bp-min"
-			class="w-28"
-			bind:value={mcVersionMin}
-			list="bp-versions"
-			placeholder={minPlaceholder || m.blueprint_version_min()}
-			aria-label={m.blueprint_version_min()}
-		/>
-		<span class="text-faint">–</span>
-		<TextInput
-			class="w-28"
-			bind:value={mcVersionMax}
-			list="bp-versions"
-			placeholder={m.blueprint_version_no_max()}
-			aria-label={m.blueprint_version_max()}
-		/>
-		<datalist id="bp-versions">
+		<Select id="bp-min" class="w-32" bind:value={mcVersionMin} aria-label={m.blueprint_version_min()}>
+			<option value="">{minPlaceholder || m.blueprint_version_min()}</option>
 			{#each versions as v (v)}
-				<option value={v}></option>
+				<option value={v}>{v}</option>
 			{/each}
-		</datalist>
+		</Select>
+		<span class="text-faint">–</span>
+		<Select class="w-32" bind:value={mcVersionMax} aria-label={m.blueprint_version_max()}>
+			<option value="">{m.blueprint_version_no_max()}</option>
+			{#each versions as v (v)}
+				<option value={v}>{v}</option>
+			{/each}
+		</Select>
 	</div>
 </Field>

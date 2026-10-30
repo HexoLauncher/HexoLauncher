@@ -36,10 +36,11 @@
 				refreshRunning();
 				const name = app.instances.find((i) => i.id === exit.instanceName)?.name ?? exit.instanceName;
 				report(
-					exit.exitCode === 0 || exit.exitCode === null
-						? m.status_game_exited({ name })
-						: m.status_game_crashed({ name, code: exit.exitCode })
+					exit.crashed
+						? m.status_game_crashed({ name, code: exit.exitCode ?? '?' })
+						: m.status_game_exited({ name })
 				);
+				if (exit.crashed) openAppWindow(windowSpecs.crash(exit.instanceName, name));
 			})
 		);
 

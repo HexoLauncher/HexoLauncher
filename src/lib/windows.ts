@@ -20,6 +20,12 @@ export const windowSpecs = {
 		width: 760,
 		height: 560
 	}),
+	crash: (id: string, name: string): WindowSpec => ({
+		path: `/crash/${encodeURIComponent(id)}`,
+		title: m.window_crash({ name }),
+		width: 760,
+		height: 600
+	}),
 	newInstance: (): WindowSpec => ({
 		path: '/new-instance',
 		title: m.window_new_instance(),

@@ -8,7 +8,6 @@
 
 	let baseDir = $state('');
 	let groups = $state<string[]>([]);
-	let created = $state<string | null>(null);
 	let error = $state('');
 
 	async function load() {
@@ -30,13 +29,7 @@
 
 <svelte:head><title>{m.window_new_instance_title()}</title></svelte:head>
 
-{#if created}
-	<div class="flex h-full flex-col items-center justify-center gap-3 text-muted">
-		<h2 class="text-[17px] font-semibold text-ink">{m.add_created_title({ name: created })}</h2>
-		<p>{m.add_created_desc()}</p>
-		<Button variant="primary" onclick={closeSelf}>{m.common_close_window()}</Button>
-	</div>
-{:else if error}
+{#if error}
 	<div class="flex h-full flex-col items-center justify-center gap-3 text-muted">
 		<h2 class="text-[17px] font-semibold text-ink">{m.error_load_config()}</h2>
 		<p>{error}</p>
@@ -47,6 +40,6 @@
 		{baseDir}
 		{groups}
 		onclose={closeSelf}
-		oncreated={(instance) => (created = instance.name)}
+		oncreated={closeSelf}
 	/>
 {/if}

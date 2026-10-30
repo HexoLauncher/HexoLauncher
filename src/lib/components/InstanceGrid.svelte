@@ -176,12 +176,12 @@
 								</span>
 
 								<span
-									class="line-clamp-2 min-h-[2.7em] wrap-break-word text-center font-medium leading-[1.35]
+									class="line-clamp-2 min-h-[2.7em] w-full wrap-anywhere text-center font-medium leading-[1.35]
 										{selectedId === item.id ? 'text-brand-fg' : ''}"
 								>
 									{item.name}
 								</span>
-								<span class="text-[11.5px] text-faint">{item.versionId || m.common_dash()}</span>
+								<span class="w-full truncate text-center text-[11.5px] text-faint">{item.versionId || m.common_dash()}</span>
 							</button>
 
 						</div>

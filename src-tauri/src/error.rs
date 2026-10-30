@@ -45,6 +45,7 @@ impl From<HexoError> for CmdError {
                 )
             }
             HexoError::InvalidId(id) => return Self::launcher(format!("ID 不合法: {:?}", id)),
+            HexoError::InvalidMirrorUrl(url) => return Self::launcher(format!("鏡像網址無效: {}", url)),
             HexoError::MissingApiKey => {
                 return Self::new(
                     "curseforgeKeyMissing",

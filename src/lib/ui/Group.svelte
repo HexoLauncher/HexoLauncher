@@ -19,7 +19,7 @@
 	} = $props();
 </script>
 
-<div class="relative mt-4 rounded-lg border border-line bg-group px-3.5 pt-3.5 pb-3 {klass}">
+<div class="relative mt-4 rounded-lg border border-line bg-group shadow-group px-3.5 pt-3.5 pb-3 {klass}">
 	{#if title || header}
 		<span class="mb-2.5 flex items-center gap-[9px] font-semibold text-ink">
 			{#if icon}

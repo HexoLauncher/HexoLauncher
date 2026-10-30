@@ -1,10 +1,12 @@
 use std::path::{Path, PathBuf};
 
+use hexomc_lib::DownloadSource;
 use serde::{Deserialize, Serialize};
 
 use super::{read_json, store_file, write_json};
 use crate::commands::path_string;
 use crate::error::{CmdError, CmdResult};
+use crate::state::AppState;
 
 const FILE: &str = "launcher.json";
 const FORMAT_VERSION: u32 = 1;
@@ -20,6 +22,8 @@ pub struct LauncherConfig {
     pub java: JavaConfig,
     pub commands: CommandsConfig,
     pub api: ApiConfig,
+    pub schematics: SchematicsConfig,
+    pub download: DownloadConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -91,6 +95,40 @@ pub struct ApiConfig {
     pub curseforge_api_key: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DownloadConfig {
+    pub source: DownloadKind,
+    pub custom_url: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DownloadKind {
+    #[default]
+    Official,
+    Bmclapi,
+    Custom,
+}
+
+impl DownloadConfig {
+    pub fn to_source(&self) -> CmdResult<DownloadSource> {
+        match self.source {
+            DownloadKind::Official => Ok(DownloadSource::Official),
+            DownloadKind::Bmclapi => Ok(DownloadSource::Bmclapi),
+            DownloadKind::Custom if self.custom_url.trim().is_empty() => Ok(DownloadSource::Official),
+            DownloadKind::Custom => DownloadSource::custom(&self.custom_url)
+                .map_err(|_| CmdError::launcher(format!("鏡像網址無效: {}", self.custom_url.trim()))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SchematicsConfig {
+    pub sync: bool,
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         Self {
@@ -102,6 +140,8 @@ impl Default for LauncherConfig {
             java: JavaConfig::default(),
             commands: CommandsConfig::default(),
             api: ApiConfig::default(),
+            schematics: SchematicsConfig::default(),
+            download: DownloadConfig::default(),
         }
     }
 }
@@ -210,10 +250,19 @@ pub async fn get_launcher_config() -> CmdResult<LauncherConfig> {
 }
 
 #[tauri::command]
-pub async fn save_launcher_config(config: LauncherConfig) -> CmdResult<LauncherConfig> {
+pub async fn save_launcher_config(
+    state: tauri::State<'_, AppState>,
+    config: LauncherConfig,
+) -> CmdResult<LauncherConfig> {
     let mut config = config;
     config.format_version = FORMAT_VERSION;
-    config.save().await?;
+    let source = config.download.to_source()?;
+    {
+        let _sync = state.schematic_sync.lock().await;
+        config.schematics = LauncherConfig::load().await?.schematics;
+        config.save().await?;
+    }
+    hexomc_lib::set_download_source(source);
 
     if let Ok(base) = config.base_dir() {
         let _ = prepare(&base).await;

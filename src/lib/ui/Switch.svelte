@@ -36,10 +36,9 @@
 			disabled:opacity-45"
 	>
 		<span
-			class="absolute top-0.75 left-0.75 h-3.5 w-3.5 rounded-full bg-muted
-				transition-[transform,background-color] duration-150"
-			class:translate-x-4={checked}
-			class:bg-brand-ink={checked}
+			class="absolute top-0.75 left-0.75 h-3.5 w-3.5 rounded-full
+				transition-[transform,background-color] duration-150
+				{checked ? 'translate-x-4 bg-knob-on' : 'bg-muted'}"
 		></span>
 	</button>
 	<span class="min-w-0">{label}</span>

@@ -8,6 +8,7 @@
 	import { formatCount } from '$lib/format';
 	import { hub, instanceVersions } from '$lib/blueprints.svelte';
 	import { app } from '$lib/state.svelte';
+	import { releaseVersions, withCurrent } from '$lib/versions';
 	import { m } from '$lib/paraglide/messages.js';
 
 	/** owner 有值時只列這個人的藍圖（我的上傳）。 */
@@ -30,7 +31,9 @@
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let seq = 0;
 
-	const versions = $derived(instanceVersions(app.instances));
+	let releases = $state<string[]>([]);
+	releaseVersions().then((list) => (releases = list)).catch(() => {});
+	const versions = $derived(withCurrent(releases.length ? releases : instanceVersions(app.instances), version));
 	const hasMore = $derived(items.length < total);
 
 	onMount(() => {

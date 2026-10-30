@@ -6,6 +6,7 @@ use hexomc_lib::auth::microsoft::MsDeviceCodeResponse;
 use hexomc_lib::{GameProcess, ModUpdate};
 use serde::Serialize;
 
+use crate::commands::crash::CrashAnalysis;
 use crate::error::CmdError;
 
 const MAX_LOG_LINES: usize = 10_000;
@@ -14,6 +15,7 @@ struct RunningGame {
     process: GameProcess,
     started: Instant,
     info: RunningInfo,
+    killed: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -46,12 +48,15 @@ pub struct AppState {
     logs: Mutex<HashMap<String, LogBuffer>>,
     login_sessions: Mutex<HashMap<String, MsDeviceCodeResponse>>,
     mod_updates: Mutex<HashMap<String, ModUpdate>>,
+    pub schematic_sync: tokio::sync::Mutex<()>,
+    crashes: Mutex<HashMap<String, CrashAnalysis>>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct GameEnded {
     pub exit_code: Option<i32>,
     pub seconds: u64,
+    pub killed: bool,
 }
 
 fn poisoned(what: &str) -> CmdError {
@@ -67,6 +72,7 @@ impl AppState {
                 process,
                 started: Instant::now(),
                 info,
+                killed: false,
             },
         );
         Ok(())
@@ -90,12 +96,14 @@ impl AppState {
         };
 
         let seconds = game.started.elapsed().as_secs();
+        let killed = game.killed;
         match game.process.try_wait() {
             Ok(Some(status)) => {
                 map.remove(instance_name);
                 Ok(Some(GameEnded {
                     exit_code: status.code(),
                     seconds,
+                    killed,
                 }))
             }
             Ok(None) => Ok(None),
@@ -104,6 +112,7 @@ impl AppState {
                 Ok(Some(GameEnded {
                     exit_code: None,
                     seconds,
+                    killed,
                 }))
             }
         }
@@ -113,6 +122,7 @@ impl AppState {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
         match map.get_mut(instance_name) {
             Some(game) => {
+                game.killed = true;
                 let _ = game.process.child_mut().start_kill();
                 Ok(true)
             }
@@ -201,6 +211,24 @@ impl AppState {
             .lock()
             .map_err(|_| poisoned("modUpdates"))?;
         Ok(map.get(id).cloned())
+    }
+
+    pub fn set_crash(
+        &self,
+        instance_name: &str,
+        crash: Option<CrashAnalysis>,
+    ) -> Result<(), CmdError> {
+        let mut map = self.crashes.lock().map_err(|_| poisoned("crashes"))?;
+        match crash {
+            Some(crash) => map.insert(instance_name.to_string(), crash),
+            None => map.remove(instance_name),
+        };
+        Ok(())
+    }
+
+    pub fn crash(&self, instance_name: &str) -> Result<Option<CrashAnalysis>, CmdError> {
+        let map = self.crashes.lock().map_err(|_| poisoned("crashes"))?;
+        Ok(map.get(instance_name).cloned())
     }
 
     pub fn remove_mod_update(&self, id: &str) -> Result<(), CmdError> {

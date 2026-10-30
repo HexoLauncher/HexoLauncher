@@ -36,7 +36,9 @@ export function defaultConfig(): LauncherConfig {
 		},
 		java: { path: '' },
 		commands: { preLaunch: '', postExit: '' },
-		api: { curseforgeApiKey: '' }
+		api: { curseforgeApiKey: '' },
+		schematics: { sync: false },
+		download: { source: 'official', customUrl: '' }
 	};
 }
 

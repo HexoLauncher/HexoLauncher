@@ -34,6 +34,7 @@
 	--color-brand-soft-hi: rgb(229 52 63 / 0.22);
 	--color-brand-line: rgb(229 52 63 / 0.42);
 	--color-brand-ink: #fdf1f2;
+	--color-knob-on: #0d090b;
 
 	--color-danger: #ff6b6b;
 	--color-danger-hi: #ff8585;
@@ -49,6 +50,7 @@
 	--shadow-sm: 0 1px 3px #0000004d;
 	--shadow-md: 0 6px 20px #00000066;
 	--shadow-lg: 0 24px 64px #000000a6;
+	--shadow-group: none;
 
 	--font-sans: 'Inter', 'Segoe UI', 'Noto Sans TC', 'Microsoft JhengHei', system-ui, sans-serif;
 	--font-mono: Consolas, 'Cascadia Mono', ui-monospace, monospace;
@@ -274,7 +276,7 @@
 	}
 	.app-backdrop > .dim {
 		@apply absolute inset-0;
-		background: rgb(0 0 0 / var(--app-bg-dim, 0));
+		background: rgb(var(--app-bg-dim-color, 0 0 0) / var(--app-bg-dim, 0));
 	}
 
 	.app-shell {

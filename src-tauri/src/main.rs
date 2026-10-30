@@ -16,6 +16,13 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .manage(AppState::default())
         .setup(|app| {
+            if let Ok(config) = tauri::async_runtime::block_on(store::launcher::LauncherConfig::load()) {
+                hexomc_lib::set_download_source(config.download.to_source().unwrap_or_default());
+            }
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                commands::schematic_sync::sync_on_startup(&handle.state::<AppState>()).await;
+            });
             if let Ok(dir) = store::store_dir() {
                 let _ = app.asset_protocol_scope().allow_directory(&dir, false);
             }
@@ -96,6 +103,8 @@ fn main() {
             commands::launch::running_instances,
             commands::launch::game_log,
             commands::launch::clear_game_log,
+            commands::crash::crash_analysis,
+            commands::crash::open_crash_file,
             commands::mods::list_mods,
             commands::mods::mod_details,
             commands::mods::set_mod_enabled,
@@ -136,6 +145,7 @@ fn main() {
             commands::schematic::read_schematic,
             commands::schematic::local_block_assets,
             commands::schematic::pack_block_assets,
+            commands::schematic_sync::set_schematic_sync,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -41,7 +41,7 @@ export const PRESETS: ThemePreset[] = [
 	{ id: 'amethyst', label: m.theme_preset_amethyst(), accent: '#a855f7' }
 ];
 
-const NEUTRAL = { dark: '#16181c', light: '#f5f6f8' };
+const NEUTRAL = { dark: '#16181c', light: '#eceef2' };
 
 export function defaultTheme(): ThemeConfig {
 	return {
@@ -147,6 +147,25 @@ const RAMP = {
 	ink: 0.9
 };
 
+const LIGHT: Record<keyof typeof RAMP, number> = {
+	inputOff: -0.02,
+	row: 0.35,
+	window: 0.55,
+	group: 0.82,
+	btnLo: -0.03,
+	btnOff: -0.025,
+	raised: 0.95,
+	card: 0.9,
+	line: -0.08,
+	btn: -0.05,
+	btnHi: -0.09,
+	lineHi: -0.14,
+	scrollHi: -0.24,
+	faint: 0,
+	muted: 0,
+	ink: 0
+};
+
 export function themeVars(theme: ThemeConfig): Record<string, string> {
 	const accent = parseHex(theme.accent) ?? (parseHex(defaultTheme().accent) as RGB);
 	const dark = isDarkMode(theme.mode);
@@ -155,38 +174,44 @@ export function themeVars(theme: ThemeConfig): Record<string, string> {
 
 	const base = dark
 		? mix(neutral, darken(accent, 0.78), tint * 0.5)
-		: mix(neutral, lighten(accent, 0.6), tint * 0.16);
+		: mix(neutral, lighten(accent, 0.55), tint * 0.22);
 
-	const step = (t: number) => (dark ? lighten(base, t) : darken(base, t * 0.62));
+	const surface = (key: keyof typeof RAMP) => {
+		if (dark) return lighten(base, RAMP[key]);
+		const t = LIGHT[key];
+		return t >= 0 ? lighten(base, t) : darken(base, -t);
+	};
 	const text = (light: number, deep: number) => (dark ? lighten(base, light) : darken(base, deep));
 
-	const alpha = theme.background ? clamp(theme.opacity ?? 1, 0.25, 1) : 1;
+	const opacity = theme.background ? clamp(theme.opacity ?? 1, 0.25, 1) : 1;
+	const alpha = dark ? opacity : 1 - (1 - opacity) * 0.6;
 
 	const brandInk =
 		luminance(accent) > 0.35 ? darken(accent, 0.9) : mix([255, 255, 255], accent, 0.07);
 
 	const blur = clamp(theme.backgroundBlur ?? 0, 0, 40);
+	const dim = clamp(theme.backgroundDim ?? 0, 0, 0.9);
 
 	return {
 		'--color-backdrop': css(base),
-		'--color-shell': theme.background ? 'transparent' : css(step(RAMP.window)),
+		'--color-shell': theme.background ? 'transparent' : css(surface('window')),
 
 		'--color-deep': css(base, alpha),
-		'--color-window': css(step(RAMP.window), alpha),
-		'--color-row': css(step(RAMP.row), alpha),
+		'--color-window': css(surface('window'), alpha),
+		'--color-row': css(surface('row'), alpha),
 
-		'--color-group': css(step(RAMP.group)),
-		'--color-input-off': css(step(RAMP.inputOff)),
-		'--color-raised': css(step(RAMP.raised)),
-		'--color-card': css(step(RAMP.card)),
-		'--color-btn': css(step(RAMP.btn)),
-		'--color-btn-hi': css(step(RAMP.btnHi)),
-		'--color-btn-lo': css(step(RAMP.btnLo)),
-		'--color-btn-off': css(step(RAMP.btnOff)),
-		'--color-line': css(step(RAMP.line)),
-		'--color-line-hi': css(step(RAMP.lineHi)),
-		'--color-scroll-hi': css(step(RAMP.scrollHi)),
-		'--color-scrim': css(darken(base, 0.6), 0.6),
+		'--color-group': css(surface('group')),
+		'--color-input-off': css(surface('inputOff')),
+		'--color-raised': css(surface('raised')),
+		'--color-card': css(surface('card')),
+		'--color-btn': css(surface('btn')),
+		'--color-btn-hi': css(surface('btnHi')),
+		'--color-btn-lo': css(surface('btnLo')),
+		'--color-btn-off': css(surface('btnOff')),
+		'--color-line': css(surface('line')),
+		'--color-line-hi': css(surface('lineHi')),
+		'--color-scroll-hi': css(surface('scrollHi')),
+		'--color-scrim': dark ? css(darken(base, 0.6), 0.6) : css(darken(base, 0.45), 0.35),
 
 		'--color-ink': css(text(RAMP.ink, 0.88)),
 
@@ -203,13 +228,26 @@ export function themeVars(theme: ThemeConfig): Record<string, string> {
 		'--color-brand-soft-hi': css(accent, dark ? 0.22 : 0.18),
 		'--color-brand-line': css(accent, 0.42),
 		'--color-brand-ink': css(brandInk),
+		'--color-knob-on': dark ? css(darken(base, 0.55)) : '#ffffff',
+
+		'--color-danger': dark ? '#ff6b6b' : '#d33a3a',
+		'--color-danger-hi': dark ? '#ff8585' : '#bd2f2f',
+		'--color-danger-soft': dark ? '#ff6b6b24' : '#d33a3a1f',
+		'--color-danger-ink': dark ? '#2a0b0b' : '#ffffff',
+		'--color-warn': dark ? '#ffa347' : '#e8890c',
+
+		'--shadow-sm': dark ? '0 1px 3px #0000004d' : '0 1px 3px rgb(0 0 0 / 0.1)',
+		'--shadow-md': dark ? '0 6px 20px #00000066' : '0 6px 20px rgb(0 0 0 / 0.12)',
+		'--shadow-group': dark ? 'none' : '0 1px 2px rgb(0 0 0 / 0.04), 0 4px 14px rgb(0 0 0 / 0.04)',
+		'--shadow-lg': dark ? '0 24px 64px #000000a6' : '0 24px 64px rgb(0 0 0 / 0.2)',
 
 		'--app-color-scheme': dark ? 'dark' : 'light',
 
 		'--app-bg-blur': `${blur}px`,
 
 		'--app-bg-scale': String(Math.round((1 + (blur / 100) * 1.2) * 1000) / 1000),
-		'--app-bg-dim': `${clamp(theme.backgroundDim ?? 0, 0, 0.9)}`
+		'--app-bg-dim': `${dark ? dim : Math.round((0.3 + dim * 0.6) * 1000) / 1000}`,
+		'--app-bg-dim-color': dark ? '0 0 0' : '255 255 255'
 	};
 }
 
