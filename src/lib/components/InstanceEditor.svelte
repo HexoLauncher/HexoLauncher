@@ -1362,7 +1362,6 @@
 {#if versionDialog}
 	<Dialog title={m.editor_change_version_title()} width="720px" height="560px" onclose={() => (versionDialog = null)}>
 		<div class="flex min-h-0 flex-1 flex-col gap-3 px-4.5 py-4">
-			<p class="shrink-0 text-muted">{m.editor_change_version_desc()}</p>
 			<VersionPicker
 				bind:mcVersion={versionDialog.mcVersion}
 				bind:loader={versionDialog.loader}

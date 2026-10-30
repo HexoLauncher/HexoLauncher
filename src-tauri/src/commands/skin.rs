@@ -40,7 +40,7 @@ struct Texture {
     url: String,
 }
 
-fn cache_path(uuid: &str) -> CmdResult<PathBuf> {
+pub(super) fn cache_path(uuid: &str) -> CmdResult<PathBuf> {
     Ok(store_dir()?.join("skins").join(format!("{}.png", uuid)))
 }
 

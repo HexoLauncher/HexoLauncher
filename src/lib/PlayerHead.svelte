@@ -1,9 +1,16 @@
 <script lang="ts" module>
+	import * as api from '$lib/api';
+
 	const skins = new Map<string, Promise<string | null>>();
+	const generation = $state({ n: 0 });
+
+	export function refreshPlayerHead(uuid: string, image?: string) {
+		skins.set(uuid, image ? Promise.resolve(image) : api.playerSkin(uuid).catch(() => null));
+		generation.n++;
+	}
 </script>
 
 <script lang="ts">
-	import * as api from '$lib/api';
 	import type { AccountView } from '$lib/api';
 	import STEVE from '$lib/assets/steve.png';
 
@@ -13,6 +20,7 @@
 
 	$effect(() => {
 		const uuid = account?.kind === 'microsoft' ? account.uuid : '';
+		void generation.n;
 		skin = STEVE;
 		if (!uuid) return;
 

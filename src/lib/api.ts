@@ -244,6 +244,43 @@ export const setInstanceIconImage = (baseDir: string, instanceName: string, path
 
 export const playerSkin = (uuid: string) => invoke<string | null>('player_skin', { uuid });
 
+export type SkinVariant = 'classic' | 'slim';
+
+export interface WardrobeSkin {
+	id: string;
+	name: string;
+	variant: SkinVariant;
+	legacy: boolean;
+	image: string;
+	sha256: string;
+}
+
+export interface SkinProfile {
+	skin: { variant: SkinVariant; legacy: boolean; image: string; sha256: string } | null;
+	capes: { id: string; alias: string; active: boolean; image: string }[];
+}
+
+export const wardrobeList = () => invoke<WardrobeSkin[]>('wardrobe_list');
+
+export const wardrobeAdd = (path: string, name: string, variant: SkinVariant) =>
+	invoke<WardrobeSkin[]>('wardrobe_add', { path, name, variant });
+
+export const wardrobeUpdate = (id: string, name: string, variant: SkinVariant) =>
+	invoke<WardrobeSkin[]>('wardrobe_update', { id, name, variant });
+
+export const wardrobeRemove = (id: string) => invoke<WardrobeSkin[]>('wardrobe_remove', { id });
+
+export const wardrobeSaveCurrent = (accountId: string, name: string) =>
+	invoke<WardrobeSkin[]>('wardrobe_save_current', { accountId, name });
+
+export const wardrobeApply = (accountId: string, id: string) =>
+	invoke<SkinProfile>('wardrobe_apply', { accountId, id });
+
+export const skinProfile = (accountId: string) => invoke<SkinProfile>('skin_profile', { accountId });
+
+export const setCape = (accountId: string, capeId: string | null) =>
+	invoke<SkinProfile>('set_cape', { accountId, capeId });
+
 export const openInstanceFolder = (
 	baseDir: string,
 	instanceName: string,

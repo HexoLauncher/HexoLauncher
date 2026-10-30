@@ -17,6 +17,7 @@ pub mod schematic;
 pub mod skin;
 pub mod theme;
 pub mod version;
+pub mod wardrobe;
 
 use std::path::{Component, Path, PathBuf};
 

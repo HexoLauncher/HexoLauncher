@@ -14,6 +14,7 @@
 	import Switch from '$lib/ui/Switch.svelte';
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import PlayerHead from '$lib/PlayerHead.svelte';
+	import WardrobeDialog from './WardrobeDialog.svelte';
 	import * as api from '$lib/api';
 	import type { AccountView, DeviceCode, JavaCandidate, LauncherConfig, Paths } from '$lib/api';
 	import type { Page } from '$lib/ui';
@@ -156,6 +157,8 @@
 	let login = $state<DeviceCode | null>(null);
 	let loginError = $state('');
 	let offlineDialog = $state<string | null>(null);
+	let wardrobeAccount = $state<AccountView | null>(null);
+	const selectedAccount = $derived(accounts.find((a) => a.id === selectedAccountId) ?? null);
 
 	$effect(() => {
 		if (page === 'java' && !javaLoaded) {
@@ -714,6 +717,14 @@
 					<Button disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction(m.settings_status_account_refreshed(), () => api.refreshAccount(selectedAccountId!))}>
 						{m.common_refresh()}
 					</Button>
+					<Button
+						icon="shirt"
+						disabled={selectedAccount?.kind !== 'microsoft'}
+						title={selectedAccount?.kind === 'offline' ? m.wardrobe_offline_hint() : undefined}
+						onclick={() => (wardrobeAccount = selectedAccount)}
+					>
+						{m.wardrobe_open()}
+					</Button>
 					<Button variant="destructive" disabled={!selectedAccountId} onclick={() => selectedAccountId && accountAction(m.settings_status_account_removed(), () => api.removeAccount(selectedAccountId!))}>
 						{m.common_remove()}
 					</Button>
@@ -760,6 +771,10 @@
 			<Button variant="primary" onclick={() => (loginError = '')}>{m.common_close()}</Button>
 		{/snippet}
 	</Dialog>
+{/if}
+
+{#if wardrobeAccount}
+	<WardrobeDialog account={wardrobeAccount} {report} onclose={() => (wardrobeAccount = null)} />
 {/if}
 
 {#if offlineDialog !== null}

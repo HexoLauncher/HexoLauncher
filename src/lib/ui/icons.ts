@@ -10,6 +10,7 @@ import LuChevronUp from '~icons/lucide/chevron-up';
 import LuClock from '~icons/lucide/clock';
 import LuCoffee from '~icons/lucide/coffee';
 import LuCopy from '~icons/lucide/copy';
+import LuShirt from '~icons/lucide/shirt';
 import LuDownload from '~icons/lucide/download';
 import LuExternalLink from '~icons/lucide/external-link';
 import LuEye from '~icons/lucide/eye';
@@ -93,6 +94,7 @@ export const ICONS: Record<string, Component> = {
 	key: LuKey,
 	palette: LuPalette,
 	user: LuUser,
+	shirt: LuShirt,
 	clock: LuClock,
 	rss: LuRss,
 	megaphone: LuMegaphone,
