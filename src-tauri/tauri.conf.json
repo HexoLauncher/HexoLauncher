@@ -72,7 +72,7 @@
 	},
 	"plugins": {
 		"updater": {
-			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE2RTE5NkU1OEQ4REY2RTkKUldUcDlvMk41WmJocHZHd2w0dW05Rkd6ZG5mUWxvV2ZqY0VzN0NxMDU1Q2pmMkFVcEpjRGMwWFcK",
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgyNjE1OTExN0MwNzdERDMKUldUVGZRZDhFVmxoZ2kva05LMkxDbk9odERuN2FnTm1wUnNnZWVhQkdrYUhxcE50QTdvWndtdWQK",
 			"endpoints": ["https://github.com/HexoLauncher/HexoLauncher/releases/latest/download/latest.json"]
 		}
 	}
