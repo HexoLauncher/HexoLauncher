@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Select, Spinner } from '$lib/ui';
+	import { Progress, Select, Slider, Spinner } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
 	import * as api from '$lib/api';
 	import type { Blueprint, InstanceView, PackEntry } from '$lib/api';
-	import { compareVersions, isRelease } from '$lib/blueprints.svelte';
+	import { isRelease } from '$lib/blueprints.svelte';
 	import {
 		App,
 		VanillaAssets,
@@ -25,11 +25,8 @@
 		compact = false,
 		title = $bindable('')
 	}: {
-		/** 藍圖庫的藍圖（已經拿到資料就直接傳進來，不用再查一次），或本機檔案。 */
 		schematic: { kind: 'remote'; id: string; blueprint?: Blueprint } | { kind: 'local'; path: string };
-		/** 優先用這個實例的材質。 */
 		preferInstance?: string | null;
-		/** 嵌在其他畫面裡：面板預設收起來、窄一點。 */
 		compact?: boolean;
 		title?: string;
 	} = $props();
@@ -48,26 +45,37 @@
 	let baseDir = '';
 	let instances = $state<InstanceView[]>([]);
 	let mojangVersions = $state<string[]>([]);
-	/** `instance:<id>` 用實例的 client jar；`mojang:<版本>` 從 Mojang 下載。 */
 	let source = $state('');
-	let packs = $state<PackEntry[]>([]);
-	let packsFor = '';
-	let enabledPacks = $state<string[]>([]);
+	let packGroups = $state<{ name: string; packs: PackEntry[] }[]>([]);
+	let active = $state<string[]>([]);
+	let picking = $state('');
+	let dragging = $state<string | null>(null);
+	let dragFrom = -1;
+	const rows: Record<string, HTMLElement> = {};
+	let layerCount = $state(0);
+	let layer = $state(0);
+	let time = $state('day');
+	const times = [
+		{ value: 'day', label: () => m.viewer_time_day() },
+		{ value: 'sunset', label: () => m.viewer_time_sunset() },
+		{ value: 'night', label: () => m.viewer_time_night() }
+	];
+	let meshing = $state<number | null>(null);
 
-	/** 切換材質來源時不重新下載。 */
+
 	const vanillaCache: Record<string, VanillaAssets> = {};
 	let applySeq = 0;
 
-	const localInstances = $derived(
-		instances.filter((i) => i.installed && isRelease(i.versionId))
-	);
-	const sourceInstance = $derived(
-		source.startsWith('instance:') ? (instances.find((i) => `instance:${i.id}` === source) ?? null) : null
-	);
+	const allPacks = $derived(packGroups.flatMap((g) => g.packs));
+	const activePacks = $derived(active.map((path) => allPacks.find((p) => p.path === path)).filter((p) => !!p));
 
-	function show(result: string | undefined) {
-		const parsed = parseReport(result);
-		if (parsed) report = parsed;
+	async function show(result: Promise<unknown>) {
+		const parsed = parseReport((await result) as string | null);
+		meshing = null;
+		if (!parsed || !viewer) return;
+		report = parsed;
+		layerCount = viewer.layer_count;
+		if (layer >= layerCount) layer = 0;
 	}
 
 	onMount(() => {
@@ -75,7 +83,7 @@
 		start(() => disposed);
 		return () => {
 			disposed = true;
-			applySeq++; // 讓還在跑的材質載入停下來
+			applySeq++;
 			if (viewer) destroyApp(viewer);
 			viewer = null;
 		};
@@ -84,9 +92,10 @@
 	async function start(disposed: () => boolean) {
 		try {
 			const created = await createApp(canvas!);
-			// 建立期間元件已經卸載了。
+
 			if (disposed()) return destroyApp(created);
 			viewer = created;
+			viewer.set_progress((fraction: number) => (meshing = fraction < 1 ? fraction : null));
 		} catch (e) {
 			fatal = m.viewer_error_gpu({ message: api.errorMessage(e) });
 			working = false;
@@ -94,57 +103,56 @@
 		}
 
 		let suggested: string | null = null;
+		const failed = (e: unknown) => (fatal = m.viewer_error_load({ message: api.errorMessage(e) }));
 		try {
 			baseDir = (await api.resolvePaths()).baseDir;
 			instances = await api.listInstances(baseDir).catch(() => []);
+			loadPacks();
 
 			status = m.viewer_status_reading();
 			if (schematic.kind === 'remote') {
 				const blueprint = schematic.blueprint ?? (await api.blueprintGet(schematic.id));
 				title = blueprint.name;
 				suggested = blueprint.render.mcVersion ?? blueprint.mcVersions.max ?? blueprint.mcVersions.min;
-				// 伺服器已經解析好方塊資料，不用下載整個檔案。
+
 				const data = await api.blueprintPreview(blueprint.id, blueprint.format);
 				if (!viewer) return;
-				show(viewer.load_preview(base64ToBytes(data)));
+				show(viewer.load_preview(base64ToBytes(data))).catch(failed);
 			} else {
 				const path = schematic.path;
 				title = path.split(/[\\/]/).pop() ?? path;
 				suggested = instances.find((i) => i.id === preferInstance)?.versionId ?? null;
 				const data = await api.readSchematic(path);
 				if (!viewer) return;
-				show(viewer.load_schematic(base64ToBytes(data)));
+				show(viewer.load_schematic(base64ToBytes(data))).catch(failed);
 			}
 		} catch (e) {
-			fatal = m.viewer_error_load({ message: api.errorMessage(e) });
+			failed(e);
 			working = false;
 			return;
 		}
 
-		source = pickSource(suggested);
+		const preferred = instances.find((i) => i.id === preferInstance)?.versionId;
+		if (preferred && isRelease(preferred)) suggested = preferred;
+		if (suggested && isRelease(suggested)) source = suggested;
 		minecraftVersions()
 			.then((list) => (mojangVersions = list))
 			.catch(() => {});
-		if (!source) {
-			const latest = await minecraftVersions().catch(() => [] as string[]);
-			source = latest[0] ? `mojang:${latest[0]}` : '';
-		}
+		if (!source) source = (await minecraftVersions().catch(() => [] as string[]))[0] ?? '';
 		await applySource();
 	}
 
-	function pickSource(suggested: string | null): string {
-		const byId = localInstances.find((i) => i.id === preferInstance);
-		if (byId) return `instance:${byId.id}`;
-		if (suggested) {
-			const match = localInstances.find((i) => i.versionId === suggested);
-			if (match) return `instance:${match.id}`;
-			if (isRelease(suggested)) return `mojang:${suggested}`;
-		}
-		const newest = [...localInstances].sort((a, b) => compareVersions(b.versionId, a.versionId))[0];
-		return newest ? `instance:${newest.id}` : '';
+	async function loadPacks() {
+		const groups = await Promise.all(
+			instances.map(async (inst) => ({
+				name: inst.name,
+				packs: await api.listResourcePacks(baseDir, inst.id).catch(() => [] as PackEntry[])
+			}))
+		);
+		packGroups = groups.filter((g) => g.packs.length);
 	}
 
-	async function useMojang(version: string, current: number) {
+	async function vanilla(version: string, current: number) {
 		let assets = vanillaCache[version];
 		if (!assets) {
 			assets = await loadVanilla(version, (msg) => {
@@ -152,50 +160,15 @@
 			});
 			vanillaCache[version] = assets;
 		}
-		if (current !== applySeq || !viewer) return;
-		show(viewer.clear_packs());
-		show(viewer.set_vanilla(assets));
+		return assets;
 	}
 
-	async function applySource() {
-		if (!viewer || !source) return;
+	async function task(job: (viewer: App, current: number) => Promise<void>) {
+		if (!viewer) return;
 		const current = ++applySeq;
 		working = true;
 		try {
-			const inst = sourceInstance;
-			if (!inst) {
-				packs = [];
-				packsFor = '';
-				await useMojang(source.slice('mojang:'.length), current);
-			} else {
-				status = m.viewer_status_local_assets({ version: inst.versionId });
-				const slim = await api.localBlockAssets(baseDir, inst.versionId, inst.id);
-				if (current !== applySeq) return;
-
-				if (packsFor !== inst.id) {
-					packsFor = inst.id;
-					packs = await api.listResourcePacks(baseDir, inst.id).catch(() => []);
-					enabledPacks = [];
-				}
-
-				if (slim) {
-					const bytes = await fetchLocal(slim);
-					if (current !== applySeq) return;
-					show(viewer.clear_packs());
-					show(viewer.add_pack(bytes));
-				} else {
-					status = m.viewer_status_no_local_jar({ version: inst.versionId });
-					await useMojang(inst.versionId, current);
-				}
-
-				// add_pack 會把新的包放在最上層，所以照清單順序由低到高加入。
-				for (const path of packs.map((p) => p.path).filter((p) => enabledPacks.includes(p))) {
-					status = m.viewer_status_pack({ name: packs.find((p) => p.path === path)?.name ?? '' });
-					const packBytes = await fetchLocal(await api.packBlockAssets(path));
-					if (current !== applySeq) return;
-					show(viewer.add_pack(packBytes));
-				}
-			}
+			await job(viewer, current);
 			if (current === applySeq) status = '';
 		} catch (e) {
 			if (current === applySeq) status = m.viewer_error_assets({ message: api.errorMessage(e) });
@@ -204,15 +177,95 @@
 		}
 	}
 
-	function togglePack(path: string) {
-		enabledPacks = enabledPacks.includes(path)
-			? enabledPacks.filter((p) => p !== path)
-			: [...enabledPacks, path];
-		applySource();
+	function packName(path: string) {
+		return allPacks.find((p) => p.path === path)?.name ?? path;
+	}
+
+	async function packBytes(path: string) {
+		status = m.viewer_status_pack({ name: packName(path) });
+		return fetchLocal(await api.packBlockAssets(path));
+	}
+
+	function applySource() {
+		if (!source) return;
+		return task(async (_, current) => {
+			const base = await vanilla(source, current);
+			if (current !== applySeq) return;
+
+
+			const lowestFirst = [...active].reverse();
+			const extra: Uint8Array[] = [];
+			for (const path of lowestFirst) {
+				extra.push(await packBytes(path));
+				if (current !== applySeq) return;
+			}
+			if (!viewer) return;
+
+			viewer.clear_packs();
+			let result = viewer.set_vanilla(base);
+			lowestFirst.forEach((path, i) => {
+				result = viewer!.add_pack(packName(path), extra[i]);
+			});
+			await show(result);
+		});
+	}
+
+	function addPack(path: string) {
+		picking = '';
+		if (!path || active.includes(path)) return;
+		return task(async (_, current) => {
+			const bytes = await packBytes(path);
+			if (current !== applySeq || !viewer) return;
+			active = [path, ...active];
+			await show(viewer.add_pack(packName(path), bytes));
+		});
+	}
+
+	function removePack(path: string) {
+		const index = active.indexOf(path);
+		active = active.filter((p) => p !== path);
+		return task((viewer) => show(viewer.remove_pack(index)));
+	}
+
+	function startDrag(e: PointerEvent, path: string) {
+		if (working || e.button !== 0) return;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		dragging = path;
+		dragFrom = active.indexOf(path);
+	}
+
+	function moveDrag(e: PointerEvent) {
+		if (!dragging) return;
+		const target = active.find((path) => {
+			const rect = rows[path]?.getBoundingClientRect();
+			return rect && e.clientY >= rect.top && e.clientY < rect.bottom;
+		});
+		if (!target || target === dragging) return;
+		const next = active.filter((path) => path !== dragging);
+		next.splice(active.indexOf(target), 0, dragging);
+		active = next;
+	}
+
+	function endDrag() {
+		if (!dragging) return;
+		const to = active.indexOf(dragging);
+		const from = dragFrom;
+		dragging = null;
+		if (to !== from) task((viewer) => show(viewer.move_pack(from, to)));
+	}
+
+	function setLayer(value: number) {
+		layer = value >= layerCount ? 0 : value;
+		viewer?.set_layer(layer || undefined);
+	}
+
+	function setTime(value: string) {
+		time = value;
+		viewer?.set_time(value);
 	}
 </script>
 
-<div class="relative size-full overflow-hidden bg-[#0b0d12]">
+<div class="viewer relative size-full overflow-hidden bg-backdrop text-ink">
 	<canvas
 		bind:this={canvas}
 		class="block size-full touch-none outline-none"
@@ -229,12 +282,60 @@
 		</div>
 	{/if}
 
+	{#if layerCount > 1}
+		<div
+			class="absolute top-3 bottom-16 left-3 flex w-12 flex-col items-center gap-1.5 rounded-xl border border-line bg-window py-3 shadow-lg"
+		>
+			<span class="text-[11px] text-muted">{m.viewer_layers()}</span>
+			<span class="font-semibold tabular-nums">{layer || layerCount}</span>
+			<div class="flex min-h-0 flex-1 py-2">
+				<Slider
+					orientation="vertical"
+					ariaLabel={m.viewer_layers()}
+					min={1}
+					max={layerCount}
+					value={layer || layerCount}
+					onchange={setLayer}
+				/>
+			</div>
+			<span class="text-[11px] text-muted tabular-nums">/ {layerCount}</span>
+		</div>
+	{/if}
+
 	<div
-		class="absolute top-3 left-3 flex max-h-[calc(100%-24px)] flex-col {compact ? 'w-64' : 'w-76'} overflow-hidden rounded-xl border border-line bg-window/92 shadow-lg backdrop-blur-sm"
+		class="absolute bottom-3 left-3 flex gap-0.5 rounded-xl border border-line bg-window p-1 shadow-lg"
+		role="radiogroup"
+		aria-label={m.viewer_lighting()}
+	>
+		{#each times as option (option.value)}
+			<button
+				class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 {time === option.value
+					? 'bg-brand text-brand-ink'
+					: 'text-muted hover:bg-btn-hi hover:text-ink'}"
+				role="radio"
+				aria-checked={time === option.value}
+				disabled={!!fatal}
+				onclick={() => setTime(option.value)}
+			>
+				{#if option.value !== 'sunset'}
+					<Icon name={option.value === 'day' ? 'sun' : 'moon'} size={13} />
+				{/if}
+				{option.label()}
+			</button>
+		{/each}
+	</div>
+
+	<div
+		class="absolute top-3 right-3 flex max-h-[calc(100%-24px)] flex-col {panelOpen
+			? compact
+				? 'w-64'
+				: 'w-76'
+			: 'max-w-64'} overflow-hidden rounded-xl border border-line bg-window shadow-lg"
 	>
 		<header class="flex shrink-0 items-center gap-2 px-3.5 py-2.5">
 			<Icon name="blocks" size={15} />
 			<h1 class="min-w-0 flex-1 truncate font-semibold" title={title}>{title || '…'}</h1>
+			{#if !panelOpen && (working || meshing !== null)}<Spinner />{/if}
 			<button
 				class="grid size-6 place-items-center rounded-md text-muted hover:bg-btn-hi hover:text-ink"
 				aria-label={panelOpen ? m.viewer_collapse() : m.viewer_expand()}
@@ -251,40 +352,74 @@
 					<span class="text-muted">{m.viewer_textures()}</span>
 					<Select bind:value={source} onchange={applySource} disabled={!!fatal}>
 						{#if !source}<option value="">{m.common_loading_versions()}</option>{/if}
-						{#if localInstances.length}
-							<optgroup label={m.viewer_source_instances()}>
-								{#each localInstances as inst (inst.id)}
-									<option value="instance:{inst.id}">{inst.name} ({inst.versionId})</option>
-								{/each}
-							</optgroup>
-						{/if}
-						<optgroup label={m.viewer_source_mojang()}>
-							{#if source.startsWith('mojang:') && !mojangVersions.includes(source.slice(7))}
-								<option value={source}>{source.slice(7)}</option>
-							{/if}
-							{#each mojangVersions as v (v)}
-								<option value="mojang:{v}">{v}</option>
-							{/each}
-						</optgroup>
+						{#if source && !mojangVersions.includes(source)}<option value={source}>{source}</option>{/if}
+						{#each mojangVersions as v (v)}
+							<option value={v}>{v}</option>
+						{/each}
 					</Select>
 				</label>
 
-				{#if sourceInstance}
-					<div class="flex flex-col gap-1.5">
-						<span class="text-muted">{m.viewer_resource_packs()}</span>
-						{#each packs as pack (pack.path)}
-							<label class="flex cursor-pointer items-center gap-2">
-								<input
-									type="checkbox"
-									checked={enabledPacks.includes(pack.path)}
-									disabled={working}
-									onchange={() => togglePack(pack.path)}
-								/>
-								<span class="min-w-0 truncate" title={pack.name}>{pack.name}</span>
-							</label>
-						{:else}
-							<span class="text-faint">{m.viewer_no_packs()}</span>
-						{/each}
+				<div class="flex flex-col gap-1.5">
+					<span class="text-muted">{m.viewer_resource_packs()}</span>
+					{#if packGroups.length}
+						<Select bind:value={picking} onchange={() => addPack(picking)} disabled={working || !!fatal}>
+							<option value="">{m.viewer_add_pack()}</option>
+							{#each packGroups as group (group.name)}
+								<optgroup label={group.name}>
+									{#each group.packs as pack (pack.path)}
+										<option value={pack.path} disabled={active.includes(pack.path)}>{pack.name}</option>
+									{/each}
+								</optgroup>
+							{/each}
+						</Select>
+					{:else}
+						<span class="text-muted">{m.viewer_no_packs()}</span>
+					{/if}
+					{#if activePacks.length}
+						<ul class="flex flex-col">
+							{#each activePacks as pack (pack.path)}
+								<li
+									bind:this={rows[pack.path]}
+									class="flex items-center gap-1.5 rounded-md py-0.5 pr-0.5 {dragging === pack.path
+										? 'bg-btn-hi'
+										: ''}"
+								>
+									<button
+										class="grid size-5 shrink-0 touch-none place-items-center rounded text-muted hover:text-ink disabled:opacity-40 {dragging ===
+										pack.path
+											? 'cursor-grabbing'
+											: 'cursor-grab'}"
+										aria-label={m.viewer_pack_drag({ name: pack.name })}
+										disabled={working}
+										onpointerdown={(e) => startDrag(e, pack.path)}
+										onpointermove={moveDrag}
+										onpointerup={endDrag}
+										onpointercancel={endDrag}
+									>
+										<Icon name="menu" size={12} />
+									</button>
+									<span class="min-w-0 flex-1 truncate" title={pack.name}>{pack.name}</span>
+									<button
+										class="grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-btn-hi hover:text-ink disabled:opacity-40"
+										aria-label={m.viewer_remove_pack({ name: pack.name })}
+										disabled={working}
+										onclick={() => removePack(pack.path)}
+									>
+										<Icon name="close" size={12} />
+									</button>
+								</li>
+							{/each}
+						</ul>
+						{#if activePacks.length > 1}
+							<p class="text-[11px] leading-[1.6] text-muted">{m.viewer_packs_hint()}</p>
+						{/if}
+					{/if}
+				</div>
+
+				{#if meshing !== null}
+					<div class="flex flex-col gap-1.5" role="status">
+						<span class="text-muted">{m.viewer_status_meshing({ percent: Math.round(meshing * 100) })}</span>
+						<Progress value={meshing} max={1} class="bg-btn" />
 					</div>
 				{/if}
 
@@ -306,7 +441,7 @@
 								{m.viewer_warnings({ count: report.warnings.length })}
 							</button>
 							{#if showWarnings}
-								<ul class="max-h-40 overflow-y-auto font-mono leading-[1.6] text-faint">
+								<ul class="max-h-40 overflow-y-auto font-mono leading-[1.6] text-muted">
 									{#each report.warnings as line, i (i)}
 										<li class="break-all">{line}</li>
 									{/each}
@@ -316,8 +451,33 @@
 					</div>
 				{/if}
 
-				<p class="text-[11px] leading-[1.6] text-faint">{m.viewer_controls()}</p>
+				<p class="text-[11px] leading-[1.6] text-muted">{m.viewer_controls()}</p>
 			</div>
 		{/if}
 	</div>
 </div>
+
+<style>
+	.viewer {
+		color-scheme: dark;
+		--color-backdrop: #0b0d12;
+		--color-deep: #101217;
+		--color-window: #181a20;
+		--color-input-off: #14161b;
+		--color-btn: #282b33;
+		--color-btn-hi: #33363f;
+		--color-line: #2c2f38;
+		--color-line-hi: #3d414c;
+		--color-ink: #e8e9ec;
+		--color-muted: #aeb2bb;
+		--color-faint: #8a8f99;
+		--color-brand: #4f8cff;
+		--color-brand-hi: #6c9fff;
+		--color-brand-ink: #ffffff;
+		--color-brand-soft: rgb(79 140 255 / 0.2);
+		--color-brand-line: rgb(79 140 255 / 0.55);
+		--color-knob-on: #0b0d12;
+		--color-warn: #ffad5c;
+		--color-danger: #ff7070;
+	}
+</style>
