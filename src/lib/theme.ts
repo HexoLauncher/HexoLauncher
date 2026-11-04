@@ -298,10 +298,19 @@ export function applyTheme(theme?: Partial<ThemeConfig> | null): Promise<void> {
 	watchSystemScheme();
 
 	const root = document.documentElement;
-	for (const [key, value] of Object.entries(themeVars(full))) {
+	const vars = themeVars(full);
+	for (const [key, value] of Object.entries(vars)) {
 		root.style.setProperty(key, value);
 	}
+	syncWindowTheme(vars['--app-color-scheme'] === 'dark' ? 'dark' : 'light');
 	return setBackground(full, root);
+}
+
+function syncWindowTheme(scheme: 'dark' | 'light') {
+	if (!('__TAURI_INTERNALS__' in window)) return;
+	import('@tauri-apps/api/window')
+		.then(({ getCurrentWindow }) => getCurrentWindow().setTheme(scheme))
+		.catch(() => {});
 }
 
 export function backgroundUrl(): string {

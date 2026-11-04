@@ -129,7 +129,8 @@
 	const loaded: string[] = [];
 
 
-	let output = $state<GameLogLine[]>([]);
+
+	let output = $state.raw<GameLogLine[]>([]);
 	let running = $state<RunningGame | null>(null);
 	let outputEl = $state<HTMLDivElement | null>(null);
 	let autoScroll = $state(true);
@@ -228,7 +229,7 @@
 		track(
 			api.onGameOutput((out) => {
 				if (out.instanceName !== instance.id) return;
-				appendOutput([out]);
+				appendOutput(out.lines);
 			})
 		);
 
@@ -248,18 +249,31 @@
 		return () => unlisteners.forEach((un) => un());
 	});
 
+	const KEEP_LINES = 5000;
+	let scrollQueued = false;
+
 	function appendOutput(lines: GameLogLine[]) {
-		const seen: Record<number, true> = {};
-		for (const line of output) seen[line.seq] = true;
+		if (lines.length === 0) return;
 
-		const merged = [...output, ...lines.filter((line) => !seen[line.seq])];
-		merged.sort((a, b) => a.seq - b.seq);
+		const last = output.length ? output[output.length - 1].seq : 0;
+		let merged: GameLogLine[];
+		if (lines[0].seq > last) {
+			merged = output.concat(lines);
+		} else {
 
-		const keep = 5000;
-		output = merged.length > keep ? merged.slice(-keep) : merged;
+			const bySeq = new Map<number, GameLogLine>();
+			for (const line of output) bySeq.set(line.seq, line);
+			for (const line of lines) bySeq.set(line.seq, line);
+			merged = [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+		}
+		output = merged.length > KEEP_LINES ? merged.slice(-KEEP_LINES) : merged;
 
-		if (autoScroll && outputEl) {
-			queueMicrotask(() => outputEl?.scrollTo(0, outputEl.scrollHeight));
+		if (autoScroll && outputEl && !scrollQueued) {
+			scrollQueued = true;
+			requestAnimationFrame(() => {
+				scrollQueued = false;
+				outputEl?.scrollTo(0, outputEl.scrollHeight);
+			});
 		}
 	}
 

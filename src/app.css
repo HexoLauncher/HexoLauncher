@@ -126,6 +126,12 @@
 		color: inherit;
 	}
 
+	option,
+	optgroup {
+		background-color: var(--color-backdrop);
+		color: var(--color-ink);
+	}
+
 	input[type='checkbox'],
 	input[type='radio'],
 	input[type='range'] {

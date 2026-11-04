@@ -226,9 +226,24 @@ impl AppState {
             .unwrap_or_default())
     }
 
+    pub fn game_log_since(
+        &self,
+        instance_name: &str,
+        after: u64,
+    ) -> Result<Vec<GameLogLine>, CmdError> {
+        let map = self.logs.lock().map_err(|_| poisoned("logs"))?;
+        let Some(buffer) = map.get(instance_name) else {
+            return Ok(Vec::new());
+        };
+        let start = buffer.lines.partition_point(|line| line.seq <= after);
+        Ok(buffer.lines.range(start..).cloned().collect())
+    }
+
     pub fn clear_log(&self, instance_name: &str) -> Result<(), CmdError> {
         let mut map = self.logs.lock().map_err(|_| poisoned("logs"))?;
-        map.remove(instance_name);
+        if let Some(buffer) = map.get_mut(instance_name) {
+            buffer.lines.clear();
+        }
         Ok(())
     }
 

@@ -67,8 +67,7 @@ pub struct LaunchInfo {
 #[serde(rename_all = "camelCase")]
 pub struct GameOutput {
     pub instance_name: String,
-    #[serde(flatten)]
-    pub line: GameLogLine,
+    pub lines: Vec<GameLogLine>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -325,16 +324,33 @@ fn output_sink(app: &tauri::AppHandle, instance_name: &str) -> OutputFn {
             OutputKind::Stderr => "stderr",
         };
 
-        if let Ok(entry) = state.push_log(&instance_name, kind, line) {
-            let _ = app.emit(
-                EVENT_GAME_OUTPUT,
-                GameOutput {
-                    instance_name: instance_name.clone(),
-                    line: entry,
-                },
-            );
-        }
+        let _ = state.push_log(&instance_name, kind, line);
     })
+}
+
+struct OutputStream {
+    instance_name: String,
+    last_seq: u64,
+}
+
+impl OutputStream {
+    fn flush(&mut self, app: &tauri::AppHandle) {
+        let state = app.state::<AppState>();
+        let Ok(lines) = state.game_log_since(&self.instance_name, self.last_seq) else {
+            return;
+        };
+        let Some(last) = lines.last() else {
+            return;
+        };
+        self.last_seq = last.seq;
+        let _ = app.emit(
+            EVENT_GAME_OUTPUT,
+            GameOutput {
+                instance_name: self.instance_name.clone(),
+                lines,
+            },
+        );
+    }
 }
 
 struct Watch {
@@ -378,11 +394,24 @@ pub async fn recover_running(app: &tauri::AppHandle) {
     let _ = running::persist(&state).await;
 }
 
+const OUTPUT_FLUSH: Duration = Duration::from_millis(100);
+const REAP_EVERY: u32 = 8;
+
 fn watch_process(app: tauri::AppHandle, watch: Watch) {
     tauri::async_runtime::spawn(async move {
+        let mut stream = OutputStream {
+            instance_name: watch.instance_name.clone(),
+            last_seq: 0,
+        };
+        let mut tick: u32 = 0;
         let ended = loop {
-            tokio::time::sleep(Duration::from_millis(800)).await;
+            tokio::time::sleep(OUTPUT_FLUSH).await;
+            stream.flush(&app);
 
+            tick = tick.wrapping_add(1);
+            if tick % REAP_EVERY != 0 {
+                continue;
+            }
             let state = app.state::<AppState>();
             match state.reap(&watch.instance_name) {
                 Ok(Some(ended)) => break ended,
@@ -420,6 +449,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
         )
         .await;
 
+        stream.flush(&app);
         let _ = app.emit(
             EVENT_GAME_EXIT,
             GameExit {

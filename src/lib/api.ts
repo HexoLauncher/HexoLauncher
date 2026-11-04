@@ -1089,8 +1089,9 @@ export const crashAnalysis = (instanceName: string) =>
 export const openCrashFile = (instanceName: string, kind: 'crashReport' | 'jvmReport') =>
 	invoke<void>('open_crash_file', { instanceName, kind });
 
-export interface GameOutput extends GameLogLine {
+export interface GameOutput {
 	instanceName: string;
+	lines: GameLogLine[];
 }
 
 export const onInstallProgress = (

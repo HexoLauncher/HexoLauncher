@@ -67,7 +67,7 @@
 		);
 		track(
 			api.onGameOutput((out) => {
-				gameLines.push(out);
+				gameLines.push(...out.lines);
 				if (gameLines.length > MAX_GAME_LINES) gameLines = gameLines.slice(-MAX_GAME_LINES);
 				queueMicrotask(() => gameLogEl?.scrollTo(0, gameLogEl.scrollHeight));
 			})
