@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, CheckRow, Field, Group, Pill, SearchField, Select, Table, TableBox, TextInput, Textarea } from '$lib/ui';
+	import { Button, CheckRow, Field, Group, McText, Pill, SearchField, Select, Table, TableBox, TextInput, Textarea } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
 	import IconPicker from './IconPicker.svelte';
 	import WindowShell from './WindowShell.svelte';
@@ -28,6 +28,7 @@
 		WorldGameMode
 	} from '$lib/api';
 	import { formatDuration, formatSize, formatTime, loaderLabel } from '$lib/format';
+	import { stripMcText } from '$lib/mctext';
 	import { onMount, untrack } from 'svelte';
 	import type { Page } from '$lib/ui';
 	import { m } from '$lib/paraglide/messages.js';
@@ -425,14 +426,14 @@
 	const visibleWorlds = $derived.by(() => {
 		const q = worldSearch.trim().toLowerCase();
 		if (!q) return worlds;
-		return worlds.filter((w) => w.name.toLowerCase().includes(q) || w.folder.toLowerCase().includes(q));
+		return worlds.filter((w) => stripMcText(w.name).toLowerCase().includes(q) || w.folder.toLowerCase().includes(q));
 	});
 
 	async function setShader(pack: PackEntry | null) {
 		try {
 			await api.setActiveShader(baseDir, instance.id, pack?.fileName ?? null);
 			await load('shaderpacks', true);
-			report(pack ? m.editor_status_shader_applied({ name: pack.name }) : m.editor_status_shader_disabled());
+			report(pack ? m.editor_status_shader_applied({ name: stripMcText(pack.name) }) : m.editor_status_shader_disabled());
 		} catch (e) {
 			fail(m.editor_error_shader(), e);
 		}
@@ -458,7 +459,7 @@
 				await api.deletePack(baseDir, instance.id, target.kind, target.id);
 				await load(target.kind, true);
 			}
-			report(m.editor_status_deleted({ name: target.name }));
+			report(m.editor_status_deleted({ name: stripMcText(target.name) }));
 		} catch (e) {
 			fail(m.editor_error_delete(), e);
 		}
@@ -1030,7 +1031,7 @@
 															<Icon name={isShader ? 'sun' : 'image'} size={24} />
 														{/if}
 													</div>
-													<span class="truncate">{pack.name}</span>
+													<McText text={pack.name} class="truncate" />
 												</div>
 											</td>
 											<td class="text-muted">{pack.isFolder ? m.editor_pack_folder() : m.editor_pack_archive()}</td>
@@ -1114,7 +1115,7 @@
 
 									<div class="flex min-w-0 flex-1 flex-col gap-0.5">
 										<div class="flex min-w-0 items-center gap-1.5">
-											<span class="truncate font-semibold text-ink">{world.name}</span>
+											<McText text={world.name} class="truncate font-semibold text-ink" />
 											{#if world.hardcore}
 												<Pill class="text-danger">{m.editor_world_hardcore()}</Pill>
 											{:else if world.gameMode}
@@ -1187,7 +1188,7 @@
 													<img src={server.icon} alt="" class="size-6 rounded-sm" />
 												{/if}
 											</td>
-											<td>{server.name}</td>
+											<td><McText text={server.name} /></td>
 											<td class="font-mono text-[11.5px] text-muted">{server.address}</td>
 											<td class="text-muted">{server.acceptTextures ? m.editor_server_accept() : m.editor_server_prompt()}</td>
 										</tr>
@@ -1462,8 +1463,8 @@
 	<Dialog title={m.common_delete()} width="420px" onclose={() => (pendingDelete = null)}>
 		<p class="px-5 py-5 leading-[1.75]">
 			{target.kind === 'world'
-				? m.editor_world_delete_confirm({ name: target.name })
-				: m.editor_pack_delete_confirm({ name: target.name })}
+				? m.editor_world_delete_confirm({ name: stripMcText(target.name) })
+				: m.editor_pack_delete_confirm({ name: stripMcText(target.name) })}
 		</p>
 		{#snippet footer()}
 			<Button variant="destructive" onclick={confirmDelete}>{m.common_delete()}</Button>

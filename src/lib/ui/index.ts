@@ -6,6 +6,7 @@ export { default as Dialog } from './Dialog.svelte';
 export { default as Field } from './Field.svelte';
 export { default as Group } from './Group.svelte';
 export { default as Icon } from './Icon.svelte';
+export { default as McText } from './McText.svelte';
 export { default as Menu } from './Menu.svelte';
 export { default as MenuItem } from './MenuItem.svelte';
 export { default as MenuLabel } from './MenuLabel.svelte';

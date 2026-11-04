@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod instance_meta;
 pub mod launcher;
+pub mod running;
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};

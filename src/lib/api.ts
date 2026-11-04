@@ -289,7 +289,8 @@ export const wardrobeSaveCurrent = (accountId: string, name: string) =>
 export const wardrobeApply = (accountId: string, id: string) =>
 	invoke<SkinProfile>('wardrobe_apply', { accountId, id });
 
-export const skinProfile = (accountId: string) => invoke<SkinProfile>('skin_profile', { accountId });
+export const skinProfile = (accountId: string) =>
+	invoke<SkinProfile>('skin_profile', { accountId });
 
 export const setCape = (accountId: string, capeId: string | null) =>
 	invoke<SkinProfile>('set_cape', { accountId, capeId });
@@ -702,6 +703,8 @@ export const stopInstance = (instanceName: string) =>
 	invoke<boolean>('stop_instance', { instanceName });
 
 export const runningInstances = () => invoke<RunningGame[]>('running_instances');
+
+export const setUiLocale = (locale: string) => invoke<void>('set_ui_locale', { locale });
 
 export const gameLog = (instanceName: string) =>
 	invoke<GameLogLine[]>('game_log', { instanceName });

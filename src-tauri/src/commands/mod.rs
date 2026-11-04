@@ -13,6 +13,7 @@ pub mod launch;
 pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
+pub mod process;
 pub mod mods;
 pub mod schematic;
 pub mod schematic_sync;

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod background;
 mod commands;
 mod error;
 mod state;
@@ -11,14 +12,23 @@ use state::AppState;
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            background::show_main(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(AppState::default())
         .setup(|app| {
-            if let Ok(config) = tauri::async_runtime::block_on(store::launcher::LauncherConfig::load()) {
+            if let Ok(config) =
+                tauri::async_runtime::block_on(store::launcher::LauncherConfig::load())
+            {
                 hexomc_lib::set_download_source(config.download.to_source().unwrap_or_default());
             }
+            #[cfg(target_os = "macos")]
+            background::install_app_menu(app.handle())?;
+
+            tauri::async_runtime::block_on(commands::launch::recover_running(app.handle()));
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 commands::schematic_sync::sync_on_startup(&handle.state::<AppState>()).await;
@@ -32,7 +42,11 @@ fn main() {
             }
             Ok(())
         })
+        .on_window_event(background::on_window_event)
+        .on_menu_event(background::on_menu_event)
+        .on_tray_icon_event(background::on_tray_icon_event)
         .invoke_handler(tauri::generate_handler![
+            background::set_ui_locale,
             store::launcher::get_launcher_config,
             store::launcher::save_launcher_config,
             store::launcher::resolve_paths,
@@ -147,6 +161,7 @@ fn main() {
             commands::schematic::pack_block_assets,
             commands::schematic_sync::set_schematic_sync,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(background::on_run_event);
 }

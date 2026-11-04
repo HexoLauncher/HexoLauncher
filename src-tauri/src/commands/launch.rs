@@ -15,6 +15,7 @@ use crate::error::{CmdError, CmdResult};
 use crate::state::{AppState, GameLogLine, RunningInfo};
 use crate::store::instance_meta::{InstanceMeta, InstanceSettings, LocalStore};
 use crate::store::launcher::LauncherConfig;
+use crate::store::running::{self, HookVars, RunningRecord};
 use crate::store::{accounts, now_secs};
 
 #[cfg(windows)]
@@ -142,34 +143,45 @@ pub async fn launch_instance(
 
     let process = launch_with_output(&options, base, output_sink(&app, &instance_name)).await?;
     let pid = process.id().unwrap_or_default();
+    let started_at = now_secs();
 
     let info = RunningInfo {
         instance_name: instance_name.clone(),
         pid,
-        started_at: now_secs(),
+        started_at,
         player_name: player_name.clone(),
         online,
     };
-    let info_started_at = info.started_at;
-    state.add_running(process, info.clone())?;
+    let watch = Watch {
+        instance_name: instance_name.clone(),
+        started_at,
+        base_dir: base.to_path_buf(),
+        record_play_time: launcher.game.record_play_time,
+        post_exit: commands.1,
+        hook_vars,
+    };
+    let record = RunningRecord {
+        instance_name: instance_name.clone(),
+        base_dir: base_dir.clone(),
+        pid,
+        started_at,
+        proc_start: super::process::start_time(pid).unwrap_or(started_at),
+        player_name: player_name.clone(),
+        online,
+        record_play_time: watch.record_play_time,
+        post_exit: watch.post_exit.clone(),
+        hook_vars: watch.hook_vars.clone(),
+    };
+    state.add_running(process, info.clone(), record)?;
     drop(sync_guard);
+    let _ = running::persist(&state).await;
 
     let _ = app.emit(EVENT_GAME_START, info);
 
     record_play(base, &instance_name, 0, true).await;
     let _ = app.emit(super::instance::EVENT_INSTANCES_CHANGED, ());
 
-    watch_process(
-        app,
-        Watch {
-            instance_name: instance_name.clone(),
-            started_at: info_started_at,
-            base_dir: base.to_path_buf(),
-            record_play_time: launcher.game.record_play_time,
-            post_exit: commands.1,
-            hook_vars,
-        },
-    );
+    watch_process(app, watch);
 
     Ok(LaunchInfo {
         instance_name,
@@ -181,9 +193,6 @@ pub async fn launch_instance(
     })
 }
 
-/// GUI 程式沒有主控台可以繼承，Windows 會幫主控台程式另外開一個視窗。
-/// `javaw.exe` 是同一個 JVM 的無視窗版本，輸出導向管線一樣收得到，
-/// 所以啟動遊戲時改用它，才不會多跳一個 cmd 視窗出來。
 #[cfg(windows)]
 fn windowless_java(path: &Path) -> PathBuf {
     let is_java = path
@@ -240,15 +249,6 @@ fn effective_commands(launcher: &LauncherConfig, settings: &InstanceSettings) ->
             launcher.commands.post_exit.clone(),
         )
     }
-}
-
-#[derive(Debug, Clone)]
-struct HookVars {
-    instance_name: String,
-    display_name: String,
-    instance_dir: String,
-    minecraft_dir: String,
-    java_path: String,
 }
 
 fn expand(command: &str, vars: &HookVars) -> String {
@@ -346,6 +346,38 @@ struct Watch {
     hook_vars: HookVars,
 }
 
+pub async fn recover_running(app: &tauri::AppHandle) {
+    let state = app.state::<AppState>();
+    for record in running::load_alive().await {
+        let instance_name = record.instance_name.clone();
+        if state.is_running(&instance_name).unwrap_or(true) {
+            continue;
+        }
+        let watch = Watch {
+            instance_name: instance_name.clone(),
+            started_at: record.started_at,
+            base_dir: PathBuf::from(&record.base_dir),
+            record_play_time: record.record_play_time,
+            post_exit: record.post_exit.clone(),
+            hook_vars: record.hook_vars.clone(),
+        };
+        let pid = record.pid;
+        if state.adopt_running(record).is_err() {
+            continue;
+        }
+        let _ = state.push_log(
+            &instance_name,
+            "stdout",
+            format!(
+                "已重新連結到執行中的遊戲（PID {}），啟動器重新開啟前的輸出無法取得。",
+                pid
+            ),
+        );
+        watch_process(app.clone(), watch);
+    }
+    let _ = running::persist(&state).await;
+}
+
 fn watch_process(app: tauri::AppHandle, watch: Watch) {
     tauri::async_runtime::spawn(async move {
         let ended = loop {
@@ -358,6 +390,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
                 Err(_) => return,
             }
         };
+        let _ = running::persist(&app.state::<AppState>()).await;
 
         if watch.record_play_time {
             record_play(&watch.base_dir, &watch.instance_name, ended.seconds, false).await;
@@ -377,8 +410,15 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
             .await
         };
         let crashed = crash.is_some();
-        let _ = app.state::<AppState>().set_crash(&watch.instance_name, crash);
-        super::schematic_sync::sync_after_exit(&app.state::<AppState>(), &watch.base_dir, &watch.instance_name).await;
+        let _ = app
+            .state::<AppState>()
+            .set_crash(&watch.instance_name, crash);
+        super::schematic_sync::sync_after_exit(
+            &app.state::<AppState>(),
+            &watch.base_dir,
+            &watch.instance_name,
+        )
+        .await;
 
         let _ = app.emit(
             EVENT_GAME_EXIT,
@@ -394,5 +434,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
         if !watch.post_exit.is_empty() {
             let _ = run_hook(&watch.post_exit, &watch.hook_vars, "結束後指令").await;
         }
+
+        crate::background::quit_if_idle(&app, None);
     });
 }

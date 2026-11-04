@@ -1,20 +1,59 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hexomc_lib::auth::microsoft::MsDeviceCodeResponse;
 use hexomc_lib::{GameProcess, ModUpdate};
 use serde::Serialize;
 
 use crate::commands::crash::CrashAnalysis;
+use crate::commands::process;
 use crate::error::CmdError;
+use crate::store::now_secs;
+use crate::store::running::RunningRecord;
 
 const MAX_LOG_LINES: usize = 10_000;
 
+enum GameHandle {
+    Owned(GameProcess),
+    Adopted { pid: u32, proc_start: u64 },
+}
+
+impl GameHandle {
+    fn try_wait(&mut self) -> Option<Option<i32>> {
+        match self {
+            GameHandle::Owned(process) => match process.try_wait() {
+                Ok(Some(status)) => Some(status.code()),
+                Ok(None) => None,
+                Err(_) => Some(None),
+            },
+            GameHandle::Adopted { pid, proc_start } => {
+                if process::is_alive(*pid, *proc_start) {
+                    None
+                } else {
+                    Some(None)
+                }
+            }
+        }
+    }
+
+    fn kill(&mut self) {
+        match self {
+            GameHandle::Owned(process) => {
+                let _ = process.child_mut().start_kill();
+            }
+            GameHandle::Adopted { pid, proc_start } => {
+                process::kill(*pid, *proc_start);
+            }
+        }
+    }
+}
+
 struct RunningGame {
-    process: GameProcess,
+    handle: GameHandle,
     started: Instant,
     info: RunningInfo,
+    record: RunningRecord,
     killed: bool,
 }
 
@@ -45,6 +84,7 @@ struct LogBuffer {
 #[derive(Default)]
 pub struct AppState {
     running: Mutex<HashMap<String, RunningGame>>,
+    pub running_file: tokio::sync::Mutex<()>,
     logs: Mutex<HashMap<String, LogBuffer>>,
     login_sessions: Mutex<HashMap<String, MsDeviceCodeResponse>>,
     mod_updates: Mutex<HashMap<String, ModUpdate>>,
@@ -64,18 +104,51 @@ fn poisoned(what: &str) -> CmdError {
 }
 
 impl AppState {
-    pub fn add_running(&self, process: GameProcess, info: RunningInfo) -> Result<(), CmdError> {
+    pub fn add_running(
+        &self,
+        process: GameProcess,
+        info: RunningInfo,
+        record: RunningRecord,
+    ) -> Result<(), CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
         map.insert(
             info.instance_name.clone(),
             RunningGame {
-                process,
+                handle: GameHandle::Owned(process),
                 started: Instant::now(),
                 info,
+                record,
                 killed: false,
             },
         );
         Ok(())
+    }
+
+    pub fn adopt_running(&self, record: RunningRecord) -> Result<(), CmdError> {
+        let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
+        let elapsed = Duration::from_secs(now_secs().saturating_sub(record.started_at));
+        let started = Instant::now()
+            .checked_sub(elapsed)
+            .unwrap_or_else(Instant::now);
+        map.insert(
+            record.instance_name.clone(),
+            RunningGame {
+                handle: GameHandle::Adopted {
+                    pid: record.pid,
+                    proc_start: record.proc_start,
+                },
+                started,
+                info: record.info(),
+                record,
+                killed: false,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn running_records(&self) -> Result<Vec<RunningRecord>, CmdError> {
+        let map = self.running.lock().map_err(|_| poisoned("running"))?;
+        Ok(map.values().map(|game| game.record.clone()).collect())
     }
 
     pub fn is_running(&self, instance_name: &str) -> Result<bool, CmdError> {
@@ -85,7 +158,7 @@ impl AppState {
 
     pub fn running_list(&self) -> Result<Vec<RunningInfo>, CmdError> {
         let mut map = self.running.lock().map_err(|_| poisoned("running"))?;
-        map.retain(|_, game| !matches!(game.process.try_wait(), Ok(Some(_))));
+        map.retain(|_, game| game.handle.try_wait().is_none());
         Ok(map.values().map(|game| game.info.clone()).collect())
     }
 
@@ -97,24 +170,16 @@ impl AppState {
 
         let seconds = game.started.elapsed().as_secs();
         let killed = game.killed;
-        match game.process.try_wait() {
-            Ok(Some(status)) => {
+        match game.handle.try_wait() {
+            Some(exit_code) => {
                 map.remove(instance_name);
                 Ok(Some(GameEnded {
-                    exit_code: status.code(),
+                    exit_code,
                     seconds,
                     killed,
                 }))
             }
-            Ok(None) => Ok(None),
-            Err(_) => {
-                map.remove(instance_name);
-                Ok(Some(GameEnded {
-                    exit_code: None,
-                    seconds,
-                    killed,
-                }))
-            }
+            None => Ok(None),
         }
     }
 
@@ -123,7 +188,7 @@ impl AppState {
         match map.get_mut(instance_name) {
             Some(game) => {
                 game.killed = true;
-                let _ = game.process.child_mut().start_kill();
+                game.handle.kill();
                 Ok(true)
             }
             None => Ok(false),
