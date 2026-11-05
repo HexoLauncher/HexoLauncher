@@ -1,4 +1,4 @@
-import type { LoaderKind } from './api';
+import type { JavaProgress, LoaderKind } from './api';
 import { m } from '$lib/paraglide/messages.js';
 import { getLocale } from '$lib/paraglide/runtime.js';
 
@@ -72,4 +72,32 @@ export function versionTypeLabel(type: string): string {
 
 export function releaseDate(isoTime: string): string {
 	return isoTime.split('T')[0] ?? isoTime;
+}
+
+export function describeJavaProgress(p: JavaProgress): { label: string; percent: number | null } {
+	switch (p.message) {
+		case 'Fetching Java release':
+			return { label: m.launch_java_fetching({ version: p.version }), percent: null };
+		case 'Downloading Java':
+			return p.total > 0
+				? {
+						label: m.launch_java_downloading({
+							version: p.version,
+							done: formatSize(p.done),
+							total: formatSize(p.total)
+						}),
+						percent: Math.min(100, Math.round((p.done / p.total) * 100))
+					}
+				: {
+						label: m.launch_java_downloading_unknown({
+							version: p.version,
+							done: formatSize(p.done)
+						}),
+						percent: null
+					};
+		case 'Extracting Java':
+			return { label: m.launch_java_extracting({ version: p.version }), percent: null };
+		default:
+			return { label: m.launch_java_preparing({ version: p.version }), percent: null };
+	}
 }

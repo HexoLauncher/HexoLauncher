@@ -3,13 +3,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use hexomc_lib::{
-    download_java_with_progress, pick_java, probe_java_runtime, scan_java as scan_runtimes,
-    JavaInfo, JavaRuntime, ProgressFn,
+    download_java_with_progress, download_vendor_java_with_progress, pick_java,
+    probe_java_runtime, scan_java as scan_runtimes, JavaInfo, JavaRelease, JavaRuntime,
+    JavaVendor, ProgressFn,
 };
 use serde::Serialize;
 use tauri::Emitter;
 
-use super::{path_string, EVENT_JAVA_PROGRESS};
+use super::{path_string, EVENT_JAVA_INSTALLED, EVENT_JAVA_PROGRESS};
 use crate::error::{CmdError, CmdResult};
 use crate::store::launcher::LauncherConfig;
 
@@ -67,25 +68,53 @@ pub struct JavaProgress {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct JavaVendorDto {
+    pub id: JavaVendor,
+    pub name: &'static str,
+}
+
+#[tauri::command]
+pub fn java_vendors() -> Vec<JavaVendorDto> {
+    JavaVendor::ALL
+        .into_iter()
+        .map(|id| JavaVendorDto {
+            id,
+            name: id.display_name(),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub async fn list_java_releases(vendor: JavaVendor) -> CmdResult<Vec<JavaRelease>> {
+    Ok(hexomc_lib::list_java_releases(vendor).await?)
+}
+
 #[tauri::command]
 pub async fn install_java(
     app: tauri::AppHandle,
     base_dir: String,
     version: u32,
+    vendor: Option<JavaVendor>,
 ) -> CmdResult<JavaDto> {
-    let path =
-        download_java_with_progress(version, Path::new(&base_dir), java_progress(app, version))
-            .await?;
+    let base = Path::new(&base_dir);
+    let progress = java_progress(app.clone(), version);
+    let path = match vendor {
+        Some(vendor) => download_vendor_java_with_progress(vendor, version, base, progress).await?,
+        None => download_java_with_progress(version, base, progress).await?,
+    };
 
     invalidate_java_scan();
 
-    Ok(probe_java_runtime(&path)
+    let java = probe_java_runtime(&path)
         .await
         .map(|r| JavaDto::from(r.info()))
         .unwrap_or(JavaDto {
             path: path_string(&path),
             version,
-        }))
+        });
+    let _ = app.emit(EVENT_JAVA_INSTALLED, java.clone());
+    Ok(java)
 }
 
 fn java_progress(app: tauri::AppHandle, version: u32) -> ProgressFn {
@@ -127,7 +156,7 @@ pub async fn ensure_java(
     if !allow_download.unwrap_or(false) {
         return Err(java_not_found(required_version));
     }
-    install_java(app, base_dir, required_version).await
+    install_java(app, base_dir, required_version, None).await
 }
 
 pub async fn resolve_java(

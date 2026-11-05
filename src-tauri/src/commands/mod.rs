@@ -39,6 +39,7 @@ pub const EVENT_GAME_EXIT: &str = "nolauncher://game-exit";
 pub const EVENT_GAME_OUTPUT: &str = "nolauncher://game-output";
 /// Java 下載進度事件：`{ version, done, total, message }`；下載階段 done / total 是位元組。
 pub const EVENT_JAVA_PROGRESS: &str = "nolauncher://java-progress";
+pub const EVENT_JAVA_INSTALLED: &str = "nolauncher://java-installed";
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

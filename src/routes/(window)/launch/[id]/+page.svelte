@@ -7,7 +7,7 @@
 	import WindowShell from '$lib/components/WindowShell.svelte';
 	import * as api from '$lib/api';
 	import type { InstanceView, LauncherConfig } from '$lib/api';
-	import { formatSize, loaderLabel } from '$lib/format';
+	import { describeJavaProgress, loaderLabel } from '$lib/format';
 	import { closeSelf } from '$lib/windows';
 	import { m } from '$lib/paraglide/messages.js';
 
@@ -61,34 +61,6 @@
 
 
 	let javaDownload = $state<{ label: string; percent: number | null } | null>(null);
-
-	function describeJavaProgress(p: api.JavaProgress) {
-		switch (p.message) {
-			case 'Fetching Java release':
-				return { label: m.launch_java_fetching({ version: p.version }), percent: null };
-			case 'Downloading Java':
-				return p.total > 0
-					? {
-							label: m.launch_java_downloading({
-								version: p.version,
-								done: formatSize(p.done),
-								total: formatSize(p.total)
-							}),
-							percent: Math.min(100, Math.round((p.done / p.total) * 100))
-						}
-					: {
-							label: m.launch_java_downloading_unknown({
-								version: p.version,
-								done: formatSize(p.done)
-							}),
-							percent: null
-						};
-			case 'Extracting Java':
-				return { label: m.launch_java_extracting({ version: p.version }), percent: null };
-			default:
-				return { label: m.launch_java_preparing({ version: p.version }), percent: null };
-		}
-	}
 
 	async function downloadJava(baseDir: string, version: number, stage: StageId) {
 		if (!(await askDownloadJava(version))) {

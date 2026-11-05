@@ -110,6 +110,8 @@ fn main() {
             commands::java::detect_java_candidates,
             commands::java::test_java,
             commands::java::install_java,
+            commands::java::java_vendors,
+            commands::java::list_java_releases,
             commands::java::ensure_java,
             commands::launch::launch_instance,
             commands::launch::check_instance_java,

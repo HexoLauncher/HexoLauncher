@@ -49,6 +49,12 @@ export const windowSpecs = {
 			height: 720
 		};
 	},
+	javaDownload: (): WindowSpec => ({
+		path: '/java-download',
+		title: m.window_java_download(),
+		width: 480,
+		height: 400
+	}),
 	about: (): WindowSpec => ({
 		path: '/about',
 		title: m.window_about(),

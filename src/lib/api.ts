@@ -651,8 +651,25 @@ export const detectJavaCandidates = () => invoke<JavaCandidate[]>('detect_java_c
 
 export const testJava = (path: string) => invoke<JavaInfo>('test_java', { path });
 
-export const installJava = (baseDir: string, version: number) =>
-	invoke<JavaInfo>('install_java', { baseDir, version });
+export type JavaVendorId = 'temurin' | 'zulu';
+
+export interface JavaVendor {
+	id: JavaVendorId;
+	name: string;
+}
+
+export interface JavaRelease {
+	version: number;
+	lts: boolean;
+}
+
+export const javaVendors = () => invoke<JavaVendor[]>('java_vendors');
+
+export const listJavaReleases = (vendor: JavaVendorId) =>
+	invoke<JavaRelease[]>('list_java_releases', { vendor });
+
+export const installJava = (baseDir: string, version: number, vendor?: JavaVendorId) =>
+	invoke<JavaInfo>('install_java', { baseDir, version, vendor });
 
 export const ensureJava = (baseDir: string, requiredVersion: number, allowDownload = false) =>
 	invoke<JavaInfo>('ensure_java', { baseDir, requiredVersion, allowDownload });
@@ -1124,3 +1141,6 @@ export interface JavaProgress {
 
 export const onJavaProgress = (handler: (progress: JavaProgress) => void): Promise<UnlistenFn> =>
 	listen<JavaProgress>('nolauncher://java-progress', (event) => handler(event.payload));
+
+export const onJavaInstalled = (handler: (java: JavaInfo) => void): Promise<UnlistenFn> =>
+	listen<JavaInfo>('nolauncher://java-installed', (event) => handler(event.payload));

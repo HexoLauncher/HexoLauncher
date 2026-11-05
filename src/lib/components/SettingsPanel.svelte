@@ -37,6 +37,7 @@
 		type ThemePreset
 	} from '$lib/theme';
 	import Icon from '$lib/ui/Icon.svelte';
+	import { openAppWindow, windowSpecs } from '$lib/windows';
 	import { m } from '$lib/paraglide/messages.js';
 	import { LOCALE_OPTIONS, storedLocale, useLocale } from '$lib/i18n';
 	import type { Locale } from '$lib/paraglide/runtime.js';
@@ -175,6 +176,16 @@
 		}
 	});
 
+	$effect(() => {
+		const unlisten = api.onJavaInstalled((java) => {
+			report(m.settings_status_java_downloaded({ version: java.version }));
+			if (javaLoaded) detectJava();
+		});
+		return () => {
+			unlisten.then((stop) => stop());
+		};
+	});
+
 	function is32bit(arch: string) {
 		return !!arch && !['amd64', 'x86_64', 'aarch64', 'arm64'].includes(arch);
 	}
@@ -191,32 +202,6 @@
 		} catch (e) {
 			report(m.settings_status_detect_failed({ message: api.errorMessage(e) }));
 		} finally {
-			javaBusy = '';
-		}
-	}
-
-	async function downloadJava(version: number) {
-		javaBusy = m.settings_status_java_downloading({ version });
-		const unlisten = await api.onJavaProgress((p) => {
-			if (p.version !== version || !javaBusy) return;
-			javaBusy =
-				p.message === 'Downloading Java' && p.total > 0
-					? m.settings_status_java_downloading_percent({
-							version,
-							percent: Math.min(100, Math.round((p.done / p.total) * 100))
-						})
-					: p.message === 'Extracting Java'
-						? m.settings_status_java_extracting({ version })
-						: m.settings_status_java_downloading({ version });
-		});
-		try {
-			const java = await api.installJava(paths.baseDir, version);
-			report(m.settings_status_java_downloaded({ version: java.version }));
-			await detectJava();
-		} catch (e) {
-			report(m.settings_status_download_failed({ message: api.errorMessage(e) }));
-		} finally {
-			unlisten();
 			javaBusy = '';
 		}
 	}
@@ -685,14 +670,8 @@
 					<div class="flex w-35 shrink-0 flex-col gap-1 [&>button]:justify-start">
 						<Button disabled={!!javaBusy} onclick={detectJava}>{m.settings_java_redetect()}</Button>
 						<Button disabled={!!javaBusy} onclick={testJava}>{m.settings_java_test()}</Button>
-						<Button disabled={!!javaBusy} onclick={() => downloadJava(21)}>
-							{m.settings_java_download({ version: 21 })}
-						</Button>
-						<Button disabled={!!javaBusy} onclick={() => downloadJava(17)}>
-							{m.settings_java_download({ version: 17 })}
-						</Button>
-						<Button disabled={!!javaBusy} onclick={() => downloadJava(8)}>
-							{m.settings_java_download({ version: 8 })}
+						<Button onclick={() => openAppWindow(windowSpecs.javaDownload())}>
+							{m.settings_java_download_open()}
 						</Button>
 					</div>
 				</div>
