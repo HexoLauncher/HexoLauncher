@@ -16,15 +16,39 @@
 
 <style>
 	.nolauncher-table :global(th) {
+		--table-bleed: 0.25rem;
 		position: sticky;
 		top: 0;
 		z-index: 2;
-		border-bottom: 1px solid var(--color-line);
+		box-shadow: inset 0 -1px 0 var(--color-line);
 		background: var(--color-backdrop);
-		padding: 7px 10px;
+		padding: 7px 10px 8px;
 		font-weight: 500;
 		white-space: nowrap;
 		color: var(--color-muted);
+	}
+
+	.nolauncher-table :global(th:first-child) {
+		box-shadow:
+			inset 0 -1px 0 var(--color-line),
+			calc(var(--table-bleed) * -1) -1px 0 var(--color-backdrop),
+			calc(var(--table-bleed) * -1) 0 0 var(--color-line);
+	}
+
+	.nolauncher-table :global(th:last-child) {
+		box-shadow:
+			inset 0 -1px 0 var(--color-line),
+			var(--table-bleed) -1px 0 var(--color-backdrop),
+			var(--table-bleed) 0 0 var(--color-line);
+	}
+
+	.nolauncher-table :global(th:only-child) {
+		box-shadow:
+			inset 0 -1px 0 var(--color-line),
+			calc(var(--table-bleed) * -1) -1px 0 var(--color-backdrop),
+			calc(var(--table-bleed) * -1) 0 0 var(--color-line),
+			var(--table-bleed) -1px 0 var(--color-backdrop),
+			var(--table-bleed) 0 0 var(--color-line);
 	}
 
 	.nolauncher-table :global(td) {

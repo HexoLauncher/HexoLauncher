@@ -8,6 +8,8 @@
 	import Dialog from '$lib/ui/Dialog.svelte';
 	import VersionPicker from './VersionPicker.svelte';
 	import ContentBrowser from './ContentBrowser.svelte';
+	import ModpackUpdateDialog from './ModpackUpdateDialog.svelte';
+	import ManualDownloadList from './ManualDownloadList.svelte';
 	import * as api from '$lib/api';
 	import type {
 		ContentKind,
@@ -157,6 +159,8 @@
 	} | null>(null);
 
 	let packUpdate = $state<ModpackUpdateResult | null>(null);
+	let packDialog = $state(false);
+	let modUpdateWarning = $state(false);
 
 
 	let browse = $state<ContentKind | null>(null);
@@ -479,7 +483,16 @@
 		}
 	}
 
+	function requestModUpdates() {
+		if (instance.isModpack) {
+			modUpdateWarning = true;
+		} else {
+			checkUpdates();
+		}
+	}
+
 	async function checkUpdates() {
+		modUpdateWarning = false;
 		busy = m.editor_busy_check_updates();
 		try {
 			modUpdates = await api.checkModUpdates({ baseDir, instanceName: instance.id });
@@ -602,10 +615,15 @@
 		}
 	}
 
-	async function updatePack() {
+	async function updatePackFromFile() {
 		const packPath = await pickPack();
 		if (!packPath) return;
+		packDialog = false;
+		await runPackUpdate(() => api.updateModpackFile(baseDir, instance.id, packPath));
+	}
 
+	async function runPackUpdate(task: () => Promise<ModpackUpdateResult>) {
+		packDialog = false;
 		busy = m.editor_busy_update_pack();
 		let unlisten: (() => void) | undefined;
 		try {
@@ -618,7 +636,7 @@
 				}
 			});
 
-			const result = await api.updateModpackFile(baseDir, instance.id, packPath);
+			const result = await task();
 			onchanged(result.instance);
 			packUpdate = result;
 			report(m.editor_status_pack_updated());
@@ -636,6 +654,20 @@
 			version: instance.versionId || m.editor_version_unknown(),
 			note: m.editor_version_required()
 		},
+		...(instance.isModpack
+			? [
+					{
+						name: m.editor_version_modpack(),
+						version: instance.modpack?.versionName || m.editor_version_unrecorded(),
+						note:
+							instance.modpack?.platform === 'modrinth'
+								? 'Modrinth'
+								: instance.modpack?.platform === 'curseforge'
+									? 'CurseForge'
+									: m.editor_version_modpack_local()
+					}
+				]
+			: []),
 		...(instance.loader !== 'vanilla'
 			? [
 					{
@@ -902,7 +934,7 @@
 									})
 							},
 							{ label: m.action_repair_reinstall(), action: () => reinstall() },
-							{ label: m.editor_update_pack(), action: updatePack },
+							{ label: m.editor_update_pack(), action: () => (packDialog = true) },
 							{ label: m.folder_instance(), action: () => openFolder('instance') }
 						])}
 					</div>
@@ -987,7 +1019,7 @@
 						</TableBox>
 						{@render sideButtons([
 							{ label: m.editor_download_mods(), action: () => (browse = 'mod') },
-							{ label: m.editor_check_updates(), disabled: mods.length === 0, action: checkUpdates },
+							{ label: m.editor_check_updates(), disabled: mods.length === 0, action: requestModUpdates },
 							{
 								label: m.common_remove(),
 								disabled: !selectedMod,
@@ -1393,6 +1425,29 @@
 	</Dialog>
 {/if}
 
+{#if modUpdateWarning}
+	<Dialog title={m.editor_mod_update_warning_title()} width="460px" onclose={() => (modUpdateWarning = false)}>
+		<div class="flex flex-col gap-2 px-4.5 py-4 leading-[1.7]">
+			<p>{m.editor_mod_update_warning()}</p>
+			<p class="text-muted">{m.editor_mod_update_warning_hint()}</p>
+		</div>
+		{#snippet footer()}
+			<Button onclick={checkUpdates}>{m.editor_mod_update_warning_continue()}</Button>
+			<Button variant="primary" onclick={() => (modUpdateWarning = false)}>{m.common_cancel()}</Button>
+		{/snippet}
+	</Dialog>
+{/if}
+
+{#if packDialog}
+	<ModpackUpdateDialog
+		{baseDir}
+		{instance}
+		onclose={() => (packDialog = false)}
+		onupdate={runPackUpdate}
+		onlocal={updatePackFromFile}
+	/>
+{/if}
+
 {#if packUpdate}
 	{@const result = packUpdate}
 	<Dialog title={m.editor_pack_updated_title()} width="560px" height="480px" onclose={() => (packUpdate = null)}>
@@ -1405,22 +1460,12 @@
 			</p>
 
 			{#if result.manualDownloads.length > 0}
-				<div class="flex flex-col gap-1">
-					<p class="font-medium text-danger">
-						{m.editor_pack_manual({ count: result.manualDownloads.length })}
-					</p>
-					{#each result.manualDownloads as item (item.dest)}
-						<div class="flex items-center gap-2.5">
-							<span class="min-w-0 flex-1 truncate">{item.name}</span>
-							<span class="font-mono text-[11px] text-muted">{item.dest}</span>
-							{#if item.website}
-								<Button onclick={() => api.openExternal(item.website!)}>
-									{m.editor_pack_open_page()}
-								</Button>
-							{/if}
-						</div>
-					{/each}
-				</div>
+				<ManualDownloadList
+					{baseDir}
+					instanceId={result.instance.id}
+					items={result.manualDownloads}
+					onerror={(message) => (status = message)}
+				/>
 			{/if}
 
 			{#if result.removedFiles.length > 0}

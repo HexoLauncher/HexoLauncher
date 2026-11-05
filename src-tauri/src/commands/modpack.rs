@@ -2,10 +2,11 @@ use std::future::Future;
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use hexomc_lib::{
-    detect_modpack_format, install_modpack_files, read_cf_manifest, read_hmcl_pack,
-    read_mcbbs_manifest, read_mrpack_index, resolve_forge_version, update_modpack, Browser,
-    CurseForgeClient, HexoError, LoaderType, ManualDownload, ModpackFormat, ModpackInfo,
-    ModpackInstallResult, ModpackUpdateResult, ProgressFn,
+    detect_modpack_format, file_curseforge_fingerprint, install_modpack_files, read_cf_manifest,
+    read_hmcl_pack, read_mcbbs_manifest, read_mrpack_index, resolve_forge_version, update_modpack,
+    update_modpack_files, Browser, CurseForgeClient, HexoError, LoaderType, ManualDownload,
+    ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ModrinthClient,
+    Platform, ProgressFn,
 };
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -14,7 +15,7 @@ use super::install::{progress_emitter, tool_java};
 use super::instance::{build_view, unique_instance_id, InstanceView, EVENT_INSTANCES_CHANGED};
 use super::{instance_dir, minecraft_dir, LoaderKind};
 use crate::error::{CmdError, CmdResult};
-use crate::store::instance_meta::{InstanceMeta, LocalStore, DEFAULT_ICON};
+use crate::store::instance_meta::{InstanceMeta, LocalStore, ModpackSource, DEFAULT_ICON};
 use crate::store::launcher::LauncherConfig;
 use crate::store::now_secs;
 
@@ -79,6 +80,8 @@ pub struct ManualDownloadDto {
     pub dest: String,
 
     pub folder: String,
+
+    pub sha1: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -115,13 +118,14 @@ pub async fn install_modpack_file(
     target: PackTarget,
     pack_path: String,
 ) -> CmdResult<ModpackInstallDto> {
-    install_local_pack(app, target, PathBuf::from(pack_path)).await
+    install_local_pack(app, target, PathBuf::from(pack_path), None).await
 }
 
 pub(super) async fn install_local_pack(
     app: tauri::AppHandle,
     target: PackTarget,
     path: PathBuf,
+    source: Option<ModpackSource>,
 ) -> CmdResult<ModpackInstallDto> {
     let preview = read_pack_file(&path).await?;
 
@@ -130,10 +134,71 @@ pub(super) async fn install_local_pack(
         _ => None,
     };
 
-    install_pack(app, target, preview, move |id, base, progress| async move {
-        install_modpack_files(&path, &id, &base, curseforge.as_ref(), progress).await
-    })
+    let source = match source {
+        Some(source) => source,
+        None => identify_local_pack(&path, &preview).await,
+    };
+
+    install_pack(
+        app,
+        target,
+        preview,
+        source,
+        move |id, base, progress| async move {
+            install_modpack_files(&path, &id, &base, curseforge.as_ref(), progress).await
+        },
+    )
     .await
+}
+
+async fn identify_local_pack(path: &Path, preview: &ModpackPreview) -> ModpackSource {
+    let unknown = ModpackSource {
+        version_name: preview.version.clone().unwrap_or_default(),
+        ..ModpackSource::default()
+    };
+    let found = match preview.format {
+        PackFormat::Modrinth => identify_modrinth_pack(path).await,
+        PackFormat::CurseForge => identify_curseforge_pack(path).await,
+        _ => None,
+    };
+    found.unwrap_or(unknown)
+}
+
+async fn identify_modrinth_pack(path: &Path) -> Option<ModpackSource> {
+    let sha1 = file_sha1(path).await.ok()?;
+    let version = ModrinthClient::new()
+        .get_version_by_hash(&sha1)
+        .await
+        .ok()??;
+    Some(ModpackSource {
+        platform: Some(Platform::Modrinth),
+        project_id: version.project_id,
+        version_id: version.id,
+        version_name: version.name,
+    })
+}
+
+async fn identify_curseforge_pack(path: &Path) -> Option<ModpackSource> {
+    let client = CurseForgeClient::new(curseforge_key().await.ok()?);
+    let fingerprint = file_curseforge_fingerprint(path).await.ok()?;
+    let found = client
+        .match_fingerprints(&[fingerprint])
+        .await
+        .ok()?
+        .into_iter()
+        .next()?;
+    Some(ModpackSource {
+        platform: Some(Platform::CurseForge),
+        project_id: found.mod_id.to_string(),
+        version_id: found.file.id.to_string(),
+        version_name: found.file.display_name,
+    })
+}
+
+pub(super) async fn file_sha1(path: &Path) -> CmdResult<String> {
+    use sha1::{Digest, Sha1};
+    let bytes = tokio::fs::read(path).await?;
+    Ok(format!("{:x}", Sha1::digest(&bytes)))
 }
 
 pub(super) async fn browser() -> CmdResult<Browser> {
@@ -212,16 +277,69 @@ pub async fn update_modpack_file(
     instance_name: String,
     pack_path: String,
 ) -> CmdResult<ModpackUpdateDto> {
-    let base = PathBuf::from(&base_dir);
-    let dir = instance_dir(&base, &instance_name)?;
+    update_from_path(
+        app,
+        &base_dir,
+        &instance_name,
+        PathBuf::from(pack_path),
+        None,
+    )
+    .await
+}
+
+pub(super) async fn ensure_not_linked(base: &Path, instance_name: &str) -> CmdResult<()> {
+    let mc_dir = minecraft_dir(base, instance_name)?;
+    let linked = tokio::fs::symlink_metadata(&mc_dir)
+        .await
+        .is_ok_and(|meta| super::foreign::is_link(&meta));
+    if !linked {
+        return Ok(());
+    }
+    let target = tokio::fs::read_link(&mc_dir)
+        .await
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| mc_dir.display().to_string());
+    Err(CmdError::new(
+        "instanceLinked",
+        format!(
+            "這個實例是用「連結」方式從其他啟動器匯入的，遊戲資料夾實際上在：{}\n更新模組包會直接改到那個啟動器的檔案，而它記錄的載入器版本不會跟著更新，可能導致它無法啟動，所以已停止更新。\n請到原本的啟動器更新這個模組包，或改用「複製」方式重新匯入後再更新。",
+            target
+        ),
+    ))
+}
+
+fn same_game_version(meta: &InstanceMeta, preview: &ModpackPreview) -> bool {
+    if meta.mc_version != preview.mc_version || meta.loader != preview.loader {
+        return false;
+    }
+    if preview.loader == LoaderKind::Vanilla {
+        return true;
+    }
+    let Some(wanted) = preview.loader_version.as_deref() else {
+        return false;
+    };
+    let current = meta.loader_version.as_str();
+    let full = format!("{}-{}", preview.mc_version, wanted);
+    current == wanted || current == full || current.starts_with(&format!("{}-", full))
+}
+
+pub(super) async fn update_from_path(
+    app: tauri::AppHandle,
+    base_dir: &str,
+    instance_name: &str,
+    path: PathBuf,
+    source: Option<ModpackSource>,
+) -> CmdResult<ModpackUpdateDto> {
+    let base = PathBuf::from(base_dir);
+    let dir = instance_dir(&base, instance_name)?;
     if !dir.exists() {
         return Err(CmdError::new(
             "instanceNotFound",
             format!("找不到 instance: {}", instance_name),
         ));
     }
+    ensure_not_linked(&base, instance_name).await?;
 
-    let path = PathBuf::from(pack_path);
     let preview = read_pack_file(&path).await?;
 
     let curseforge = match preview.format {
@@ -229,24 +347,32 @@ pub async fn update_modpack_file(
         _ => None,
     };
 
-    let java = match preview.loader {
-        LoaderKind::Forge | LoaderKind::NeoForge => Some(tool_java(None).await?),
-        _ => None,
-    };
+    let mut meta = InstanceMeta::load(&dir, instance_name).await?;
+    let installed = super::instance::load_config(&base, instance_name)
+        .await
+        .is_ok_and(|config| super::instance::is_healthy(&dir, &config));
 
-    let progress = progress_emitter(&app, &instance_name);
+    let progress = progress_emitter(&app, instance_name);
     let ModpackUpdateResult {
         install,
         removed_files,
-    } = update_modpack(
-        &path,
-        &instance_name,
-        &base,
-        java.as_deref(),
-        curseforge.as_ref(),
-        progress,
-    )
-    .await?;
+    } = if installed && same_game_version(&meta, &preview) {
+        update_modpack_files(&path, instance_name, &base, curseforge.as_ref(), progress).await?
+    } else {
+        let java = match preview.loader {
+            LoaderKind::Forge | LoaderKind::NeoForge => Some(tool_java(None).await?),
+            _ => None,
+        };
+        update_modpack(
+            &path,
+            instance_name,
+            &base,
+            java.as_deref(),
+            curseforge.as_ref(),
+            progress,
+        )
+        .await?
+    };
 
     let ModpackInstallResult {
         info,
@@ -254,17 +380,22 @@ pub async fn update_modpack_file(
         skipped,
     } = install;
 
-    let mut meta = InstanceMeta::load(&dir, &instance_name).await?;
+    let source = match source {
+        Some(source) => source,
+        None => identify_local_pack(&path, &preview).await,
+    };
+
     meta.loader = LoaderKind::from(&info.loader);
     meta.loader_version = pack_loader_version(&info).await;
     meta.mc_version = info.mc_version.clone();
+    meta.modpack = Some(source);
     meta.save(&dir).await?;
 
-    let mc_dir = minecraft_dir(&base, &instance_name)?;
+    let mc_dir = minecraft_dir(&base, instance_name)?;
     let _ = app.emit(EVENT_INSTANCES_CHANGED, ());
 
     Ok(ModpackUpdateDto {
-        instance: build_view(&base, &instance_name, &LocalStore::load().await?).await?,
+        instance: build_view(&base, instance_name, &LocalStore::load().await?).await?,
         manual_downloads: manual_download_dtos(manual_downloads, &mc_dir),
         skipped,
         removed_files: removed_files
@@ -278,6 +409,7 @@ pub(super) async fn install_pack<F, Fut>(
     app: tauri::AppHandle,
     target: PackTarget,
     preview: ModpackPreview,
+    source: ModpackSource,
     run: F,
 ) -> CmdResult<ModpackInstallDto>
 where
@@ -326,6 +458,7 @@ where
         loader_version,
         mc_version: info.mc_version,
         created_at: now_secs(),
+        modpack: Some(source),
         ..InstanceMeta::default()
     };
     super::icon::apply_source(
@@ -371,6 +504,7 @@ fn manual_download_dtos(downloads: Vec<ManualDownload>, mc_dir: &Path) -> Vec<Ma
             name: d.name,
             file_name: d.file_name,
             website: d.website,
+            sha1: d.sha1,
         })
         .collect()
 }
@@ -386,5 +520,81 @@ fn folder_of(relative: &Path) -> &'static str {
         Some("config") => "config",
         Some("saves") => "saves",
         _ => "minecraft",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{same_game_version, ModpackPreview, PackFormat};
+    use crate::commands::LoaderKind;
+    use crate::store::instance_meta::InstanceMeta;
+
+    fn meta(mc: &str, loader: LoaderKind, version: &str) -> InstanceMeta {
+        InstanceMeta {
+            mc_version: mc.into(),
+            loader,
+            loader_version: version.into(),
+            ..InstanceMeta::default()
+        }
+    }
+
+    fn preview(mc: &str, loader: LoaderKind, version: Option<&str>) -> ModpackPreview {
+        ModpackPreview {
+            format: PackFormat::CurseForge,
+            name: String::new(),
+            version: None,
+            mc_version: mc.into(),
+            loader,
+            loader_version: version.map(str::to_string),
+            file_count: 0,
+        }
+    }
+
+    #[test]
+    fn same_versions_skip_game_install() {
+        let fabric = meta("1.21.1", LoaderKind::Fabric, "0.16.5");
+        assert!(same_game_version(
+            &fabric,
+            &preview("1.21.1", LoaderKind::Fabric, Some("0.16.5"))
+        ));
+
+        let forge = meta("1.20.1", LoaderKind::Forge, "1.20.1-47.2.0");
+        assert!(same_game_version(
+            &forge,
+            &preview("1.20.1", LoaderKind::Forge, Some("47.2.0"))
+        ));
+
+        let vanilla = meta("1.21.1", LoaderKind::Vanilla, "");
+        assert!(same_game_version(
+            &vanilla,
+            &preview("1.21.1", LoaderKind::Vanilla, None)
+        ));
+    }
+
+    #[test]
+    fn changed_versions_need_game_install() {
+        let fabric = meta("1.21.1", LoaderKind::Fabric, "0.16.5");
+        assert!(!same_game_version(
+            &fabric,
+            &preview("1.21.4", LoaderKind::Fabric, Some("0.16.5"))
+        ));
+        assert!(!same_game_version(
+            &fabric,
+            &preview("1.21.1", LoaderKind::Fabric, Some("0.16.9"))
+        ));
+        assert!(!same_game_version(
+            &fabric,
+            &preview("1.21.1", LoaderKind::NeoForge, Some("0.16.5"))
+        ));
+        assert!(!same_game_version(
+            &fabric,
+            &preview("1.21.1", LoaderKind::Fabric, None)
+        ));
+
+        let forge = meta("1.20.1", LoaderKind::Forge, "1.20.1-47.2.0");
+        assert!(!same_game_version(
+            &forge,
+            &preview("1.20.1", LoaderKind::Forge, Some("47.2"))
+        ));
     }
 }

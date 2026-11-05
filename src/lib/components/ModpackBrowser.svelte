@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Button, Select, TextInput } from '$lib/ui';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import Icon from '$lib/ui/Icon.svelte';
 	import Switch from '$lib/ui/Switch.svelte';
 	import ContentDetailView from './ContentDetailView.svelte';
@@ -16,6 +16,9 @@
 		hit = $bindable(null),
 		version = $bindable(null),
 		includeOptional = $bindable(true),
+		initialQuery = '',
+		currentPackId = '',
+		currentVersionId = '',
 		disabled = false,
 		onchoose,
 		onerror
@@ -24,6 +27,9 @@
 		hit?: PackHit | null;
 		version?: RemoteVersion | null;
 		includeOptional?: boolean;
+		initialQuery?: string;
+		currentPackId?: string;
+		currentVersionId?: string;
 		disabled?: boolean;
 		onchoose?: (hit: PackHit) => void;
 		onerror: (message: string) => void;
@@ -51,7 +57,7 @@
 	);
 	const hasOptional = $derived(platform === 'atlauncher' || platform === 'ftb');
 
-	let query = $state('');
+	let query = $state(untrack(() => initialQuery));
 	let sort = $state<ModpackSort>('relevance');
 	let mcVersion = $state('');
 	let mcVersions = $state<string[]>([]);
@@ -164,6 +170,9 @@
 
 	function versionLabel(v: RemoteVersion) {
 		const parts = [v.name];
+		if (currentVersionId && hit?.id === currentPackId && v.id === currentVersionId) {
+			parts.push(m.modpack_current_version());
+		}
 		if (v.mcVersion) parts.push(`MC ${v.mcVersion}`);
 		if (KIND_LABELS[v.releaseType]) parts.push(KIND_LABELS[v.releaseType]);
 		if (v.published) parts.push(formatDate(v.published));

@@ -6,6 +6,7 @@
 	import WindowShell from './WindowShell.svelte';
 	import NavList from '$lib/ui/NavList.svelte';
 	import ModpackBrowser from './ModpackBrowser.svelte';
+	import ManualDownloadList from './ManualDownloadList.svelte';
 	import VersionPicker from './VersionPicker.svelte';
 	import * as api from '$lib/api';
 	import type {
@@ -120,7 +121,7 @@
 					installPack(
 						hit.name,
 						(target) =>
-							api.installRemoteModpack(target, platform, hit.id, version.id, includeOptional),
+							api.installRemoteModpack(target, platform, hit.id, version.id, version.name, includeOptional),
 						m.busy_downloading_modpack()
 					);
 				}
@@ -363,10 +364,6 @@
 			busy = '';
 		}
 	}
-
-	function attempt(task: Promise<unknown>) {
-		task.catch((e) => (error = api.errorMessage(e)));
-	}
 </script>
 
 {#snippet identity(placeholder: string)}
@@ -463,25 +460,12 @@
 					<p class="leading-[1.8] text-muted">
 						{m.add_manual_downloads()}
 					</p>
-					<ul class="min-h-0 flex-1 overflow-y-auto rounded-lg border border-line bg-deep">
-						{#each done.manualDownloads as file (file.dest)}
-							<li class="flex items-center gap-3 border-b border-line px-3 py-2 last:border-b-0">
-								<div class="min-w-0 flex-1">
-									<div class="truncate text-ink">{file.name}</div>
-									<div class="truncate text-faint">{file.dest}</div>
-								</div>
-								{#if file.website}
-									{@const website = file.website}
-									<Button onclick={() => attempt(api.openExternal(website))}>
-										<Icon name="globe" size={13} />{m.add_manual_download_page()}
-									</Button>
-								{/if}
-								<Button onclick={() => attempt(api.openInstanceFolder(baseDir, done.instance.id, file.folder))}>
-									<Icon name="folder" size={13} />{m.action_folder()}
-								</Button>
-							</li>
-						{/each}
-					</ul>
+					<ManualDownloadList
+						{baseDir}
+						instanceId={done.instance.id}
+						items={done.manualDownloads}
+						onerror={(message) => (error = message)}
+					/>
 				{/if}
 
 				{#if done.skipped.length}

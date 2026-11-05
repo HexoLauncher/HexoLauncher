@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use hexomc_lib::Platform;
 use serde::{Deserialize, Serialize};
 
 use super::{now_secs, read_json, store_file, write_json};
@@ -34,6 +35,16 @@ pub struct InstanceMeta {
     pub play_time_seconds: u64,
     pub launch_count: u32,
     pub settings: InstanceSettings,
+    pub modpack: Option<ModpackSource>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ModpackSource {
+    pub platform: Option<Platform>,
+    pub project_id: String,
+    pub version_id: String,
+    pub version_name: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -65,6 +76,7 @@ impl Default for InstanceMeta {
             play_time_seconds: 0,
             launch_count: 0,
             settings: InstanceSettings::default(),
+            modpack: None,
         }
     }
 }

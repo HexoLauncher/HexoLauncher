@@ -64,9 +64,59 @@ impl From<HexoError> for CmdError {
                 return Self::new("downloadBlocked", message);
             }
             HexoError::Dependency(_) => "modInstall",
-            HexoError::Other(_) => "other",
+            HexoError::Other(message) => {
+                if let Some(error) = modpack_path_error(message) {
+                    return error;
+                }
+                "other"
+            }
         };
         Self::new(kind, err.to_string())
+    }
+}
+
+fn modpack_path_error(message: &str) -> Option<CmdError> {
+    if let Some(path) = message.strip_prefix("linked path in modpack destination: ") {
+        return Some(CmdError::new(
+            "instanceLinked",
+            format!(
+                "無法寫入模組包檔案：{} 是連結到其他位置的資料夾（捷徑或符號連結）。為了避免改到其他啟動器或其他資料夾的內容，已停止這次操作。請移除這個連結，或把實例改成獨立的副本後再試一次。",
+                path
+            ),
+        ));
+    }
+    if let Some(path) = message.strip_prefix("unsafe path in modpack: ") {
+        return Some(CmdError::new(
+            "unsafeModpack",
+            format!(
+                "這個模組包含有不安全的檔案路徑（{}），可能會寫到實例以外的地方，已停止安裝。請確認模組包來源是否可信。",
+                path
+            ),
+        ));
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CmdError;
+    use hexomc_lib::HexoError;
+
+    #[test]
+    fn linked_destination_becomes_readable() {
+        let err: CmdError =
+            HexoError::Other("linked path in modpack destination: C:\\inst\\.minecraft".into())
+                .into();
+        assert_eq!(err.kind, "instanceLinked");
+        assert!(err.message.contains("C:\\inst\\.minecraft"));
+        assert!(!err.message.contains("linked path"));
+    }
+
+    #[test]
+    fn other_errors_are_unchanged() {
+        let err: CmdError = HexoError::Other("something else".into()).into();
+        assert_eq!(err.kind, "other");
+        assert!(err.message.contains("something else"));
     }
 }
 

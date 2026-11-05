@@ -209,6 +209,17 @@ export interface InstanceView {
 	healthy: boolean;
 	javaPath: string;
 	settings: InstanceSettings;
+
+	isModpack: boolean;
+	modpack: ModpackSource | null;
+	linkedTo: string | null;
+}
+
+export interface ModpackSource {
+	platform: ModpackPlatform | null;
+	projectId: string;
+	versionId: string;
+	versionName: string;
 }
 
 export interface MetaPatch {
@@ -417,7 +428,34 @@ export interface ManualDownload {
 
 	dest: string;
 	folder: InstanceFolder;
+	sha1: string | null;
 }
+
+export interface ManualDownloadWatch {
+	downloadsDir: string;
+	done: string[];
+}
+
+export const watchManualDownloads = (
+	baseDir: string,
+	instanceName: string,
+	items: ManualDownload[]
+) =>
+	invoke<ManualDownloadWatch>('watch_manual_downloads', {
+		baseDir,
+		instanceName,
+		items: items.map((item) => ({ dest: item.dest, fileName: item.fileName, sha1: item.sha1 }))
+	});
+
+export const stopManualDownloads = (instanceName: string) =>
+	invoke<void>('stop_manual_downloads', { instanceName });
+
+export const onManualDownloadFound = (
+	handler: (found: { instanceName: string; dest: string }) => void
+): Promise<UnlistenFn> =>
+	listen<{ instanceName: string; dest: string }>('nolauncher://manual-download-found', (event) =>
+		handler(event.payload)
+	);
 
 export interface ModpackInstallResult {
 	instance: InstanceView;
@@ -438,6 +476,33 @@ export const installModpackFile = (target: PackTarget, packPath: string) =>
 
 export const updateModpackFile = (baseDir: string, instanceName: string, packPath: string) =>
 	invoke<ModpackUpdateResult>('update_modpack_file', { baseDir, instanceName, packPath });
+
+export interface ModpackUpdateCheck {
+	current: ModpackSource;
+	versions: RemoteVersion[];
+}
+
+export const checkModpackUpdate = (baseDir: string, instanceName: string) =>
+	invoke<ModpackUpdateCheck>('check_modpack_update', { baseDir, instanceName });
+
+export const modpackMissingFiles = (baseDir: string, instanceName: string) =>
+	invoke<string[]>('modpack_missing_files', { baseDir, instanceName });
+
+export const updateRemoteModpack = (
+	baseDir: string,
+	instanceName: string,
+	versionId: string,
+	versionName: string,
+	link?: { platform: ModpackPlatform; packId: string }
+) =>
+	invoke<ModpackUpdateResult>('update_remote_modpack', {
+		baseDir,
+		instanceName,
+		versionId,
+		versionName,
+		platform: link?.platform ?? null,
+		packId: link?.packId ?? null
+	});
 
 export type ModpackPlatform = 'modrinth' | 'curseforge' | 'atlauncher' | 'ftb';
 
@@ -495,6 +560,7 @@ export const installRemoteModpack = (
 	platform: ModpackPlatform,
 	packId: string,
 	versionId: string,
+	versionName: string,
 	includeOptional: boolean
 ) =>
 	invoke<ModpackInstallResult>('install_remote_modpack', {
@@ -502,6 +568,7 @@ export const installRemoteModpack = (
 		platform,
 		packId,
 		versionId,
+		versionName,
 		includeOptional
 	});
 

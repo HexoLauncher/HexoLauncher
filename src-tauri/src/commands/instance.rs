@@ -7,7 +7,7 @@ use tauri::Emitter;
 use super::{instance_dir, minecraft_dir, path_string, validate_instance_name, LoaderKind};
 use crate::error::{CmdError, CmdResult};
 use crate::store::instance_meta::{
-    InstanceLocal, InstanceMeta, InstanceSettings, LocalStore, DEFAULT_ICON,
+    InstanceLocal, InstanceMeta, InstanceSettings, LocalStore, ModpackSource, DEFAULT_ICON,
 };
 use crate::store::now_secs;
 
@@ -42,6 +42,22 @@ pub struct InstanceView {
 
     pub java_path: String,
     pub settings: InstanceSettings,
+
+    pub is_modpack: bool,
+    pub modpack: Option<ModpackSource>,
+    pub linked_to: Option<String>,
+}
+
+const MODPACK_STATE_FILE: &str = "modpack_state.json";
+
+fn link_target(path: &Path) -> Option<String> {
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    if !super::foreign::is_link(&meta) {
+        return None;
+    }
+    Some(path_string(
+        &std::fs::read_link(path).unwrap_or_else(|_| path.to_path_buf()),
+    ))
 }
 
 pub async fn load_config(base_dir: &Path, name: &str) -> CmdResult<InstanceConfig> {
@@ -55,7 +71,7 @@ pub async fn load_config(base_dir: &Path, name: &str) -> CmdResult<InstanceConfi
     Ok(InstanceConfig::load(&dir).await?)
 }
 
-fn is_healthy(instance_dir: &Path, config: &InstanceConfig) -> bool {
+pub(super) fn is_healthy(instance_dir: &Path, config: &InstanceConfig) -> bool {
     if !instance_dir
         .join(format!("{}.jar", config.version_id))
         .exists()
@@ -154,6 +170,9 @@ pub async fn build_view(
         launch_count: meta.launch_count,
         java_path: local.get(base_dir, name).java_path,
         settings: meta.settings,
+        is_modpack: meta.modpack.is_some() || dir.join(MODPACK_STATE_FILE).is_file(),
+        modpack: meta.modpack,
+        linked_to: link_target(&mc_dir),
     })
 }
 
