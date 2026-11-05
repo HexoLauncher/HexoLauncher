@@ -45,7 +45,9 @@ impl From<HexoError> for CmdError {
                 )
             }
             HexoError::InvalidId(id) => return Self::launcher(format!("ID 不合法: {:?}", id)),
-            HexoError::InvalidMirrorUrl(url) => return Self::launcher(format!("鏡像網址無效: {}", url)),
+            HexoError::InvalidMirrorUrl(url) => {
+                return Self::launcher(format!("鏡像網址無效: {}", url))
+            }
             HexoError::MissingApiKey => {
                 return Self::new(
                     "curseforgeKeyMissing",
@@ -54,7 +56,8 @@ impl From<HexoError> for CmdError {
             }
             HexoError::DownloadBlocked { website, .. } => {
                 let mut message =
-                    "作者不允許第三方下載這個檔案，請到 CurseForge 網站下載後再自行安裝".to_string();
+                    "作者不允許第三方下載這個檔案，請到 CurseForge 網站下載後再自行安裝"
+                        .to_string();
                 if let Some(url) = website {
                     message.push_str(&format!("：{}", url));
                 }

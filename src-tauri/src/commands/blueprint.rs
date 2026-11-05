@@ -274,7 +274,6 @@ fn not_signed_in() -> CmdError {
     CmdError::new("blueprintAuth", "還沒有登入藍圖庫")
 }
 
-/// 帶 JWT 的請求要用的東西：伺服器網址、token、以及 401 時要清掉的 UUID。
 struct Authed {
     server: String,
     token: String,
@@ -301,8 +300,8 @@ async fn error_from(response: reqwest::Response) -> CmdError {
         Err(_) if !body.trim().is_empty() => format!("HTTP {}: {}", status.as_u16(), body.trim()),
         Err(_) => format!("HTTP {}", status.as_u16()),
     };
-    let terms_required = serde_json::from_str::<ServerError>(&body)
-        .is_ok_and(|err| err.error == "terms_required");
+    let terms_required =
+        serde_json::from_str::<ServerError>(&body).is_ok_and(|err| err.error == "terms_required");
     let kind = if terms_required {
         "blueprintTerms"
     } else if status == reqwest::StatusCode::UNAUTHORIZED {

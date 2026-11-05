@@ -31,11 +31,8 @@ pub(super) fn instances_dir(path: &Path) -> Option<PathBuf> {
 }
 
 fn has_instances(dir: &Path) -> bool {
-    std::fs::read_dir(dir).is_ok_and(|entries| {
-        entries
-            .flatten()
-            .any(|e| e.path().join(MANIFEST).is_file())
-    })
+    std::fs::read_dir(dir)
+        .is_ok_and(|entries| entries.flatten().any(|e| e.path().join(MANIFEST).is_file()))
 }
 
 pub(super) async fn list(instances: &Path) -> Vec<Found> {
@@ -66,8 +63,10 @@ pub(super) async fn read(dir: &Path) -> Option<Found> {
     let mc_version = text_of(manifest.get("gameVersion"))
         .or_else(|| text_of(base_loader.and_then(|l| l.get("minecraftVersion"))))
         .unwrap_or_default();
-    let (loader, loader_version, unsupported_loader) =
-        parse_loader(text_of(base_loader.and_then(|l| l.get("name"))).as_deref(), &mc_version);
+    let (loader, loader_version, unsupported_loader) = parse_loader(
+        text_of(base_loader.and_then(|l| l.get("name"))).as_deref(),
+        &mc_version,
+    );
 
     let jvm_args = text_of(manifest.get("javaArgsOverride")).unwrap_or_default();
     let custom_icon = text_of(manifest.get("profileImagePath"))
@@ -141,6 +140,9 @@ mod tests {
             parse_loader(Some("quilt-0.26.0"), "1.21.1"),
             (LoaderKind::Vanilla, String::new(), Some("quilt".into()))
         );
-        assert_eq!(parse_loader(None, "1.21.1"), (LoaderKind::Vanilla, String::new(), None));
+        assert_eq!(
+            parse_loader(None, "1.21.1"),
+            (LoaderKind::Vanilla, String::new(), None)
+        );
     }
 }

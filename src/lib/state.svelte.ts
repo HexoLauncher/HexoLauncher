@@ -29,6 +29,7 @@ export function defaultConfig(): LauncherConfig {
 			minMemoryMb: 512,
 			maxMemoryMb: 4096,
 			jvmArgs: '',
+			optimizeJvm: true,
 			recordPlayTime: true,
 			showProgressWindow: true,
 			closeProgressWhenDone: true,

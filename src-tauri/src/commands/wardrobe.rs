@@ -176,8 +176,12 @@ fn image_url(bytes: &[u8]) -> String {
 async fn views(store: &WardrobeStore) -> Vec<WardrobeSkin> {
     let mut out = Vec::with_capacity(store.skins.len());
     for skin in &store.skins {
-        let Ok(path) = skin_file(&skin.id) else { continue };
-        let Ok(bytes) = tokio::fs::read(&path).await else { continue };
+        let Ok(path) = skin_file(&skin.id) else {
+            continue;
+        };
+        let Ok(bytes) = tokio::fs::read(&path).await else {
+            continue;
+        };
         out.push(WardrobeSkin {
             id: skin.id.clone(),
             name: skin.name.clone(),
@@ -210,7 +214,11 @@ async fn insert(
     let name = name.trim();
     store.skins.push(StoredSkin {
         id,
-        name: if name.is_empty() { "未命名".into() } else { name.into() },
+        name: if name.is_empty() {
+            "未命名".into()
+        } else {
+            name.into()
+        },
         variant,
         sha256,
         added_at: now_secs(),
@@ -222,7 +230,9 @@ async fn account_token(account_id: &str) -> CmdResult<(String, String)> {
     let account = resolve(Some(account_id)).await?;
     match (account.access_token, account.uuid) {
         (Some(token), Some(uuid)) => Ok((token, uuid)),
-        _ => Err(CmdError::launcher("離線帳號不能更換皮膚，請使用 Microsoft 帳號")),
+        _ => Err(CmdError::launcher(
+            "離線帳號不能更換皮膚，請使用 Microsoft 帳號",
+        )),
     }
 }
 

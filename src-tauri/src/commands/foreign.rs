@@ -10,14 +10,10 @@ use super::{
     EVENT_INSTALL_PROGRESS,
 };
 use crate::error::{CmdError, CmdResult};
-use crate::store::instance_meta::{
-    InstanceLocal, InstanceMeta, InstanceSettings, LocalStore,
-};
+use crate::store::instance_meta::{InstanceLocal, InstanceMeta, InstanceSettings, LocalStore};
 use crate::store::now_secs;
 
-/// 每複製幾個檔案回報一次進度，免得檔案很多時事件量爆掉。
 const PROGRESS_EVERY: usize = 64;
-
 
 mod curseforge;
 mod mmc;
@@ -27,9 +23,7 @@ mod vanilla;
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ImportMode {
-    /// 把遊戲目錄整份複製過來，兩邊各玩各的。
     Copy,
-    /// 建立連結指向原本的遊戲目錄，兩邊共用同一份存檔與模組。
     Link,
 }
 
@@ -39,7 +33,6 @@ pub struct ForeignLauncher {
     pub kind: String,
     pub name: String,
 
-    /// 啟動器的資料目錄
     pub path: String,
 
     pub instance_count: usize,
@@ -69,7 +62,6 @@ pub struct ForeignInstance {
 pub struct ForeignImportRequest {
     pub base_dir: String,
 
-    /// 要匯入的實例資料夾，來自 `list_foreign_instances`。
     pub paths: Vec<String>,
     pub mode: ImportMode,
     pub group: Option<String>,
@@ -143,7 +135,6 @@ async fn read_any(dir: &Path) -> Option<Found> {
     modrinth::read(dir).await
 }
 
-/// 掃預設安裝位置，列出找得到的啟動器。找不到不算錯誤，回空陣列讓使用者自己指定。
 #[tauri::command]
 pub async fn detect_foreign_launchers() -> CmdResult<Vec<ForeignLauncher>> {
     let candidates = mmc::known()
@@ -160,7 +151,7 @@ pub async fn detect_foreign_launchers() -> CmdResult<Vec<ForeignLauncher>> {
             continue;
         };
         let path = path_string(&path);
-        // Windows 的檔名不分大小寫，`MultiMC` 跟 `multimc` 會是同一個資料夾。
+
         let key = if cfg!(windows) {
             path.to_lowercase()
         } else {
@@ -181,7 +172,6 @@ pub async fn detect_foreign_launchers() -> CmdResult<Vec<ForeignLauncher>> {
     Ok(found)
 }
 
-/// 列出一個啟動器裡的實例。`path` 是啟動器的資料目錄，或直接是放實例的資料夾。
 #[tauri::command]
 pub async fn list_foreign_instances(path: String) -> CmdResult<Vec<ForeignInstance>> {
     let root = detect_root(Path::new(path.trim())).ok_or_else(|| {
@@ -267,7 +257,6 @@ async fn import_one(
         CmdError::launcher("這個實例還沒有遊戲目錄（.minecraft），先在原本的啟動器裡啟動一次")
     })?;
 
-    // 連結到自己的資料目錄底下會變成無限巢狀，直接擋掉。
     if mode == ImportMode::Link && game_dir.starts_with(base) {
         return Err(CmdError::launcher(
             "這個實例已經在啟動器的資料目錄裡，不能再建立連結",
@@ -279,7 +268,6 @@ async fn import_one(
     let target = minecraft_dir(base, &id)?;
     tokio::fs::create_dir_all(&dir).await?;
 
-    // 失敗就把建到一半的資料夾收掉，不要留下半個實例。
     if let Err(e) = place_game_dir(app, &id, &game_dir, &target, mode, &exclude).await {
         let _ = tokio::fs::remove_dir_all(&dir).await;
         return Err(e);
@@ -380,7 +368,6 @@ fn count_files(root: &Path, exclude: &[String]) -> usize {
     total
 }
 
-/// 只複製一般檔案與資料夾；來源裡的連結不跟著展開，免得整個檔案系統被拖進來。
 pub(super) fn copy_tree(
     source: &Path,
     target: &Path,
@@ -438,8 +425,6 @@ fn count_mods(game_dir: &Path) -> usize {
 
 #[cfg(windows)]
 pub(super) async fn link_dir(source: &Path, link: &Path) -> CmdResult<()> {
-    // 沒開「開發人員模式」就沒有建立符號連結的權限；目錄連接點（junction）不用權限，
-    // 對遊戲目錄來說效果一樣，所以失敗時就退而求其次。
     if std::os::windows::fs::symlink_dir(source, link).is_ok() {
         return Ok(());
     }
@@ -469,11 +454,6 @@ pub(super) async fn link_dir(source: &Path, link: &Path) -> CmdResult<()> {
         .map_err(|e| CmdError::launcher(format!("無法建立連結: {}", e)))
 }
 
-/// 這個路徑本身是不是連結。
-///
-/// Windows 上 `FileType::is_symlink` 只認符號連結，不認目錄連接點（junction），
-/// 但我們兩種都會建，所以直接看 reparse point 屬性。刪實例時要靠這個判斷，
-/// 否則會順著連結把原本啟動器的遊戲目錄一起刪掉。
 pub(super) fn is_link(meta: &std::fs::Metadata) -> bool {
     #[cfg(windows)]
     {
@@ -487,12 +467,9 @@ pub(super) fn is_link(meta: &std::fs::Metadata) -> bool {
     }
 }
 
-/// 拆掉連結本身，不碰它指向的東西。Windows 的目錄連結要用 `remove_dir`，
-/// Unix 的符號連結要用 `remove_file`。
 pub(super) async fn unlink(path: &Path) -> CmdResult<()> {
     if tokio::fs::remove_dir(path).await.is_ok() {
         return Ok(());
     }
     Ok(tokio::fs::remove_file(path).await?)
 }
-

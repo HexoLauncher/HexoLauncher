@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use hexomc_lib::{
-    download_file, DownloadTask, Platform, ProjectDetail, ProjectKind, ProjectVersion,
-    SearchPage, SearchQuery, SortBy, VersionFilter,
+    download_file, DownloadTask, Platform, ProjectDetail, ProjectKind, ProjectVersion, SearchPage,
+    SearchQuery, SortBy, VersionFilter,
 };
 use serde::{Deserialize, Serialize};
 
@@ -115,8 +115,5 @@ pub async fn get_content_detail(
     kind: ProjectKind,
     project_id: String,
 ) -> CmdResult<ProjectDetail> {
-    Ok(browser()
-        .await?
-        .detail(platform, kind, &project_id)
-        .await?)
+    Ok(browser().await?.detail(platform, kind, &project_id).await?)
 }

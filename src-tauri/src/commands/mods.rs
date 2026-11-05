@@ -82,7 +82,6 @@ pub struct ModDetailsDto {
     pub dependencies: Vec<ModDependencyDto>,
 }
 
-
 const MAX_ICON_BYTES: u64 = 4 * 1024 * 1024;
 
 fn icon_data_url(jar: &Path, icon: &str) -> Option<String> {

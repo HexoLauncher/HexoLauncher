@@ -135,7 +135,7 @@ pub async fn launch_instance(
         auth_token: account.access_token,
         auth_uuid: account.uuid,
         xuid: account.xuid,
-        jvm_extra_args: jvm_args(&launcher, &meta.settings),
+        jvm_extra_args: jvm_args(&launcher, &meta.settings, java.version),
     };
 
     state.clear_log(&instance_name)?;
@@ -215,12 +215,17 @@ fn windowless_java(path: &Path) -> PathBuf {
     path.to_path_buf()
 }
 
-fn jvm_args(launcher: &LauncherConfig, settings: &InstanceSettings) -> Vec<String> {
+fn jvm_args(
+    launcher: &LauncherConfig,
+    settings: &InstanceSettings,
+    java_version: u32,
+) -> Vec<String> {
     let (min, max) = if settings.override_memory {
         (settings.min_memory_mb, settings.max_memory_mb)
     } else {
         (launcher.game.min_memory_mb, launcher.game.max_memory_mb)
     };
+    let max = max.max(512);
 
     let extra = if settings.override_jvm_args {
         settings.jvm_args.as_str()
@@ -229,14 +234,48 @@ fn jvm_args(launcher: &LauncherConfig, settings: &InstanceSettings) -> Vec<Strin
     };
 
     let mut args = vec![
-        format!("-Xmx{}M", max.max(512)),
+        format!("-Xmx{}M", max),
         format!("-Xms{}M", min.max(256)),
         "-Dfile.encoding=UTF-8".to_string(),
         "-Dstdout.encoding=UTF-8".to_string(),
         "-Dstderr.encoding=UTF-8".to_string(),
     ];
+    if launcher.game.optimize_jvm {
+        let zgc = max >= ZGC_MIN_HEAP_MB && total_memory_mb() >= ZGC_MIN_SYSTEM_MB;
+        args.extend(tuned_jvm_args(java_version, zgc, extra));
+    }
     args.extend(extra.split_whitespace().map(str::to_string));
     args
+}
+
+const ZGC_MIN_HEAP_MB: u32 = 4096;
+const ZGC_MIN_SYSTEM_MB: u64 = 15 * 1024;
+
+fn total_memory_mb() -> u64 {
+    let mut system = sysinfo::System::new();
+    system.refresh_memory();
+    system.total_memory() / 1024 / 1024
+}
+
+fn tuned_jvm_args(java_version: u32, zgc: bool, user_args: &str) -> Vec<String> {
+    let has = |needle: &str| user_args.split_whitespace().any(|arg| arg.contains(needle));
+    let user_picked_gc = user_args
+        .split_whitespace()
+        .any(|arg| arg.starts_with("-XX:+Use") && arg.ends_with("GC"));
+
+    let mut args = Vec::new();
+    if !user_picked_gc {
+        match java_version {
+            8 => args.push("-XX:+UseG1GC"),
+            21 | 22 if zgc => args.extend(["-XX:+UseZGC", "-XX:+ZGenerational"]),
+            v if v >= 23 && zgc => args.push("-XX:+UseZGC"),
+            _ => {}
+        }
+    }
+    if java_version >= 25 && !has("CompactObjectHeaders") {
+        args.push("-XX:+UseCompactObjectHeaders");
+    }
+    args.into_iter().map(str::to_string).collect()
 }
 
 fn effective_commands(launcher: &LauncherConfig, settings: &InstanceSettings) -> (String, String) {
@@ -467,4 +506,46 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
 
         crate::background::quit_if_idle(&app, None);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tuned_jvm_args;
+
+    #[test]
+    fn picks_gc_by_java_version() {
+        assert_eq!(tuned_jvm_args(8, true, ""), ["-XX:+UseG1GC"]);
+        assert!(tuned_jvm_args(17, true, "").is_empty());
+        assert_eq!(
+            tuned_jvm_args(21, true, ""),
+            ["-XX:+UseZGC", "-XX:+ZGenerational"]
+        );
+        assert_eq!(tuned_jvm_args(23, true, ""), ["-XX:+UseZGC"]);
+        assert_eq!(
+            tuned_jvm_args(25, true, ""),
+            ["-XX:+UseZGC", "-XX:+UseCompactObjectHeaders"]
+        );
+    }
+
+    #[test]
+    fn falls_back_to_default_gc_on_small_systems() {
+        assert!(tuned_jvm_args(21, false, "").is_empty());
+        assert_eq!(
+            tuned_jvm_args(25, false, ""),
+            ["-XX:+UseCompactObjectHeaders"]
+        );
+    }
+
+    #[test]
+    fn respects_user_choices() {
+        assert!(tuned_jvm_args(21, true, "-XX:+UseShenandoahGC").is_empty());
+        assert_eq!(
+            tuned_jvm_args(8, true, "-XX:+UseParallelGC"),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            tuned_jvm_args(25, true, "-XX:+UseG1GC -XX:-UseCompactObjectHeaders"),
+            Vec::<String>::new()
+        );
+    }
 }

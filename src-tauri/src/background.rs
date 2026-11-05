@@ -152,7 +152,6 @@ pub fn quit_if_idle(app: &AppHandle, closing: Option<&str>) {
     }
 }
 
-/// 所有選單事件（macOS 應用程式選單、系統匣選單）的唯一入口。
 pub fn on_menu_event(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         MENU_SHOW => show_main(app),

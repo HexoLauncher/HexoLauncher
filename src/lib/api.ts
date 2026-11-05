@@ -28,6 +28,7 @@ export interface GameConfig {
 	minMemoryMb: number;
 	maxMemoryMb: number;
 	jvmArgs: string;
+	optimizeJvm: boolean;
 	recordPlayTime: boolean;
 
 	showProgressWindow: boolean;

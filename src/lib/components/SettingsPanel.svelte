@@ -712,6 +712,11 @@
 			</Group>
 
 			<Group title={m.settings_jvm_args()}>
+				<Switch
+					label={m.settings_optimize_jvm()}
+					bind:checked={config.game.optimizeJvm}
+					onchange={() => save(true)}
+				/>
 				<Field label={m.settings_jvm_extra_args()} for="jvm">
 					<TextInput id="jvm" bind:value={config.game.jvmArgs} oninput={() => save()} placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
 				</Field>

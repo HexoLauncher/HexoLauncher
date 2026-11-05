@@ -257,7 +257,9 @@ mod tests {
         assert!(archive.by_name(".minecraft/mods/a.jar").is_ok());
         assert!(archive.by_name(".minecraft/logs/latest.log").is_err());
 
-        super::super::foreign::unlink(&source.join(".minecraft")).await.unwrap();
+        super::super::foreign::unlink(&source.join(".minecraft"))
+            .await
+            .unwrap();
         let _ = std::fs::remove_dir_all(&root);
     }
 }

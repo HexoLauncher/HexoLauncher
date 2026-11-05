@@ -339,6 +339,7 @@
 	"settings_java_auto": "Pick automatically",
 	"settings_jvm_args": "JVM arguments",
 	"settings_jvm_extra_args": "Extra arguments",
+	"settings_optimize_jvm": "Optimize JVM arguments automatically",
 	"settings_commands": "Custom commands",
 	"settings_pre_launch": "Run before launch",
 	"settings_post_exit": "Run after exit",

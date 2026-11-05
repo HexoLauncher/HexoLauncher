@@ -13,8 +13,8 @@ pub mod launch;
 pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
-pub mod process;
 pub mod mods;
+pub mod process;
 pub mod schematic;
 pub mod schematic_sync;
 pub mod skin;
@@ -145,7 +145,9 @@ mod tests {
 
     #[test]
     fn file_names_cannot_escape() {
-        for bad in ["", ".", "..", "a/b", "a\\b", "../x", "C:x", "C:\\x", "/etc", "x:y"] {
+        for bad in [
+            "", ".", "..", "a/b", "a\\b", "../x", "C:x", "C:\\x", "/etc", "x:y",
+        ] {
             assert!(validate_file_name(bad).is_err(), "{:?}", bad);
         }
         for ok in ["sodium.jar", "a..b.zip", "New World", "latest.log"] {

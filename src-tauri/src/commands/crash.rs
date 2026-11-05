@@ -49,7 +49,11 @@ pub async fn analyze(
         .collect();
     let crash_text = read_capped(files.crash_report.as_deref()).await;
     let jvm_text = read_capped(files.jvm_report.as_deref()).await;
-    let causes = analyze_crash(&lines.join("\n"), crash_text.as_deref(), jvm_text.as_deref());
+    let causes = analyze_crash(
+        &lines.join("\n"),
+        crash_text.as_deref(),
+        jvm_text.as_deref(),
+    );
 
     Some(CrashAnalysis {
         instance_name: instance_name.to_string(),

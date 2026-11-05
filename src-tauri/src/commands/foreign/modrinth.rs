@@ -88,8 +88,18 @@ fn query(conn: &Connection, sql: &str, full: bool) -> rusqlite::Result<Vec<Profi
 }
 
 fn profile(row: &Row, full: bool) -> Profile {
-    let text = |i: usize| row.get::<_, Option<String>>(i).ok().flatten().unwrap_or_default();
-    let number = |i: usize| row.get::<_, Option<i64>>(i).ok().flatten().unwrap_or_default();
+    let text = |i: usize| {
+        row.get::<_, Option<String>>(i)
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    };
+    let number = |i: usize| {
+        row.get::<_, Option<i64>>(i)
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    };
     let optional = |i: usize| {
         row.get::<_, Option<String>>(i)
             .ok()
@@ -110,7 +120,8 @@ fn profile(row: &Row, full: bool) -> Profile {
 }
 
 fn to_found(data: &Path, profile: Profile) -> Option<Found> {
-    if profile.path.is_empty() || profile.path.contains(['/', '\\']) || profile.path.contains("..") {
+    if profile.path.is_empty() || profile.path.contains(['/', '\\']) || profile.path.contains("..")
+    {
         return None;
     }
     let dir = data.join("profiles").join(&profile.path);
@@ -170,7 +181,8 @@ mod tests {
 
     #[tokio::test]
     async fn reads_profiles_from_database() {
-        let data = std::env::temp_dir().join(format!("nolauncher-modrinth-{}", uuid::Uuid::new_v4()));
+        let data =
+            std::env::temp_dir().join(format!("nolauncher-modrinth-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(data.join("profiles/Fabric Pack/mods")).unwrap();
         std::fs::write(data.join("profiles/Fabric Pack/mods/a.jar"), "").unwrap();
         {

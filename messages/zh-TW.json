@@ -339,6 +339,7 @@
 	"settings_java_auto": "自動挑選",
 	"settings_jvm_args": "JVM 參數",
 	"settings_jvm_extra_args": "額外參數",
+	"settings_optimize_jvm": "自動最佳化 JVM 參數",
 	"settings_commands": "自訂指令",
 	"settings_pre_launch": "啟動前執行",
 	"settings_post_exit": "結束後執行",

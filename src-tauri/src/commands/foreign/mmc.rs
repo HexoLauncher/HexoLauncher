@@ -3,11 +3,10 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use super::{count_mods, folder_name, Candidate, Found, ForeignInstance};
+use super::{count_mods, folder_name, Candidate, ForeignInstance, Found};
 use crate::commands::{path_string, LoaderKind};
 use crate::store::instance_meta::{InstanceSettings, DEFAULT_ICON};
 
-/// 預設會去找的啟動器資料目錄名稱（相對系統的資料目錄）。
 const KNOWN: [(&str, &str, &str); 4] = [
     ("prism", "Prism Launcher", "PrismLauncher"),
     ("polymc", "PolyMC", "PolyMC"),
@@ -42,7 +41,6 @@ fn search_roots() -> Vec<PathBuf> {
     roots
 }
 
-/// `path` 本身就是 `instances`，或是底下有 `instances` 的啟動器資料目錄。
 pub(super) fn instances_dir(path: &Path) -> Option<PathBuf> {
     let nested = path.join("instances");
     if nested.is_dir() {
@@ -58,7 +56,6 @@ fn is_foreign_instance(dir: &Path) -> bool {
     dir.is_dir() && (dir.join("instance.cfg").is_file() || dir.join("mmc-pack.json").is_file())
 }
 
-/// 舊版 MultiMC 用 `minecraft/`，之後才改成 `.minecraft/`。
 fn foreign_game_dir(dir: &Path) -> Option<PathBuf> {
     [".minecraft", "minecraft"]
         .into_iter()
@@ -120,7 +117,6 @@ pub(super) async fn read(dir: &Path) -> Option<Found> {
     })
 }
 
-/// Prism 的圖示是自己一套，只有名字剛好跟我們的圖示對得上的才沿用。
 fn icon_for(key: &str) -> String {
     match key {
         "grass" | "dirt" | "stone" | "planks" | "brick" | "gold" | "iron" | "diamond"
@@ -154,7 +150,6 @@ fn settings_from(cfg: &Cfg) -> InstanceSettings {
     }
 }
 
-/// `instance.cfg` 是很陽春的 `key=value`，值不加引號、也不會跨行。
 #[derive(Debug, Default)]
 struct Cfg(HashMap<String, String>);
 
@@ -188,7 +183,6 @@ impl Cfg {
     }
 }
 
-/// `instance.cfg` 是 Qt 的 INI，換行之類的字元在值裡是用反斜線跳脫的。
 fn unescape(value: String) -> String {
     const BACKSLASH: char = '\\';
     if !value.contains(BACKSLASH) {

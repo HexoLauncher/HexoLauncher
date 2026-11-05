@@ -7,7 +7,6 @@ const PREFIX: &str = "background-";
 
 const ALLOWED: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "bmp"];
 
-
 const MAX_BYTES: usize = 64 * 1024 * 1024;
 
 fn extension_of(path: &std::path::Path) -> CmdResult<String> {
@@ -20,13 +19,16 @@ fn extension_of(path: &std::path::Path) -> CmdResult<String> {
     if !ALLOWED.contains(&ext.as_str()) {
         return Err(CmdError::launcher(format!(
             "不支援的圖片格式: {}（可用 {}）",
-            if ext.is_empty() { "（沒有副檔名）" } else { &ext },
+            if ext.is_empty() {
+                "（沒有副檔名）"
+            } else {
+                &ext
+            },
             ALLOWED.join("、")
         )));
     }
     Ok(ext)
 }
-
 
 fn stored_path(name: &str) -> CmdResult<PathBuf> {
     let ok = name.starts_with(PREFIX)
@@ -38,7 +40,6 @@ fn stored_path(name: &str) -> CmdResult<PathBuf> {
     }
     Ok(store_dir()?.join(name))
 }
-
 
 async fn sweep(keep: &str) -> CmdResult<()> {
     let dir = store_dir()?;
@@ -54,7 +55,6 @@ async fn sweep(keep: &str) -> CmdResult<()> {
     }
     Ok(())
 }
-
 
 #[tauri::command]
 pub async fn set_background_image(source: String) -> CmdResult<String> {
@@ -77,7 +77,6 @@ pub async fn set_background_image(source: String) -> CmdResult<String> {
 
     Ok(name)
 }
-
 
 #[tauri::command]
 pub async fn background_image_path(name: String) -> CmdResult<String> {

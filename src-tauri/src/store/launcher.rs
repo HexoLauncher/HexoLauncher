@@ -37,11 +37,9 @@ pub struct UiConfig {
     pub include_snapshots: bool,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ThemeConfig {
-
     pub mode: String,
 
     pub preset: String,
@@ -66,6 +64,8 @@ pub struct GameConfig {
     pub max_memory_mb: u32,
 
     pub jvm_args: String,
+
+    pub optimize_jvm: bool,
 
     pub record_play_time: bool,
 
@@ -116,9 +116,12 @@ impl DownloadConfig {
         match self.source {
             DownloadKind::Official => Ok(DownloadSource::Official),
             DownloadKind::Bmclapi => Ok(DownloadSource::Bmclapi),
-            DownloadKind::Custom if self.custom_url.trim().is_empty() => Ok(DownloadSource::Official),
-            DownloadKind::Custom => DownloadSource::custom(&self.custom_url)
-                .map_err(|_| CmdError::launcher(format!("鏡像網址無效: {}", self.custom_url.trim()))),
+            DownloadKind::Custom if self.custom_url.trim().is_empty() => {
+                Ok(DownloadSource::Official)
+            }
+            DownloadKind::Custom => DownloadSource::custom(&self.custom_url).map_err(|_| {
+                CmdError::launcher(format!("鏡像網址無效: {}", self.custom_url.trim()))
+            }),
         }
     }
 }
@@ -178,6 +181,7 @@ impl Default for GameConfig {
             min_memory_mb: 512,
             max_memory_mb: 4096,
             jvm_args: String::new(),
+            optimize_jvm: true,
             record_play_time: true,
             show_progress_window: true,
             close_progress_when_done: true,

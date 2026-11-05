@@ -20,7 +20,7 @@ serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 
 
-hexomc-lib = "0.1.9"
+hexomc-lib = "0.1.10-alpha.1"
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 sha2 = "0.10"
 tokio = { version = "1", features = [

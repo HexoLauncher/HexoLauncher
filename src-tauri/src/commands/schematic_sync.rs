@@ -184,9 +184,7 @@ async fn needs_change(base_dir: &Path, instance_name: &str, enabled: bool) -> bo
         return false;
     };
     dir.join(".minecraft").is_dir()
-        && (enabled
-            || dir.join(MANIFEST).is_file()
-            || legacy_link(base_dir, instance_name).await)
+        && (enabled || dir.join(MANIFEST).is_file() || legacy_link(base_dir, instance_name).await)
 }
 
 async fn linked_to(path: &Path, shared: &Path) -> bool {
@@ -471,7 +469,10 @@ mod tests {
     }
 
     fn schematics(base: &Path, name: &str) -> PathBuf {
-        base.join("instance").join(name).join(".minecraft").join(SCHEMATICS)
+        base.join("instance")
+            .join(name)
+            .join(".minecraft")
+            .join(SCHEMATICS)
     }
 
     #[tokio::test]
@@ -540,7 +541,10 @@ mod tests {
 
         for name in ["a", "b"] {
             let dir = schematics(&base, name);
-            assert_eq!(std::fs::read_to_string(dir.join("clash.litematic")).unwrap(), "mine");
+            assert_eq!(
+                std::fs::read_to_string(dir.join("clash.litematic")).unwrap(),
+                "mine"
+            );
             assert_eq!(
                 std::fs::read_to_string(dir.join("clash (2).litematic")).unwrap(),
                 "theirs"

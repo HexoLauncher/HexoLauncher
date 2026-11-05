@@ -120,16 +120,18 @@ async fn read_hmcl_cfg(dir: &Path) -> Option<Value> {
 }
 
 fn game_dir(root: &Path, dir: &Path, cfg: Option<&Value>) -> PathBuf {
-    let kind = cfg.and_then(|c| c.get("gameDirType")).and_then(|t| match t {
-        Value::Number(n) => n.as_u64(),
-        Value::String(s) => match s.as_str() {
-            "ROOT_FOLDER" => Some(0),
-            "VERSION_FOLDER" => Some(1),
-            "CUSTOM" => Some(2),
+    let kind = cfg
+        .and_then(|c| c.get("gameDirType"))
+        .and_then(|t| match t {
+            Value::Number(n) => n.as_u64(),
+            Value::String(s) => match s.as_str() {
+                "ROOT_FOLDER" => Some(0),
+                "VERSION_FOLDER" => Some(1),
+                "CUSTOM" => Some(2),
+                _ => None,
+            },
             _ => None,
-        },
-        _ => None,
-    });
+        });
     match kind {
         Some(0) => return root.to_path_buf(),
         Some(1) => return dir.to_path_buf(),
@@ -203,7 +205,8 @@ mod tests {
 
     #[tokio::test]
     async fn reads_isolated_and_shared_versions() {
-        let root = std::env::temp_dir().join(format!("nolauncher-vanilla-{}", uuid::Uuid::new_v4()));
+        let root =
+            std::env::temp_dir().join(format!("nolauncher-vanilla-{}", uuid::Uuid::new_v4()));
         let forge = root.join("versions/1.20.1-forge");
         let plain = root.join("versions/1.21.1");
         std::fs::create_dir_all(forge.join("mods")).unwrap();

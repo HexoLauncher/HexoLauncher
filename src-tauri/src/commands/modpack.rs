@@ -3,9 +3,9 @@ use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
 
 use hexomc_lib::{
     detect_modpack_format, install_modpack_files, read_cf_manifest, read_hmcl_pack,
-    read_mcbbs_manifest, read_mrpack_index,
-    resolve_forge_version, update_modpack, Browser, CurseForgeClient, HexoError, LoaderType, ManualDownload,
-    ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ProgressFn,
+    read_mcbbs_manifest, read_mrpack_index, resolve_forge_version, update_modpack, Browser,
+    CurseForgeClient, HexoError, LoaderType, ManualDownload, ModpackFormat, ModpackInfo,
+    ModpackInstallResult, ModpackUpdateResult, ProgressFn,
 };
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
@@ -205,10 +205,6 @@ async fn count_zip_files(path: &Path, prefix: &'static str) -> CmdResult<usize> 
     .map_err(|e| CmdError::launcher(e.to_string()))?
 }
 
-/// 就地把既有實例換成另一個版本的模組包。
-///
-/// 只支援 Modrinth（.mrpack）、CurseForge 與 HMCL 壓縮檔；ATLauncher / FTB 的線上包沒有這種
-/// 本機檔案，lib 也沒有對應的更新入口。
 #[tauri::command]
 pub async fn update_modpack_file(
     app: tauri::AppHandle,
@@ -232,8 +228,7 @@ pub async fn update_modpack_file(
         PackFormat::CurseForge => Some(CurseForgeClient::new(curseforge_key().await?)),
         _ => None,
     };
-    // Forge / NeoForge 的安裝器要跑 processor，先把工具用的 Java 找出來；
-    // 不先找的話 lib 會去讀模組包安裝時不會產生的 instance_config.json。
+
     let java = match preview.loader {
         LoaderKind::Forge | LoaderKind::NeoForge => Some(tool_java(None).await?),
         _ => None,
@@ -351,7 +346,6 @@ where
     })
 }
 
-/// Forge 的模組包只寫短版號（`47.2.0`），這裡換成版本清單用的完整字串。
 async fn pack_loader_version(info: &ModpackInfo) -> String {
     match (&info.loader, &info.loader_version) {
         (LoaderType::Forge, Some(version)) => resolve_forge_version(&info.mc_version, version)
@@ -361,7 +355,6 @@ async fn pack_loader_version(info: &ModpackInfo) -> String {
     }
 }
 
-/// 路徑轉成前端用的相對字串，分隔符一律用 `/`。
 fn relative_path(path: &Path, mc_dir: &Path) -> String {
     path.strip_prefix(mc_dir)
         .unwrap_or(path)
