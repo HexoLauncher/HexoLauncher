@@ -32,6 +32,7 @@
 	const onInstances = $derived(currentPath === '/');
 	const onSettings = $derived(currentPath.startsWith('/settings'));
 	const onBlueprints = $derived(currentPath.startsWith('/blueprints'));
+	const onTools = $derived(currentPath.startsWith('/tools'));
 	const current = $derived(accounts.find((a) => a.selected) ?? null);
 </script>
 
@@ -64,6 +65,7 @@
 		<MenuItem checked={onInstances} onclick={() => onNavigate('/')}>{m.nav_instances()}</MenuItem>
 		<MenuItem checked={onSettings} onclick={() => onNavigate('/settings')}>{m.nav_settings()}</MenuItem>
 		<MenuItem checked={onBlueprints} onclick={() => onNavigate('/blueprints')}>{m.nav_blueprints()}</MenuItem>
+		<MenuItem checked={onTools} onclick={() => onNavigate('/tools')}>{m.nav_tools()}</MenuItem>
 		<MenuSeparator />
 		<MenuItem checked={view.instanceToolbar} onclick={() => onToggleView('instanceToolbar')}>
 			{m.view_instance_toolbar()}
@@ -95,6 +97,10 @@
 		onclick={() => onNavigate('/blueprints')}
 	>
 		{@render caption(m.nav_blueprints())}
+	</ToolButton>
+
+	<ToolButton icon="pickaxe" active={onTools} aria-current={onTools} onclick={() => onNavigate('/tools')}>
+		{@render caption(m.nav_tools())}
 	</ToolButton>
 
 	<span class="mx-1.25 my-2.25 w-px self-stretch bg-line"></span>

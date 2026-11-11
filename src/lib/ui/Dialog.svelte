@@ -7,7 +7,9 @@
 	let {
 		title,
 		width = '560px',
-		height = 'auto',
+		// 模態 dialog 上下 inset 都是 0，高度用 auto 會被撐滿整個視窗；fit-content 才會貼合內容
+		// （仍受 max-h 限制）。需要固定大小的對話框請明確傳入高度。
+		height = 'fit-content',
 		onclose,
 		titleIcon,
 		children,
@@ -77,7 +79,8 @@
 		</div>
 	</header>
 
-	<div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+	<!-- flex-auto（基準為內容高度）而不是 flex-1：WebKit 在 fit-content 高度下會把 0% 基準算成 0，內容區會被壓扁。 -->
+	<div class="flex min-h-0 flex-auto flex-col overflow-hidden">
 		{@render children()}
 	</div>
 

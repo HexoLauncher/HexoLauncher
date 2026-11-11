@@ -3,7 +3,8 @@ import { goto } from '$app/navigation';
 export const routes = {
 	instances: '/',
 	settings: '/settings',
-	blueprints: '/blueprints'
+	blueprints: '/blueprints',
+	tools: '/tools'
 };
 
 export function navigate(path: string) {

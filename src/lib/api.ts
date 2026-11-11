@@ -1211,3 +1211,176 @@ export const onJavaProgress = (handler: (progress: JavaProgress) => void): Promi
 
 export const onJavaInstalled = (handler: (java: JavaInfo) => void): Promise<UnlistenFn> =>
 	listen<JavaInfo>('nolauncher://java-installed', (event) => handler(event.payload));
+
+export interface ToolPlayerPos {
+	uuid: string | null;
+	x: number;
+	y: number;
+	z: number;
+	dimension: string;
+}
+
+export interface ToolWorldInfo {
+	name: string;
+	/** 種子字串；level.dat 沒有種子時為 null。 */
+	seed: string | null;
+	dataVersion: number | null;
+	/** 生成規則版本，例如 `1.21.4`、`26`；1.18 以前為 null。 */
+	version: string | null;
+	/** 有區域檔的維度 id。 */
+	dimensions: string[];
+	/** 遊戲正在使用這個世界。 */
+	locked: boolean;
+	players: ToolPlayerPos[];
+	spawn: [number, number, number] | null;
+}
+
+export interface ToolChunkStat {
+	x: number;
+	z: number;
+	status: string | null;
+	inhabitedTime: number;
+	lastUpdate: number;
+	savedAt: number;
+}
+
+export interface ToolEditResult {
+	report: { scanned: number; removed: number; bytesFreed: number };
+	backup: string | null;
+}
+
+export interface ToolWorldRef {
+	baseDir: string;
+	instanceName: string;
+	folder: string;
+}
+
+export interface ToolSpreadSet {
+	name: string;
+	dimension: string;
+	spacing: number;
+}
+
+export interface ToolSlimeQuery {
+	seed: string;
+	centerX: number;
+	centerZ: number;
+	radius: number;
+	step: number;
+	limit: number;
+	minSeparation: number;
+	ringMin: number;
+	ringMax: number;
+}
+
+export interface ToolSlimeSpot {
+	x: number;
+	z: number;
+	slimeChunks: number;
+	spawnableColumns: number;
+	coverage: number;
+	chunks: [number, number][];
+}
+
+export interface ToolClusterQuery {
+	seed: string;
+	version: string;
+	set: string;
+	centerX: number;
+	centerZ: number;
+	radius: number;
+	minCount: number;
+	ringMax: number;
+	/** 覆蓋率模式下每座結構最少涵蓋比例（0–1）；null 表示整座都要在範圍內。 */
+	minCoverage: number | null;
+	checkBiomes: boolean;
+}
+
+export interface ToolStructureHit {
+	set: string;
+	structure: string | null;
+	chunkX: number;
+	chunkZ: number;
+	blockX: number;
+	blockZ: number;
+}
+
+export interface ToolStructureCluster {
+	structures: ToolStructureHit[];
+	afkX: number;
+	afkZ: number;
+	requiredRadius: number;
+	coveredColumns: number;
+	coverage: number;
+	memberCoverage: number[];
+}
+
+export const toolsWorldInfo = (world: ToolWorldRef) =>
+	invoke<ToolWorldInfo>('tools_world_info', { ...world });
+
+export const toolsWorldRegions = (world: ToolWorldRef, dimension: string) =>
+	invoke<[number, number][]>('tools_world_regions', { ...world, dimension });
+
+/** 一個區域的 RGBA 俯視圖（512×512）；沒有區域檔時是空的。 */
+export const toolsRenderRegion = (world: ToolWorldRef, dimension: string, rx: number, rz: number) =>
+	invoke<ArrayBuffer>('tools_render_region', { ...world, dimension, rx, rz });
+
+export const toolsRegionChunks = (world: ToolWorldRef, dimension: string, rx: number, rz: number) =>
+	invoke<ToolChunkStat[]>('tools_region_chunks', { ...world, dimension, rx, rz });
+
+/** 重新生成區塊：刪除存檔資料，遊戲下次載入時依種子重新生成。 */
+export const toolsRegenerateChunks = (
+	world: ToolWorldRef,
+	dimension: string,
+	chunks: [number, number][],
+	backup: boolean
+) => invoke<ToolEditResult>('tools_regenerate_chunks', { ...world, dimension, chunks, backup });
+
+export interface ToolPruneCriteria {
+	/** 居住時間低於這個刻數（1200 刻 = 1 分鐘）。 */
+	maxInhabitedTicks: number | null;
+	/** 超過這麼多天沒有載入。 */
+	unloadedDays: number | null;
+}
+
+/** 依條件重新生成整個維度的區塊；兩個條件都給時要同時符合。 */
+export const toolsPruneChunks = (
+	world: ToolWorldRef,
+	dimension: string,
+	criteria: ToolPruneCriteria,
+	dryRun: boolean,
+	backup: boolean
+) =>
+	invoke<ToolEditResult>('tools_prune_chunks', {
+		...world,
+		dimension,
+		...criteria,
+		dryRun,
+		backup
+	});
+
+export const toolsStructureSets = (version: string) =>
+	invoke<ToolSpreadSet[]>('tools_structure_sets', { version });
+
+/** 搜尋進度：`taskId` 是呼叫搜尋時給的 id。 */
+export interface ToolProgress {
+	taskId: string;
+	done: number;
+	total: number;
+}
+
+export const toolsSlimeSpots = (query: ToolSlimeQuery, taskId: string) =>
+	invoke<ToolSlimeSpot[]>('tools_slime_spots', { query, taskId });
+
+export const toolsStructureClusters = (query: ToolClusterQuery, taskId: string) =>
+	invoke<ToolStructureCluster[]>('tools_structure_clusters', { query, taskId });
+
+/** 取消搜尋；搜尋會以 `kind: 'cancelled'` 的錯誤結束。 */
+export const toolsCancel = (taskId: string) => invoke<void>('tools_cancel', { taskId });
+
+export const onToolsProgress = (handler: (progress: ToolProgress) => void) =>
+	listen<ToolProgress>('nolauncher://tools-progress', (event) => handler(event.payload));
+
+export function isCancelled(error: unknown) {
+	return !!error && typeof error === 'object' && (error as NolauncherCmdError).kind === 'cancelled';
+}

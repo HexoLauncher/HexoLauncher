@@ -15,6 +15,9 @@ export default defineConfig({
 		}),
 		sveltekit()
 	],
+	worker: {
+		format: 'es'
+	},
 	server: {
 		watch: {
 			ignored: ['**/src-tauri/**']

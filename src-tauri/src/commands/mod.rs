@@ -19,6 +19,7 @@ pub mod process;
 pub mod schematic;
 pub mod schematic_sync;
 pub mod skin;
+pub mod tools;
 pub mod theme;
 pub mod version;
 pub mod wardrobe;

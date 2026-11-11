@@ -4,6 +4,15 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// macOS 上 Tauri 載入的是 `tauri://localhost`（沒有結尾斜線）。
+			// tauri: 不是 special scheme，new URL(location.href).pathname 會是 ""，
+			// 但 location.pathname 是 "/"，SvelteKit 的 hash router 會把它當成外部網址，
+			// production 下就一直 native navigation，變成無限重載（畫面閃爍）。
+			if (new URL(location.href).pathname === '') {
+				history.replaceState(history.state, '', '/' + location.search + location.hash);
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

@@ -3,13 +3,16 @@ import LuArrowRight from '~icons/lucide/arrow-right';
 import LuArrowUpFromLine from '~icons/lucide/arrow-up-from-line';
 import LuBlocks from '~icons/lucide/blocks';
 import LuBox from '~icons/lucide/box';
+import LuCastle from '~icons/lucide/castle';
 import LuCheck from '~icons/lucide/check';
 import LuChevronDown from '~icons/lucide/chevron-down';
 import LuChevronRight from '~icons/lucide/chevron-right';
 import LuChevronUp from '~icons/lucide/chevron-up';
 import LuClock from '~icons/lucide/clock';
 import LuCoffee from '~icons/lucide/coffee';
+import LuCompass from '~icons/lucide/compass';
 import LuCopy from '~icons/lucide/copy';
+import LuCrosshair from '~icons/lucide/crosshair';
 import LuShirt from '~icons/lucide/shirt';
 import LuDownload from '~icons/lucide/download';
 import LuExternalLink from '~icons/lucide/external-link';
@@ -21,9 +24,11 @@ import LuImage from '~icons/lucide/image';
 import LuInfo from '~icons/lucide/info';
 import LuKey from '~icons/lucide/key';
 import LuLayoutGrid from '~icons/lucide/layout-grid';
+import LuLayers from '~icons/lucide/layers';
 import LuList from '~icons/lucide/list';
 import LuLogIn from '~icons/lucide/log-in';
 import LuLogOut from '~icons/lucide/log-out';
+import LuMap from '~icons/lucide/map';
 import LuMegaphone from '~icons/lucide/megaphone';
 import LuMenu from '~icons/lucide/menu';
 import LuMinus from '~icons/lucide/minus';
@@ -32,6 +37,7 @@ import LuMoon from '~icons/lucide/moon';
 import LuPackage from '~icons/lucide/package';
 import LuPalette from '~icons/lucide/palette';
 import LuPencil from '~icons/lucide/pencil';
+import LuPickaxe from '~icons/lucide/pickaxe';
 import LuPlay from '~icons/lucide/play';
 import LuPlus from '~icons/lucide/plus';
 import LuRefreshCw from '~icons/lucide/refresh-cw';
@@ -104,6 +110,12 @@ export const ICONS: Record<string, Component> = {
 	login: LuLogIn,
 	logout: LuLogOut,
 	rerender: LuRotateCcw,
+	map: LuMap,
+	crosshair: LuCrosshair,
+	castle: LuCastle,
+	compass: LuCompass,
+	pickaxe: LuPickaxe,
+	layers: LuLayers,
 	'win-min': LuMinus,
 	'win-max': LuSquare
 };

@@ -150,7 +150,7 @@
 <Dialog
 	title={m.editor_pack_update_title()}
 	width={mode === 'link' ? '940px' : '480px'}
-	height={mode === 'link' ? '660px' : 'auto'}
+	height={mode === 'link' ? '660px' : 'fit-content'}
 	{onclose}
 >
 	{#if mode === 'blocked'}

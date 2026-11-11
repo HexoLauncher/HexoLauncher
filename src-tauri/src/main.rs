@@ -167,6 +167,16 @@ fn main() {
             commands::schematic::local_block_assets,
             commands::schematic::pack_block_assets,
             commands::schematic_sync::set_schematic_sync,
+            commands::tools::tools_world_info,
+            commands::tools::tools_world_regions,
+            commands::tools::tools_render_region,
+            commands::tools::tools_region_chunks,
+            commands::tools::tools_regenerate_chunks,
+            commands::tools::tools_prune_chunks,
+            commands::tools::tools_structure_sets,
+            commands::tools::tools_slime_spots,
+            commands::tools::tools_structure_clusters,
+            commands::tools::tools_cancel,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

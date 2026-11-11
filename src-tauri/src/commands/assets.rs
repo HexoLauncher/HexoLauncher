@@ -340,7 +340,7 @@ pub async fn list_worlds(base_dir: String, instance_name: String) -> CmdResult<V
     .map_err(|e| CmdError::launcher(e.to_string()))
 }
 
-fn world_dir(base_dir: &str, instance_name: &str, folder: &str) -> CmdResult<PathBuf> {
+pub(crate) fn world_dir(base_dir: &str, instance_name: &str, folder: &str) -> CmdResult<PathBuf> {
     check_name(folder)?;
     let path = minecraft_dir(Path::new(base_dir), instance_name)?
         .join("saves")
