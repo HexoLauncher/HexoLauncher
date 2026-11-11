@@ -112,6 +112,7 @@
 		if (!ctx || !width || !height) return;
 		const dpr = window.devicePixelRatio || 1;
 		ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+		ctx.clearRect(0, 0, width, height);
 		ctx.imageSmoothingEnabled = false;
 		const f = frame();
 		draw(ctx, f);
