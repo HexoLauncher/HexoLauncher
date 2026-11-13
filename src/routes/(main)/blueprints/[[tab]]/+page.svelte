@@ -5,18 +5,24 @@
 	import NavList from '$lib/ui/NavList.svelte';
 	import type { Page } from '$lib/ui';
 	import BlueprintBrowser from '$lib/components/BlueprintBrowser.svelte';
+	import BlueprintNotifications from '$lib/components/BlueprintNotifications.svelte';
+	import GroupBrowser from '$lib/components/GroupBrowser.svelte';
+	import Icon from '$lib/ui/Icon.svelte';
+	import type { BlueprintActivityKind } from '$lib/api';
 	import BlueprintTermsDialog from '$lib/components/BlueprintTermsDialog.svelte';
 	import BlueprintUploadDialog from '$lib/components/BlueprintUploadDialog.svelte';
 	import InstanceSchematics from '$lib/components/InstanceSchematics.svelte';
 	import PlayerHead from '$lib/PlayerHead.svelte';
 	import { navigate } from '$lib/nav';
-	import { hub, refreshSession, refreshTags, signIn, signOut } from '$lib/blueprints.svelte';
+	import { hub, pollUnread, refreshGroupKinds, refreshSession, refreshTags, signIn, signOut } from '$lib/blueprints.svelte';
 	import { report, reportError, selectedAccount } from '$lib/state.svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
 	const pages: Page[] = [
 		{ id: 'browse', label: m.blueprint_tab_browse(), icon: 'globe' },
 		{ id: 'mine', label: m.blueprint_tab_mine(), icon: 'upload' },
+		{ id: 'saved', label: m.blueprint_tab_favorites(), icon: 'bookmark' },
+		{ id: 'groups', label: m.blueprint_tab_groups(), icon: 'users' },
 		{ id: 'instances', label: m.blueprint_tab_instances(), icon: 'box' }
 	];
 
@@ -29,6 +35,23 @@
 	const accountId = $derived(account?.id);
 
 	let refreshKey = $state(0);
+	let showNotifications = $state(false);
+
+	const ACTIVITY: [BlueprintActivityKind, () => string][] = [
+		['favorites', m.blueprint_history_favorites],
+		['likes', m.blueprint_history_likes],
+		['views', m.blueprint_history_views],
+		['downloads', m.blueprint_history_downloads]
+	];
+	let activity = $state<BlueprintActivityKind>('favorites');
+
+	$effect(() => {
+		if (!user) {
+			hub.unread = 0;
+			return;
+		}
+		return pollUnread();
+	});
 
 	$effect(() => {
 		void accountId;
@@ -37,6 +60,7 @@
 
 	onMount(() => {
 		refreshTags();
+		refreshGroupKinds();
 	});
 
 	async function login(termsVersion?: string) {
@@ -110,7 +134,7 @@
 				{/if}
 			</span>
 
-			{#if tab !== 'instances'}
+			{#if tab !== 'instances' && tab !== 'groups'}
 				<Button
 					variant="primary"
 					icon="upload"
@@ -120,6 +144,22 @@
 				>
 					{m.blueprint_upload()}
 				</Button>
+			{/if}
+
+			{#if user}
+				<button
+					class="relative grid size-7.5 place-items-center rounded-md text-muted hover:bg-btn hover:text-ink"
+					title={hub.unread ? m.notification_unread_badge({ count: hub.unread }) : m.notification_title()}
+					aria-label={hub.unread ? m.notification_unread_badge({ count: hub.unread }) : m.notification_title()}
+					onclick={() => (showNotifications = true)}
+				>
+					<Icon name="bell" size={16} />
+					{#if hub.unread}
+						<span class="absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-danger px-1 text-[10px] leading-none font-bold text-white">
+							{hub.unread > 99 ? '99+' : hub.unread}
+						</span>
+					{/if}
+				</button>
 			{/if}
 		</header>
 
@@ -138,6 +178,39 @@
 
 		{#if tab === 'instances'}
 			<InstanceSchematics onupload={(file, version) => (upload = { path: file.path, mcVersion: version })} />
+		{:else if tab === 'groups'}
+			{#key refreshKey}
+				<GroupBrowser />
+			{/key}
+		{:else if tab === 'saved'}
+			{#if user}
+				<div class="flex shrink-0 gap-1" role="group">
+					{#each ACTIVITY as [id, label] (id)}
+						<button
+							class="rounded-full px-3 py-0.75 text-[12px] font-medium transition-colors duration-150
+								{activity === id ? 'bg-brand-soft text-brand-fg' : 'bg-btn text-muted hover:bg-btn-hi hover:text-ink'}"
+							aria-pressed={activity === id}
+							onclick={() => (activity = id)}
+						>
+							{label()}
+						</button>
+					{/each}
+				</div>
+				{#key `${activity}:${refreshKey}`}
+					<BlueprintBrowser {activity} />
+				{/key}
+			{:else}
+				<div class="grid flex-1 place-items-center text-center text-muted">
+					<div class="flex flex-col items-center gap-3">
+						<p>{m.blueprint_history_sign_in()}</p>
+						{#if hub.session?.account?.online}
+							<Button variant="primary" icon="login" disabled={hub.signingIn} onclick={() => login()}>
+								{m.blueprint_sign_in()}
+							</Button>
+						{/if}
+					</div>
+				</div>
+			{/if}
 		{:else if tab === 'mine' && !user}
 			<div class="grid flex-1 place-items-center text-center text-muted">
 				<div class="flex flex-col items-center gap-3">
@@ -150,12 +223,16 @@
 				</div>
 			</div>
 		{:else}
-			{#key `${tab}:${refreshKey}`}
+			{#key `${tab}:${refreshKey}:${hub.groupFilter?.id ?? ''}`}
 				<BlueprintBrowser owner={tab === 'mine' ? (user?.uuid ?? null) : null} />
 			{/key}
 		{/if}
 	</div>
 </div>
+
+{#if showNotifications}
+	<BlueprintNotifications onclose={() => (showNotifications = false)} />
+{/if}
 
 {#if hub.terms}
 	<BlueprintTermsDialog terms={hub.terms} onagree={agreeTerms} onclose={() => (hub.terms = null)} />

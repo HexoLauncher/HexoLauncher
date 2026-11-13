@@ -20,8 +20,18 @@ const SERVER: Option<&str> = match option_env!("NOLAUNCHER_BLUEPRINT_SERVER") {
     _ => None,
 };
 
+const WEB: Option<&str> = match option_env!("NOLAUNCHER_BLUEPRINT_WEB") {
+    Some(url) if !url.is_empty() => Some(url),
+    _ if cfg!(debug_assertions) => Some("http://localhost:5173"),
+    _ => None,
+};
+
 pub fn cache_dir() -> CmdResult<PathBuf> {
     Ok(store_dir()?.join("blueprint-cache"))
+}
+
+fn web_url() -> Option<String> {
+    WEB.map(|url| url.trim_end_matches('/').to_string())
 }
 
 fn server_url() -> CmdResult<String> {
@@ -107,8 +117,23 @@ pub struct Blueprint {
     pub render: Render,
     pub images: Vec<Image>,
     pub download_count: u64,
+    #[serde(default)]
+    pub view_count: u64,
+    #[serde(default)]
+    pub like_count: u64,
+    #[serde(default)]
+    pub favorite_count: u64,
+    /// 登入時才有：自己有沒有點讚／收藏。
+    #[serde(default)]
+    pub viewer: Option<Viewer>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Viewer {
+    pub liked: bool,
+    pub favorited: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,6 +235,8 @@ pub struct SessionAccount {
 #[serde(rename_all = "camelCase")]
 pub struct BlueprintSession {
     pub server: String,
+    /// 藍圖庫網站的網址；沒有設定時為 null。
+    pub web: Option<String>,
     /// 啟動器目前選的帳號；離線帳號可以瀏覽和下載，但不能登入藍圖庫。
     pub account: Option<SessionAccount>,
     /// 已登入藍圖庫時的使用者。
@@ -228,6 +255,7 @@ async fn current_session() -> CmdResult<(BlueprintSession, Option<String>)> {
         return Ok((
             BlueprintSession {
                 server,
+                web: web_url(),
                 account: None,
                 user: None,
             },
@@ -251,6 +279,7 @@ async fn current_session() -> CmdResult<(BlueprintSession, Option<String>)> {
     Ok((
         BlueprintSession {
             server,
+            web: web_url(),
             account: Some(SessionAccount {
                 id: account.id.clone(),
                 player_name: account.player_name.clone(),
@@ -345,6 +374,53 @@ async fn authed_json<T: serde::de::DeserializeOwned>(
     request: reqwest::RequestBuilder,
 ) -> CmdResult<T> {
     Ok(send_authed(auth, request).await?.json().await?)
+}
+
+async fn send_maybe_authed(
+    build: impl Fn() -> reqwest::RequestBuilder,
+) -> CmdResult<reqwest::Response> {
+    if let Ok(auth) = authed().await {
+        match send(build().bearer_auth(&auth.token)).await {
+            Err(err) if err.kind == "blueprintAuth" => {
+                let _ = forget_session(&auth.server, &auth.uuid).await;
+            }
+            other => return other,
+        }
+    }
+    send(build()).await
+}
+
+fn camel_keys(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, value)| (to_camel(&key), camel_keys(value)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.into_iter().map(camel_keys).collect()),
+        other => other,
+    }
+}
+
+fn to_camel(key: &str) -> String {
+    let mut out = String::with_capacity(key.len());
+    let mut upper = false;
+    for c in key.chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+async fn camel_json(response: reqwest::Response) -> CmdResult<serde_json::Value> {
+    Ok(camel_keys(response.json().await?))
 }
 
 fn check_id(id: &str) -> CmdResult<&str> {
@@ -470,6 +546,10 @@ pub async fn blueprint_tags() -> CmdResult<Vec<Tag>> {
 pub struct BlueprintQuery {
     pub q: String,
     pub owner: Option<String>,
+    /// 只列出這個群組的藍圖。
+    pub group: Option<String>,
+    /// new | updated | downloads | views | likes | favorites
+    pub sort: Option<String>,
     pub tags: Vec<String>,
     pub version: Option<String>,
     pub page: u32,
@@ -481,6 +561,8 @@ impl Default for BlueprintQuery {
         Self {
             q: String::new(),
             owner: None,
+            group: None,
+            sort: None,
             tags: Vec::new(),
             version: None,
             page: 1,
@@ -519,14 +601,244 @@ pub async fn blueprint_search(query: BlueprintQuery) -> CmdResult<BlueprintList>
     {
         params.push(("version", version.to_string()));
     }
+    if let Some(group) = query.group.as_deref().filter(|s| !s.is_empty()) {
+        params.push(("group", check_id(group)?.to_string()));
+    }
+    if let Some(sort) = query.sort.as_deref().filter(|s| !s.is_empty()) {
+        params.push(("sort", sort.to_string()));
+    }
 
-    send_json(http().get(format!("{}/blueprints", server)).query(&params)).await
+    let url = format!("{}/blueprints", server);
+    Ok(send_maybe_authed(|| http().get(&url).query(&params))
+        .await?
+        .json()
+        .await?)
 }
 
 #[tauri::command]
 pub async fn blueprint_get(id: String) -> CmdResult<Blueprint> {
+    let url = blueprint_url(&server_url()?, &id)?;
+    Ok(send_maybe_authed(|| http().get(&url)).await?.json().await?)
+}
+
+#[tauri::command]
+pub async fn blueprint_view(id: String) -> CmdResult<()> {
+    let url = format!("{}/view", blueprint_url(&server_url()?, &id)?);
+    send_maybe_authed(|| http().post(&url).header(reqwest::header::CONTENT_LENGTH, 0)).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn blueprint_react(id: String, kind: String, on: bool) -> CmdResult<serde_json::Value> {
+    if kind != "like" && kind != "favorite" {
+        return Err(CmdError::launcher(format!("不支援的操作: {}", kind)));
+    }
+    let auth = authed().await?;
+    let url = format!("{}/{}", blueprint_url(&auth.server, &id)?, kind);
+    let request = if on {
+        http().put(url).header(reqwest::header::CONTENT_LENGTH, 0)
+    } else {
+        http().delete(url)
+    };
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn blueprint_materials(id: String) -> CmdResult<serde_json::Value> {
+    let url = format!("{}/materials", blueprint_url(&server_url()?, &id)?);
+    camel_json(send(http().get(url)).await?).await
+}
+
+#[tauri::command]
+pub async fn blueprint_activity(
+    kind: String,
+    page: u32,
+    per_page: u32,
+) -> CmdResult<serde_json::Value> {
+    if !matches!(kind.as_str(), "likes" | "favorites" | "views" | "downloads") {
+        return Err(CmdError::launcher(format!("不支援的紀錄: {}", kind)));
+    }
+    let auth = authed().await?;
+    let request = http()
+        .get(format!("{}/users/me/{}", auth.server, kind))
+        .query(&[("page", page.max(1)), ("per_page", per_page.clamp(1, 100))]);
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn blueprint_profile(uuid: Option<String>) -> CmdResult<serde_json::Value> {
+    match uuid {
+        Some(uuid) => {
+            let url = format!("{}/users/{}", server_url()?, check_id(&uuid)?);
+            camel_json(send(http().get(url)).await?).await
+        }
+        None => {
+            let auth = authed().await?;
+            let url = format!("{}/users/me", auth.server);
+            camel_json(send_authed(&auth, http().get(url)).await?).await
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn blueprint_update_bio(bio: String) -> CmdResult<serde_json::Value> {
+    let auth = authed().await?;
+    let request = http()
+        .patch(format!("{}/users/me", auth.server))
+        .json(&serde_json::json!({ "bio": bio }));
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn group_kinds() -> CmdResult<Vec<Tag>> {
+    send_json(http().get(format!("{}/group-kinds", server_url()?))).await
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct GroupQuery {
+    pub q: String,
+    pub kind: Option<String>,
+    pub member: Option<String>,
+    pub sort: Option<String>,
+    pub page: u32,
+    pub per_page: u32,
+}
+
+#[tauri::command]
+pub async fn group_list(query: GroupQuery) -> CmdResult<serde_json::Value> {
     let server = server_url()?;
-    send_json(http().get(blueprint_url(&server, &id)?)).await
+    let mut params: Vec<(&str, String)> = vec![
+        ("page", query.page.max(1).to_string()),
+        ("per_page", query.per_page.clamp(1, 100).to_string()),
+    ];
+    let q = query.q.trim();
+    if !q.is_empty() {
+        params.push(("q", q.to_string()));
+    }
+    for (key, value) in [("kind", &query.kind), ("sort", &query.sort)] {
+        if let Some(value) = value.as_deref().filter(|s| !s.is_empty()) {
+            params.push((key, value.to_string()));
+        }
+    }
+    if let Some(member) = query.member.as_deref().filter(|s| !s.is_empty()) {
+        params.push(("member", check_id(member)?.to_string()));
+    }
+    let url = format!("{}/groups", server);
+    camel_json(send_maybe_authed(|| http().get(&url).query(&params)).await?).await
+}
+
+fn group_url(server: &str, id: &str) -> CmdResult<String> {
+    Ok(format!("{}/groups/{}", server, check_id(id)?))
+}
+
+#[tauri::command]
+pub async fn group_get(id: String) -> CmdResult<serde_json::Value> {
+    let url = group_url(&server_url()?, &id)?;
+    camel_json(send_maybe_authed(|| http().get(&url)).await?).await
+}
+
+#[tauri::command]
+pub async fn group_members(id: String, page: u32) -> CmdResult<serde_json::Value> {
+    let url = format!("{}/members", group_url(&server_url()?, &id)?);
+    let request = http()
+        .get(url)
+        .query(&[("page", page.max(1)), ("per_page", 100)]);
+    camel_json(send(request).await?).await
+}
+
+#[tauri::command]
+pub async fn group_join(id: String) -> CmdResult<serde_json::Value> {
+    let auth = authed().await?;
+    let url = format!("{}/join", group_url(&auth.server, &id)?);
+    let request = http().post(url).header(reqwest::header::CONTENT_LENGTH, 0);
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn group_leave(id: String) -> CmdResult<()> {
+    let auth = authed().await?;
+    let url = format!(
+        "{}/members/{}",
+        group_url(&auth.server, &id)?,
+        check_id(&auth.uuid)?
+    );
+    send_authed(&auth, http().delete(url)).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn group_my_invites() -> CmdResult<serde_json::Value> {
+    let auth = authed().await?;
+    let request = http()
+        .get(format!("{}/users/me/invites", auth.server))
+        .query(&[("per_page", 100)]);
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn group_invite_respond(id: String, accept: bool) -> CmdResult<serde_json::Value> {
+    let auth = authed().await?;
+    let action = if accept { "accept" } else { "decline" };
+    let url = format!("{}/invites/{}/{}", auth.server, check_id(&id)?, action);
+    let response = send_authed(
+        &auth,
+        http().post(url).header(reqwest::header::CONTENT_LENGTH, 0),
+    )
+    .await?;
+    if response.status() == reqwest::StatusCode::NO_CONTENT {
+        return Ok(serde_json::Value::Null);
+    }
+    camel_json(response).await
+}
+
+#[tauri::command]
+pub async fn notification_list(page: u32, unread: bool) -> CmdResult<serde_json::Value> {
+    let auth = authed().await?;
+    let mut params = vec![
+        ("page", page.max(1).to_string()),
+        ("per_page", "30".to_string()),
+    ];
+    if unread {
+        params.push(("unread", "true".to_string()));
+    }
+    let request = http()
+        .get(format!("{}/notifications", auth.server))
+        .query(&params);
+    camel_json(send_authed(&auth, request).await?).await
+}
+
+#[tauri::command]
+pub async fn notification_unread_count() -> CmdResult<u64> {
+    let Ok(auth) = authed().await else {
+        return Ok(0);
+    };
+    let request = http().get(format!("{}/notifications/unread-count", auth.server));
+    let body: serde_json::Value = send_authed(&auth, request).await?.json().await?;
+    Ok(body.get("unread").and_then(|v| v.as_u64()).unwrap_or(0))
+}
+
+#[tauri::command]
+pub async fn notification_read(id: Option<String>) -> CmdResult<()> {
+    let auth = authed().await?;
+    let url = match id {
+        Some(id) => format!("{}/notifications/{}/read", auth.server, check_id(&id)?),
+        None => format!("{}/notifications/read-all", auth.server),
+    };
+    send_authed(
+        &auth,
+        http().post(url).header(reqwest::header::CONTENT_LENGTH, 0),
+    )
+    .await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn notification_delete(id: String) -> CmdResult<()> {
+    let auth = authed().await?;
+    let url = format!("{}/notifications/{}", auth.server, check_id(&id)?);
+    send_authed(&auth, http().delete(url)).await?;
+    Ok(())
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -552,7 +864,12 @@ async fn fetch_file(blueprint: &Blueprint) -> CmdResult<Vec<u8>> {
 
     let server = server_url()?;
     let url = format!("{}/download", blueprint_url(&server, &blueprint.id)?);
-    let bytes = send(http().get(url)).await?.bytes().await?.to_vec();
+    // 登入時帶 token，下載會記到自己的下載紀錄。
+    let bytes = send_maybe_authed(|| http().get(&url))
+        .await?
+        .bytes()
+        .await?
+        .to_vec();
     if sha256_hex(&bytes) != sha {
         return Err(CmdError::new(
             "checksumMismatch",
@@ -898,6 +1215,38 @@ mod tests {
         assert_eq!(out["downloadCount"], 7);
         assert_eq!(out["render"]["mcVersion"], serde_json::Value::Null);
         assert_eq!(out["cover"]["imageId"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn new_endpoints_come_back_in_camel_case() {
+        let value = camel_keys(serde_json::json!({
+            "viewer_invite": { "id": "x" },
+            "items": [{ "invite_id": "a", "group": { "avatar_url": null } }],
+            "links": [{ "type": "discord", "url": "u" }]
+        }));
+        assert_eq!(value["viewerInvite"]["id"], "x");
+        assert_eq!(value["items"][0]["inviteId"], "a");
+        assert!(value["items"][0]["group"].get("avatarUrl").is_some());
+        assert_eq!(value["links"][0]["type"], "discord");
+    }
+
+    #[test]
+    fn older_servers_without_counts_still_parse() {
+        let json = r#"{
+            "id": "x", "owner": { "uuid": "u", "username": "Steve" },
+            "name": "n", "description": "", "format": "litematic", "tags": [],
+            "mc_versions": { "min": null, "max": null }, "data_version": null,
+            "size": null, "total_blocks": null,
+            "file": { "name": "a.litematic", "size": 1, "sha256": "ab" },
+            "cover": { "url": null, "source": null, "image_id": null },
+            "render": { "status": "done", "url": null, "error": null, "mc_version": null },
+            "images": [], "download_count": 0,
+            "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z"
+        }"#;
+        let bp: Blueprint = serde_json::from_str(json).unwrap();
+        let out = serde_json::to_value(&bp).unwrap();
+        assert_eq!(out["likeCount"], 0);
+        assert_eq!(out["viewer"], serde_json::Value::Null);
     }
 
     #[test]

@@ -3,10 +3,11 @@
 	import { Button, Dialog, Pill, Select, Spinner } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
 	import BlueprintEditDialog from './BlueprintEditDialog.svelte';
+	import BlueprintMaterials from './BlueprintMaterials.svelte';
 	import * as api from '$lib/api';
 	import type { Blueprint } from '$lib/api';
 	import { formatCount, formatSize, releaseDate } from '$lib/format';
-	import { handleAuthError, isOwner, supports, tagName, versionRange } from '$lib/blueprints.svelte';
+	import { handleAuthError, hub, isOwner, supports, tagName, versionRange } from '$lib/blueprints.svelte';
 	import { app, report, reportError } from '$lib/state.svelte';
 	import { openAppWindow, windowSpecs } from '$lib/windows';
 	import { m } from '$lib/paraglide/messages.js';
@@ -37,6 +38,10 @@
 	let confirmingDelete = $state(false);
 	/** 封面區改成顯示 3D 預覽。 */
 	let previewing = $state(false);
+	let showMaterials = $state(false);
+	let reacting = $state<'like' | 'favorite' | null>(null);
+
+	const signedIn = $derived(!!hub.session?.user);
 
 	const mine = $derived(isOwner(blueprint));
 	const working = $derived(blueprint.render.status === 'pending' || blueprint.render.status === 'rendering');
@@ -61,6 +66,39 @@
 			app.instances[0]?.id ??
 			''
 		);
+	}
+
+	// 每次打開詳細資料算一次瀏覽；輪詢渲染進度的 GET 不會算。
+	onMount(() => {
+		api.blueprintView(blueprint.id).catch(() => {});
+	});
+
+	/** 先更新畫面，失敗再改回來。 */
+	async function react(kind: 'like' | 'favorite') {
+		if (reacting) return;
+		const on = kind === 'like' ? !blueprint.viewer?.liked : !blueprint.viewer?.favorited;
+		const before = blueprint;
+		const apply = (active: boolean, count: number) => {
+			const viewer = { liked: false, favorited: false, ...blueprint.viewer };
+			onchanged(
+				kind === 'like'
+					? { ...blueprint, likeCount: count, viewer: { ...viewer, liked: active } }
+					: { ...blueprint, favoriteCount: count, viewer: { ...viewer, favorited: active } }
+			);
+		};
+		const current = kind === 'like' ? blueprint.likeCount : blueprint.favoriteCount;
+		reacting = kind;
+		apply(on, current + (on ? 1 : -1));
+		try {
+			const result = await api.blueprintReact(blueprint.id, kind, on);
+			apply(result.active, result.count);
+		} catch (e) {
+			onchanged(before);
+			handleAuthError(e);
+			reportError(m.blueprint_error_react(), e);
+		} finally {
+			reacting = null;
+		}
 	}
 
 	// 封面還在背景渲染時，每隔幾秒問一次。
@@ -232,6 +270,38 @@
 				</p>
 			</div>
 
+			<div class="flex flex-wrap gap-1.75">
+				<Button
+					icon="heart"
+					disabled={!signedIn || mine || reacting === 'like'}
+					aria-pressed={blueprint.viewer?.liked ?? false}
+					title={!signedIn ? m.blueprint_sign_in_to_react() : mine ? m.blueprint_like_own() : m.blueprint_like()}
+					class={blueprint.viewer?.liked ? 'text-danger' : ''}
+					onclick={() => react('like')}
+				>
+					{formatCount(blueprint.likeCount)}
+				</Button>
+				<Button
+					icon="bookmark"
+					disabled={!signedIn || reacting === 'favorite'}
+					aria-pressed={blueprint.viewer?.favorited ?? false}
+					title={signedIn ? undefined : m.blueprint_sign_in_to_react()}
+					class={blueprint.viewer?.favorited ? 'text-brand-fg' : ''}
+					onclick={() => react('favorite')}
+				>
+					{blueprint.viewer?.favorited ? m.blueprint_favorited() : m.blueprint_favorite()} · {formatCount(blueprint.favoriteCount)}
+				</Button>
+				{#if blueprint.format === 'litematic'}
+					<Button icon="list" onclick={() => (showMaterials = !showMaterials)} aria-expanded={showMaterials}>
+						{showMaterials ? m.blueprint_materials_hide() : m.blueprint_materials()}
+					</Button>
+				{/if}
+			</div>
+
+			{#if showMaterials}
+				<BlueprintMaterials id={blueprint.id} />
+			{/if}
+
 			{#if blueprint.tags.length}
 				<div class="flex flex-wrap gap-1.5">
 					{#each blueprint.tags as slug (slug)}
@@ -259,6 +329,8 @@
 				</dd>
 				<dt class="text-faint">{m.blueprint_downloads()}</dt>
 				<dd>{formatCount(blueprint.downloadCount)}</dd>
+				<dt class="text-faint">{m.blueprint_views()}</dt>
+				<dd>{formatCount(blueprint.viewCount)}</dd>
 				{#if blueprint.render.status === 'failed' && blueprint.render.error}
 					<dt class="text-faint">{m.blueprint_render()}</dt>
 					<dd class="text-danger">{blueprint.render.error}</dd>

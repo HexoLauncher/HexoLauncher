@@ -4,21 +4,40 @@
 	import Icon from '$lib/ui/Icon.svelte';
 	import BlueprintDetail from './BlueprintDetail.svelte';
 	import * as api from '$lib/api';
-	import type { Blueprint } from '$lib/api';
-	import { formatCount } from '$lib/format';
+	import type { Blueprint, BlueprintActivityKind, BlueprintSort } from '$lib/api';
+	import { formatCount, releaseDate } from '$lib/format';
 	import { hub, instanceVersions } from '$lib/blueprints.svelte';
 	import { app } from '$lib/state.svelte';
 	import { releaseVersions, withCurrent } from '$lib/versions';
 	import { m } from '$lib/paraglide/messages.js';
 
-	/** owner 有值時只列這個人的藍圖（我的上傳）。 */
-	let { owner = null }: { owner?: string | null } = $props();
+	/**
+	 * owner 有值時只列這個人的藍圖（我的上傳）；activity 有值時改列自己的收藏、點讚或紀錄，
+	 * 這時候不能搜尋或篩選。
+	 */
+	let {
+		owner = null,
+		activity = null
+	}: { owner?: string | null; activity?: BlueprintActivityKind | null } = $props();
+
+	const SORTS: [BlueprintSort, () => string][] = [
+		['new', m.blueprint_sort_new],
+		['updated', m.blueprint_sort_updated],
+		['downloads', m.blueprint_sort_downloads],
+		['likes', m.blueprint_sort_likes],
+		['favorites', m.blueprint_sort_favorites],
+		['views', m.blueprint_sort_views]
+	];
 
 	const PER_PAGE = 24;
 
 	let query = $state('');
 	let version = $state('');
 	let tags = $state<string[]>([]);
+	let sort = $state<BlueprintSort>('new');
+	/** 紀錄模式下每個藍圖的時間與次數。 */
+	let meta = $state<Record<string, { at: string; count: number | null }>>({});
+	const group = $derived(owner || activity ? null : hub.groupFilter);
 
 	let items = $state<Blueprint[]>([]);
 	let total = $state(0);
@@ -58,17 +77,31 @@
 		loading = true;
 		message = '';
 		try {
-			const result = await api.blueprintSearch({
-				q: query.trim(),
-				owner,
-				tags,
-				version: version || null,
-				page: next,
-				perPage: PER_PAGE
-			});
+			let found: Blueprint[];
+			let result: { total: number };
+			if (activity) {
+				const list = await api.blueprintActivity(activity, next, PER_PAGE);
+				found = list.items.map((entry) => entry.blueprint);
+				const extra = Object.fromEntries(list.items.map((e) => [e.blueprint.id, { at: e.at, count: e.count }]));
+				meta = append ? { ...meta, ...extra } : extra;
+				result = list;
+			} else {
+				const list = await api.blueprintSearch({
+					q: query.trim(),
+					owner,
+					group: group?.id ?? null,
+					sort,
+					tags,
+					version: version || null,
+					page: next,
+					perPage: PER_PAGE
+				});
+				found = list.items;
+				result = list;
+			}
 			if (current !== seq) return;
 
-			items = append ? [...items, ...result.items] : result.items;
+			items = append ? [...items, ...found] : found;
 			total = result.total;
 			pageNo = next;
 			if (!append) {
@@ -100,6 +133,21 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col gap-2.5">
+	{#if group}
+		<div class="flex shrink-0 items-center gap-2 rounded-lg border border-brand-line bg-brand-soft px-3 py-1.5">
+			<Icon name="users" size={14} />
+			<span class="min-w-0 flex-1 truncate text-brand-fg">{m.blueprint_group_filter({ name: group.name })}</span>
+			<Button
+				onclick={() => {
+					hub.groupFilter = null;
+					search();
+				}}
+			>
+				{m.blueprint_clear_filter()}
+			</Button>
+		</div>
+	{/if}
+	{#if !activity}
 	<div class="flex shrink-0 gap-1.75">
 		<TextInput
 			class="min-w-0 flex-1"
@@ -115,10 +163,16 @@
 				<option value={v}>{m.blueprint_supports_version({ version: v })}</option>
 			{/each}
 		</Select>
+		<Select class="w-32" bind:value={sort} onchange={() => search()} aria-label={m.blueprint_sort()}>
+			{#each SORTS as [value, label] (value)}
+				<option {value}>{label()}</option>
+			{/each}
+		</Select>
 		<Button icon="refresh" onclick={() => search()} aria-label={m.common_refresh()} title={m.common_refresh()}></Button>
 	</div>
+	{/if}
 
-	{#if hub.tags.length}
+	{#if hub.tags.length && !activity}
 		<div class="flex shrink-0 flex-wrap gap-1.5" role="group" aria-label={m.blueprint_tags()}>
 			{#each hub.tags as tag (tag.slug)}
 				{@const on = tags.includes(tag.slug)}
@@ -175,9 +229,22 @@
 							<span class="truncate font-semibold {active ? 'text-brand-fg' : 'text-ink'}">{item.name}</span>
 							<span class="flex items-center gap-2 text-[11.5px] text-faint">
 								<span class="min-w-0 truncate">{item.owner.username}</span>
-								<span class="ml-auto flex shrink-0 items-center gap-1">
-									<Icon name="download" size={11} />{formatCount(item.downloadCount)}
-								</span>
+								{#if meta[item.id]}
+									<span class="ml-auto shrink-0">
+										{releaseDate(meta[item.id].at)}{(meta[item.id].count ?? 0) > 1
+											? ` · ${m.blueprint_history_count({ count: meta[item.id].count ?? 0 })}`
+											: ''}
+									</span>
+								{:else}
+									{#if item.likeCount}
+										<span class="ml-auto flex shrink-0 items-center gap-1">
+											<Icon name="heart" size={11} />{formatCount(item.likeCount)}
+										</span>
+									{/if}
+									<span class="{item.likeCount ? '' : 'ml-auto'} flex shrink-0 items-center gap-1">
+										<Icon name="download" size={11} />{formatCount(item.downloadCount)}
+									</span>
+								{/if}
 							</span>
 						</span>
 					</button>
@@ -191,7 +258,7 @@
 					<span class="leading-[1.7] text-danger">{message}</span>
 					<Button onclick={() => search(items.length > 0)}>{m.common_retry()}</Button>
 				{:else if items.length === 0}
-					<span>{owner ? m.blueprint_mine_empty() : m.blueprint_empty()}</span>
+					<span>{activity ? m.blueprint_history_empty() : owner ? m.blueprint_mine_empty() : m.blueprint_empty()}</span>
 				{:else if hasMore}
 					<Button onclick={() => search(true)}>
 						{m.list_load_more({ loaded: items.length, total })}

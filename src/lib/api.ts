@@ -952,6 +952,8 @@ export interface BlueprintUser {
 
 export interface BlueprintSession {
 	server: string;
+	/** 藍圖庫網站；沒有設定時為 null。 */
+	web: string | null;
 	/** 啟動器目前選的帳號；online = Microsoft 帳號，才能登入藍圖庫。 */
 	account: { id: string; playerName: string; online: boolean } | null;
 	user: BlueprintUser | null;
@@ -994,6 +996,11 @@ export interface Blueprint {
 	};
 	images: BlueprintImage[];
 	downloadCount: number;
+	viewCount: number;
+	likeCount: number;
+	favoriteCount: number;
+	/** 登入時才有：自己有沒有點讚／收藏。 */
+	viewer: { liked: boolean; favorited: boolean } | null;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -1005,9 +1012,13 @@ export interface BlueprintList {
 	total: number;
 }
 
+export type BlueprintSort = 'new' | 'updated' | 'downloads' | 'views' | 'likes' | 'favorites';
+
 export interface BlueprintQuery {
 	q?: string;
 	owner?: string | null;
+	group?: string | null;
+	sort?: BlueprintSort;
 	tags?: string[];
 	version?: string | null;
 	page?: number;
@@ -1088,6 +1099,154 @@ export const blueprintDeleteImage = (id: string, imageId: string) =>
 
 export const blueprintSetCover = (id: string, imageId: string | null) =>
 	invoke<Blueprint>('blueprint_set_cover', { id, imageId });
+
+export interface Paged<T> {
+	items: T[];
+	page: number;
+	perPage: number;
+	total: number;
+}
+
+export interface BlueprintReaction {
+	active: boolean;
+	count: number;
+}
+
+export interface BlueprintMaterials {
+	items: { item: string; count: number }[];
+	total: number;
+}
+
+export type BlueprintActivityKind = 'likes' | 'favorites' | 'views' | 'downloads';
+
+export interface BlueprintActivity {
+	blueprint: Blueprint;
+	at: string;
+	/** 瀏覽／下載次數；點讚與收藏為 null。 */
+	count: number | null;
+}
+
+export type GroupRole = 'owner' | 'admin' | 'member';
+
+export interface BlueprintProfile {
+	uuid: string;
+	username: string;
+	bio: string;
+	createdAt: string;
+	stats: { blueprints: number; downloads: number; views: number; likes: number; favorites: number };
+	groups: { id: string; name: string; kind: string; role: GroupRole; avatarUrl: string | null }[];
+}
+
+export type GroupLinkType =
+	| 'website'
+	| 'discord'
+	| 'youtube'
+	| 'bilibili'
+	| 'twitch'
+	| 'x'
+	| 'github'
+	| 'qq'
+	| 'other';
+
+export interface Group {
+	id: string;
+	name: string;
+	description: string;
+	kind: string;
+	joinPolicy: 'open' | 'invite';
+	avatarUrl: string | null;
+	bannerUrl: string | null;
+	links: { type: GroupLinkType; url: string; label?: string }[];
+	owner: { uuid: string; username: string };
+	memberCount: number;
+	blueprintCount: number;
+	viewerRole: GroupRole | null;
+	viewerInvite: { id: string; role: 'admin' | 'member' } | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface GroupMember {
+	uuid: string;
+	username: string;
+	role: GroupRole;
+	joinedAt: string;
+}
+
+export interface GroupQuery {
+	q?: string;
+	kind?: string | null;
+	member?: string | null;
+	sort?: 'new' | 'members' | 'blueprints';
+	page?: number;
+	perPage?: number;
+}
+
+export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+
+type Person = { uuid: string; username: string };
+
+/** 伺服器之後可能會加新的 kind，不認得的就略過。 */
+export type BlueprintNotification = { id: string; readAt: string | null; createdAt: string } & (
+	| {
+			kind: 'group_invite';
+			data: {
+				inviteId: string;
+				group: { id: string; name: string };
+				invitedBy: Person;
+				role: 'admin' | 'member';
+				status: InviteStatus;
+			};
+	  }
+	| {
+			kind: 'group_invite_accepted' | 'group_invite_declined';
+			data: { inviteId: string; group: { id: string; name: string }; user: Person };
+	  }
+	| { kind: 'unknown'; data: Record<string, unknown> }
+);
+
+export const blueprintView = (id: string) => invoke<void>('blueprint_view', { id });
+
+export const blueprintReact = (id: string, kind: 'like' | 'favorite', on: boolean) =>
+	invoke<BlueprintReaction>('blueprint_react', { id, kind, on });
+
+export const blueprintMaterials = (id: string) =>
+	invoke<BlueprintMaterials>('blueprint_materials', { id });
+
+export const blueprintActivity = (kind: BlueprintActivityKind, page: number, perPage: number) =>
+	invoke<Paged<BlueprintActivity>>('blueprint_activity', { kind, page, perPage });
+
+export const blueprintProfile = (uuid: string | null = null) =>
+	invoke<BlueprintProfile>('blueprint_profile', { uuid });
+
+export const blueprintUpdateBio = (bio: string) =>
+	invoke<BlueprintProfile>('blueprint_update_bio', { bio });
+
+export const groupKinds = () => invoke<BlueprintTag[]>('group_kinds');
+
+export const groupList = (query: GroupQuery) => invoke<Paged<Group>>('group_list', { query });
+
+export const groupGet = (id: string) => invoke<Group>('group_get', { id });
+
+export const groupMembers = (id: string, page = 1) =>
+	invoke<Paged<GroupMember>>('group_members', { id, page });
+
+export const groupJoin = (id: string) => invoke<Group>('group_join', { id });
+
+export const groupLeave = (id: string) => invoke<void>('group_leave', { id });
+
+export const groupInviteRespond = (id: string, accept: boolean) =>
+	invoke<Group | null>('group_invite_respond', { id, accept });
+
+export const notificationList = (page = 1, unread = false) =>
+	invoke<Paged<BlueprintNotification> & { unread: number }>('notification_list', { page, unread });
+
+export const notificationUnreadCount = () => invoke<number>('notification_unread_count');
+
+/** id 為 null 時全部標為已讀。 */
+export const notificationRead = (id: string | null) => invoke<void>('notification_read', { id });
+
+export const notificationDelete = (id: string) => invoke<void>('notification_delete', { id });
 
 export interface SchematicFile {
 	name: string;

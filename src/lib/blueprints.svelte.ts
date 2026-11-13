@@ -1,5 +1,6 @@
 import * as api from './api';
-import type { Blueprint, BlueprintSession, BlueprintTag, BlueprintTerms, InstanceView } from './api';
+import type { Blueprint, BlueprintSession, BlueprintTag, BlueprintTerms, GroupRole, InstanceView } from './api';
+import { m } from './paraglide/messages.js';
 
 export const hub = $state({
 	session: null as BlueprintSession | null,
@@ -7,7 +8,12 @@ export const hub = $state({
 	tags: [] as BlueprintTag[],
 	/** 連不上藍圖庫時的訊息。 */
 	offline: '',
-	signingIn: false
+	signingIn: false,
+	groupKinds: [] as BlueprintTag[],
+	/** 未讀通知數量。 */
+	unread: 0,
+	/** 從群組點「瀏覽群組藍圖」時，瀏覽頁只列這個群組的藍圖。 */
+	groupFilter: null as { id: string; name: string } | null
 });
 
 let sessionSeq = 0;
@@ -38,13 +44,6 @@ function isTermsError(error: unknown) {
 export async function signIn(termsVersion?: string): Promise<boolean> {
 	hub.signingIn = true;
 	try {
-		if (!termsVersion) {
-			const terms = await api.blueprintTerms();
-			if (terms && !terms.accepted) {
-				hub.terms = terms;
-				return false;
-			}
-		}
 		const seq = ++sessionSeq;
 		let session: api.BlueprintSession;
 		try {
@@ -75,6 +74,43 @@ export function handleAuthError(error: unknown) {
 	if (error && typeof error === 'object' && (error as api.NolauncherCmdError).kind === 'blueprintAuth') {
 		refreshSession();
 	}
+}
+
+export async function refreshGroupKinds() {
+	try {
+		hub.groupKinds = await api.groupKinds();
+	} catch {
+		// 群組類型只用來顯示名稱，拿不到就顯示 slug。
+	}
+}
+
+export function groupKindName(slug: string): string {
+	return hub.groupKinds.find((k) => k.slug === slug)?.name ?? slug;
+}
+
+export function roleName(role: GroupRole): string {
+	return { owner: m.group_role_owner(), admin: m.group_role_admin(), member: m.group_role_member() }[role];
+}
+
+export async function refreshUnread() {
+	if (!hub.session?.user) {
+		hub.unread = 0;
+		return;
+	}
+	try {
+		hub.unread = await api.notificationUnreadCount();
+	} catch (e) {
+		handleAuthError(e);
+	}
+}
+
+/** 沒有即時推送，登入時每分鐘問一次未讀數量；回傳停止輪詢的函式。 */
+export function pollUnread(intervalMs = 60_000): () => void {
+	refreshUnread();
+	const timer = setInterval(() => {
+		if (!document.hidden) refreshUnread();
+	}, intervalMs);
+	return () => clearInterval(timer);
 }
 
 export function tagName(slug: string): string {

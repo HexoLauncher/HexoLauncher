@@ -1,4 +1,18 @@
 import type { Component } from 'svelte';
+import LuAtSign from '~icons/lucide/at-sign';
+import LuBell from '~icons/lucide/bell';
+import LuBookmark from '~icons/lucide/bookmark';
+import LuCheckCheck from '~icons/lucide/check-check';
+import LuCode from '~icons/lucide/code';
+import LuCrown from '~icons/lucide/crown';
+import LuHeart from '~icons/lucide/heart';
+import LuLink from '~icons/lucide/link';
+import LuMessageCircle from '~icons/lucide/message-circle';
+import LuMessageSquare from '~icons/lucide/message-square';
+import LuRadio from '~icons/lucide/radio';
+import LuTv from '~icons/lucide/tv';
+import LuUsers from '~icons/lucide/users';
+import LuArrowLeft from '~icons/lucide/arrow-left';
 import LuArrowRight from '~icons/lucide/arrow-right';
 import LuArrowUpFromLine from '~icons/lucide/arrow-up-from-line';
 import LuBlocks from '~icons/lucide/blocks';
@@ -65,6 +79,7 @@ export const ICONS: Record<string, Component> = {
 	search: LuSearch,
 	refresh: LuRefreshCw,
 	arrow: LuArrowRight,
+	back: LuArrowLeft,
 	chevron: LuChevronRight,
 	down: LuChevronDown,
 	up: LuChevronUp,
@@ -117,7 +132,20 @@ export const ICONS: Record<string, Component> = {
 	pickaxe: LuPickaxe,
 	layers: LuLayers,
 	'win-min': LuMinus,
-	'win-max': LuSquare
+	'win-max': LuSquare,
+	heart: LuHeart,
+	bookmark: LuBookmark,
+	bell: LuBell,
+	users: LuUsers,
+	crown: LuCrown,
+	'check-all': LuCheckCheck,
+	link: LuLink,
+	'link-discord': LuMessageCircle,
+	'link-bilibili': LuTv,
+	'link-twitch': LuRadio,
+	'link-x': LuAtSign,
+	'link-github': LuCode,
+	'link-qq': LuMessageSquare
 };
 
 export type IconName = keyof typeof ICONS;
