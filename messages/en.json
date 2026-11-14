@@ -418,6 +418,8 @@
 	"settings_add_offline": "Add offline…",
 	"settings_set_active": "Set as active",
 	"settings_api_key": "API key",
+	"settings_api_key_show": "Show key",
+	"settings_api_key_hide": "Hide key",
 	"settings_curseforge_placeholder": "Paste your CurseForge API key here",
 	"settings_status_accent_reset": "Default accent restored",
 	"settings_status_background_updated": "Background image updated",

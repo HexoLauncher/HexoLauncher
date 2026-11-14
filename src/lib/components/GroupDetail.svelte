@@ -96,7 +96,7 @@
 			{#if group.bannerUrl}<img src={group.bannerUrl} alt="" class="absolute inset-0 size-full object-cover" />{/if}
 		</div>
 		<div class="flex flex-col gap-3 px-3.5 pb-3">
-			<div class="-mt-6 flex items-end gap-2.5">
+			<div class="relative -mt-6 flex items-end gap-2.5">
 				{#if group.avatarUrl}
 					<img src={group.avatarUrl} alt="" class="size-14 rounded-lg border-3 border-deep bg-card object-cover" />
 				{:else}

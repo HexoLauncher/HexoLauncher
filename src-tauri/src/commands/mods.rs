@@ -271,15 +271,12 @@ pub async fn check_mod_updates(
     let mc_version = mc_version.unwrap_or(config.version_id);
 
     let modrinth = ModrinthClient::new();
-    let api_key = match curseforge_api_key.filter(|k| !k.is_empty()) {
-        Some(key) => Some(key),
-        None => Some(
-            crate::store::launcher::LauncherConfig::load()
-                .await?
-                .api
-                .curseforge_api_key,
-        )
-        .filter(|k| !k.is_empty()),
+    let api_key = match curseforge_api_key.filter(|k| !k.trim().is_empty()) {
+        Some(key) => Some(key.trim().to_string()),
+        None => crate::store::launcher::LauncherConfig::load()
+            .await?
+            .api
+            .curseforge_key(),
     };
     let curseforge = api_key.map(CurseForgeClient::new);
     let id_map = mod_id_map.unwrap_or_default();

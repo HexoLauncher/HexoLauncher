@@ -418,6 +418,8 @@
 	"settings_add_offline": "新增離線…",
 	"settings_set_active": "設為使用中",
 	"settings_api_key": "API 金鑰",
+	"settings_api_key_show": "顯示金鑰",
+	"settings_api_key_hide": "隱藏金鑰",
 	"settings_curseforge_placeholder": "自定義的 CurseForge API 金鑰",
 	"settings_status_accent_reset": "已還原預設強調色",
 	"settings_status_background_updated": "已更新背景圖片",

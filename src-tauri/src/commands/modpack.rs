@@ -202,20 +202,17 @@ pub(super) async fn file_sha1(path: &Path) -> CmdResult<String> {
 }
 
 pub(super) async fn browser() -> CmdResult<Browser> {
-    let key = LauncherConfig::load().await?.api.curseforge_api_key;
-    Ok(Browser::new().with_curseforge_key(key))
+    let key = LauncherConfig::load().await?.api.curseforge_key();
+    Ok(Browser::new().with_curseforge_key(key.unwrap_or_default()))
 }
 
 pub(super) async fn curseforge_key() -> CmdResult<String> {
-    let key = LauncherConfig::load().await?.api.curseforge_api_key;
-    let key = key.trim();
-    if key.is_empty() {
-        return Err(CmdError::new(
+    LauncherConfig::load().await?.api.curseforge_key().ok_or_else(|| {
+        CmdError::new(
             "curseforgeKeyMissing",
             "使用 CurseForge 需要 API 金鑰，請先到「設定」填入",
-        ));
-    }
-    Ok(key.to_string())
+        )
+    })
 }
 
 async fn read_pack_file(path: &Path) -> CmdResult<ModpackPreview> {

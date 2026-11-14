@@ -11,6 +11,11 @@ use crate::state::AppState;
 const FILE: &str = "launcher.json";
 const FORMAT_VERSION: u32 = 1;
 
+const BUILTIN_CURSEFORGE_KEY: Option<&str> = match option_env!("NOLAUNCHER_CURSEFORGE_API_KEY") {
+    Some(key) if !key.is_empty() => Some(key),
+    _ => None,
+};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LauncherConfig {
@@ -212,6 +217,15 @@ impl Default for ApiConfig {
         Self {
             curseforge_api_key: String::new(),
         }
+    }
+}
+
+impl ApiConfig {
+    pub fn curseforge_key(&self) -> Option<String> {
+        Some(self.curseforge_api_key.trim())
+            .filter(|k| !k.is_empty())
+            .or(BUILTIN_CURSEFORGE_KEY)
+            .map(str::to_string)
     }
 }
 

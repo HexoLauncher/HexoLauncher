@@ -384,9 +384,10 @@ async fn ftb_install(
         .count();
     let preview = ModpackPreview::new(PackFormat::Ftb, manifest.info(&pack.name)?, count);
 
-    let key = LauncherConfig::load().await?.api.curseforge_api_key;
-    let curseforge = Some(key.trim())
-        .filter(|k| !k.is_empty())
+    let curseforge = LauncherConfig::load()
+        .await?
+        .api
+        .curseforge_key()
         .map(CurseForgeClient::new);
 
     install_pack(

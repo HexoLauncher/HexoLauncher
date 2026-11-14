@@ -31,6 +31,7 @@ import LuShirt from '~icons/lucide/shirt';
 import LuDownload from '~icons/lucide/download';
 import LuExternalLink from '~icons/lucide/external-link';
 import LuEye from '~icons/lucide/eye';
+import LuEyeOff from '~icons/lucide/eye-off';
 import LuFileText from '~icons/lucide/file-text';
 import LuFolder from '~icons/lucide/folder';
 import LuGlobe from '~icons/lucide/globe';
@@ -122,6 +123,7 @@ export const ICONS: Record<string, Component> = {
 	list: LuList,
 	blocks: LuBlocks,
 	eye: LuEye,
+	'eye-off': LuEyeOff,
 	login: LuLogIn,
 	logout: LuLogOut,
 	rerender: LuRotateCcw,

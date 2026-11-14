@@ -79,6 +79,7 @@
 	const locale = storedLocale();
 
 	let bgPreview = $state('');
+	let showCfKey = $state(false);
 	let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
 
 	$effect(() => {
@@ -819,7 +820,15 @@
 		{:else}
 			<Group title="CurseForge">
 				<Field label={m.settings_api_key()} for="a-cf">
-					<TextInput id="a-cf" type="password" bind:value={config.api.curseforgeApiKey} oninput={() => save()} placeholder={m.settings_curseforge_placeholder()} />
+					<div class="flex items-center gap-1.75">
+						<TextInput id="a-cf" type={showCfKey ? 'text' : 'password'} class="flex-1" bind:value={config.api.curseforgeApiKey} oninput={() => save()} placeholder={m.settings_curseforge_placeholder()} />
+						<Button
+							icon={showCfKey ? 'eye-off' : 'eye'}
+							title={showCfKey ? m.settings_api_key_hide() : m.settings_api_key_show()}
+							aria-label={showCfKey ? m.settings_api_key_hide() : m.settings_api_key_show()}
+							onclick={() => (showCfKey = !showCfKey)}
+						/>
+					</div>
 				</Field>
 			</Group>
 		{/if}

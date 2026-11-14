@@ -128,7 +128,7 @@
 						{/if}
 					</span>
 					<span class="flex flex-col gap-2 px-3 pb-3">
-						<span class="-mt-5 flex items-end gap-2">
+						<span class="relative -mt-5 flex items-end gap-2">
 							{#if group.avatarUrl}
 								<img src={group.avatarUrl} alt="" loading="lazy" class="size-11 shrink-0 rounded-lg border-3 border-deep bg-card object-cover" />
 							{:else}
