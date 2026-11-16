@@ -126,6 +126,11 @@ export interface AccountView {
 
 export const listAccounts = () => invoke<AccountView[]>('list_accounts');
 
+export const emitAccountsChanged = () => emit('nolauncher://accounts-changed');
+
+export const onAccountsChanged = (handler: () => void): Promise<UnlistenFn> =>
+	listen('nolauncher://accounts-changed', () => handler());
+
 export const addOfflineAccount = (playerName: string) =>
 	invoke<AccountView[]>('add_offline_account', { playerName });
 

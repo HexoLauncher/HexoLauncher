@@ -30,6 +30,7 @@
 		const track = (p: Promise<() => void>) => p.then((un) => unlisteners.push(un));
 
 		track(api.onInstancesChanged(() => refreshInstances()));
+		track(api.onAccountsChanged(() => refreshAccounts()));
 		track(api.onGameStart(() => refreshRunning()));
 		track(
 			api.onGameExit((exit) => {

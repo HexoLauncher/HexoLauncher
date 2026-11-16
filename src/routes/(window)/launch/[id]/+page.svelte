@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { Button, Pill } from '$lib/ui';
+	import { Button, Pill, TextInput } from '$lib/ui';
 	import { onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceIcon from '$lib/InstanceIcon.svelte';
 	import WindowShell from '$lib/components/WindowShell.svelte';
 	import * as api from '$lib/api';
-	import type { InstanceView, LauncherConfig } from '$lib/api';
+	import type { AccountView, DeviceCode, InstanceView, LauncherConfig } from '$lib/api';
 	import { describeJavaProgress, loaderLabel } from '$lib/format';
 	import { closeSelf } from '$lib/windows';
 	import { m } from '$lib/paraglide/messages.js';
@@ -14,11 +14,12 @@
 
 	const id = $derived(page.params.id ?? '');
 
-	type StageId = 'read' | 'check' | 'download' | 'java' | 'launch';
+	type StageId = 'read' | 'account' | 'check' | 'download' | 'java' | 'launch';
 	type StageState = 'pending' | 'active' | 'done' | 'skipped' | 'failed';
 
 	const STAGES: { id: StageId; label: string; icon: string }[] = [
 		{ id: 'read', label: m.launch_stage_read(), icon: 'box' },
+		{ id: 'account', label: m.launch_stage_account(), icon: 'user' },
 		{ id: 'check', label: m.launch_stage_check(), icon: 'search' },
 		{ id: 'download', label: m.launch_stage_download(), icon: 'package' },
 		{ id: 'java', label: m.launch_stage_java(), icon: 'coffee' },
@@ -79,6 +80,99 @@
 		detail[stage] = '';
 	}
 
+	let accountPrompt = $state<{
+		resolve: (account: AccountView) => void;
+		reject: (error: Error) => void;
+	} | null>(null);
+	let login = $state<DeviceCode | null>(null);
+	let offlineName = $state('');
+	let accountError = $state('');
+	let accountBusy = $state(false);
+	let loginAttempt = 0;
+
+	function closeAccountPrompt() {
+		loginAttempt++;
+		accountPrompt = null;
+		login = null;
+		accountBusy = false;
+		accountError = '';
+	}
+
+	async function ensureAccount() {
+		stageState.account = 'active';
+		try {
+			const accounts = await api.listAccounts();
+			const current =
+				accounts.find((a) => a.selected) ??
+				(await new Promise<AccountView>((resolve, reject) => {
+					accountPrompt = { resolve, reject };
+				}));
+			stageState.account = 'done';
+			detail.account = current.playerName;
+		} catch (e) {
+			stageState.account = 'failed';
+			throw e;
+		}
+	}
+
+	function accountAdded(accounts: AccountView[]) {
+		const added = accounts.find((a) => a.selected);
+		const prompt = accountPrompt;
+		api.emitAccountsChanged().catch(() => {});
+		if (!added || !prompt) return;
+		closeAccountPrompt();
+		prompt.resolve(added);
+	}
+
+	async function startLogin() {
+		const attempt = ++loginAttempt;
+		accountError = '';
+		accountBusy = true;
+		try {
+			const code = await api.msLoginStart();
+			if (attempt !== loginAttempt) return;
+			login = code;
+			api.openExternal(code.verificationUri).catch(() => {});
+			const updated = await api.msLoginPoll(code.sessionId);
+			if (attempt !== loginAttempt) {
+				api.emitAccountsChanged().catch(() => {});
+				return;
+			}
+			accountAdded(updated);
+		} catch (e) {
+			if (attempt !== loginAttempt) return;
+			login = null;
+			accountBusy = false;
+			accountError = api.errorMessage(e);
+		}
+	}
+
+	function cancelLogin() {
+		if (login) api.msLoginCancel(login.sessionId).catch(() => {});
+		loginAttempt++;
+		login = null;
+		accountBusy = false;
+	}
+
+	async function addOffline() {
+		const name = offlineName.trim();
+		if (!name || accountBusy) return;
+		accountError = '';
+		accountBusy = true;
+		try {
+			accountAdded(await api.addOfflineAccount(name));
+		} catch (e) {
+			accountBusy = false;
+			accountError = api.errorMessage(e);
+		}
+	}
+
+	function cancelAccount() {
+		const prompt = accountPrompt;
+		closeAccountPrompt();
+		prompt?.reject(new Error(m.launch_account_cancelled()));
+	}
+
 	function isJavaMissing(e: unknown) {
 		return !!e && typeof e === 'object' && (e as api.NolauncherCmdError).kind === 'javaNotFound';
 	}
@@ -91,7 +185,14 @@
 	});
 
 	function reset(): Record<StageId, StageState> {
-		return { read: 'pending', check: 'pending', download: 'pending', java: 'pending', launch: 'pending' };
+		return {
+			read: 'pending',
+			account: 'pending',
+			check: 'pending',
+			download: 'pending',
+			java: 'pending',
+			launch: 'pending'
+		};
 	}
 
 	$effect(() => {
@@ -119,6 +220,7 @@
 		tasks = [];
 		stageState = reset();
 		detail = {};
+		closeAccountPrompt();
 
 		let stage: StageId = 'read';
 		try {
@@ -136,6 +238,9 @@
 				version: instance.versionId,
 				loader: loaderLabel(instance.loader)
 			});
+
+			const account = ensureAccount();
+			account.catch(() => {});
 
 			stage = 'check';
 			stageState.check = 'active';
@@ -171,6 +276,8 @@
 				detail.download = m.launch_detail_skipped();
 			}
 
+			await account;
+
 			stage = 'java';
 			stageState.java = 'active';
 
@@ -192,7 +299,13 @@
 				closeTimer = setTimeout(closeSelf, 1200);
 			}
 		} catch (e) {
-			stageState[stage] = 'failed';
+			if (stageState.account === 'active') {
+				closeAccountPrompt();
+				stageState.account = 'pending';
+			}
+			if (stageState[stage] === 'active' || stageState.account !== 'failed') {
+				stageState[stage] = 'failed';
+			}
 			error = api.errorMessage(e);
 		}
 	}
@@ -326,7 +439,55 @@
 							</div>
 						{/if}
 
-						{#if current === 'active' && javaPrompt}
+						{#if stage.id === 'account' && current === 'active' && accountPrompt}
+							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2.5">
+								{#if login}
+									{@const code = login}
+									<p class="leading-[1.7] text-muted">{m.login_desc()}</p>
+									<div
+										class="mt-2 rounded-lg border border-line bg-window px-4 py-2.5 text-center font-mono text-[20px] tracking-[4px] select-text"
+									>
+										{code.userCode}
+									</div>
+									<div class="mt-2 flex items-center gap-1.75">
+										<Button onclick={() => api.openExternal(code.verificationUri)}>
+											{m.login_reopen({ url: code.verificationUri })}
+										</Button>
+										<Button onclick={cancelLogin}>{m.common_cancel()}</Button>
+										<span class="ml-1 flex items-center gap-2 text-faint">
+											<span
+												class="size-3 animate-spin rounded-full border-2 border-line border-t-brand"
+											></span>
+											{m.login_waiting()}
+										</span>
+									</div>
+								{:else}
+									<p class="leading-[1.7] text-ink">{m.launch_account_missing()}</p>
+									<p class="leading-[1.7] text-muted">{m.launch_account_ask()}</p>
+									<div class="mt-2 flex flex-wrap items-center gap-1.75">
+										<Button variant="primary" disabled={accountBusy} onclick={startLogin}>
+											<Icon name="login" size={13} />{m.launch_account_microsoft()}
+										</Button>
+										<TextInput
+											class="w-40"
+											bind:value={offlineName}
+											maxlength={16}
+											placeholder={m.offline_player_name()}
+											onkeydown={(e) => e.key === 'Enter' && addOffline()}
+										/>
+										<Button disabled={accountBusy || !offlineName.trim()} onclick={addOffline}>
+											{m.launch_account_offline()}
+										</Button>
+										<Button onclick={cancelAccount}>{m.common_cancel()}</Button>
+									</div>
+									{#if accountError}
+										<p class="mt-2 leading-[1.7] text-danger">{accountError}</p>
+									{/if}
+								{/if}
+							</div>
+						{/if}
+
+						{#if stage.id !== 'account' && current === 'active' && javaPrompt}
 							{@const prompt = javaPrompt}
 							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2.5">
 								<p class="leading-[1.7] text-ink">{m.launch_java_missing({ version: prompt.version })}</p>
@@ -342,7 +503,7 @@
 							</div>
 						{/if}
 
-						{#if current === 'active' && javaDownload}
+						{#if stage.id !== 'account' && current === 'active' && javaDownload}
 							<div class="mt-2 rounded-lg border border-line bg-deep px-3 py-2">
 								{#if javaDownload.percent !== null}
 									<div class="mb-2 h-1.5 overflow-hidden rounded-full bg-window">

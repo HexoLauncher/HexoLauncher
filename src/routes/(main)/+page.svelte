@@ -17,7 +17,8 @@
 		report,
 		reportError,
 		runningIds,
-		runningOf
+		runningOf,
+		selectedAccount
 	} from '$lib/state.svelte';
 	import { openAppWindow, windowSpecs } from '$lib/windows';
 	import { m } from '$lib/paraglide/messages.js';
@@ -42,7 +43,7 @@
 		if (!target) return;
 		app.selectedId = id;
 
-		if (app.config.game.showProgressWindow || !target.healthy) {
+		if (app.config.game.showProgressWindow || !target.healthy || !selectedAccount()) {
 			openAppWindow(windowSpecs.launch(id, target.name));
 			return;
 		}
