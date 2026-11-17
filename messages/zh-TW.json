@@ -1156,5 +1156,9 @@
 	"onboarding_summary_instance_count": "{count} 個",
 	"settings_rerun_onboarding": "重新執行初始設定",
 	"onboarding_account_required": "至少需要一個帳號才能繼續",
-	"onboarding_java_required": "需要找到一個可用的 Java 才能繼續"
+	"onboarding_java_required": "需要找到一個可用的 Java 才能繼續",
+	"group_new_option": "＋ 新增群組…",
+	"group_new_name": "新群組名稱",
+	"grid_drop_ungrouped": "移出群組",
+	"grid_drop_new_group": "新增群組"
 }

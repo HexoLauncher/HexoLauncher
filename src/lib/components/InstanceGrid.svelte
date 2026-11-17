@@ -21,7 +21,9 @@
 		onDuplicate,
 		onExport,
 		onRepair,
-		onOpenFolder
+		onOpenFolder,
+		onMoveGroup,
+		onNewGroup
 	}: {
 		instances: InstanceView[];
 		groupOrder: string[];
@@ -39,6 +41,8 @@
 		onExport: (id: string) => void;
 		onRepair: (id: string) => void;
 		onOpenFolder: (id: string) => void;
+		onMoveGroup: (id: string, group: string) => void;
+		onNewGroup: (id: string) => void;
 	} = $props();
 
 	let collapsed = $state<Record<string, boolean>>({});
@@ -62,6 +66,95 @@
 			.map((group) => ({ group, items: matches.filter((i) => i.group === group) }))
 			.filter((g) => g.items.length > 0)
 	);
+
+	type DropTarget = { kind: 'group'; group: string } | { kind: 'new' } | null;
+
+	let drag = $state<{
+		id: string;
+		startX: number;
+		startY: number;
+		x: number;
+		y: number;
+		active: boolean;
+		target: DropTarget;
+	} | null>(null);
+	let scroller: HTMLDivElement;
+	let swallowClick = false;
+
+	const dragged = $derived(drag?.active ? (instances.find((i) => i.id === drag?.id) ?? null) : null);
+	const hasUngrouped = $derived(grouped.some((g) => g.group === ''));
+
+	function isTarget(group: string) {
+		return (
+			!!dragged &&
+			drag?.target?.kind === 'group' &&
+			drag.target.group === group &&
+			dragged.group !== group
+		);
+	}
+
+	function startDrag(event: PointerEvent, id: string) {
+		if (event.button !== 0) return;
+		drag = {
+			id,
+			startX: event.clientX,
+			startY: event.clientY,
+			x: event.clientX,
+			y: event.clientY,
+			active: false,
+			target: null
+		};
+		window.addEventListener('pointermove', moveDrag);
+		window.addEventListener('pointerup', endDrag);
+		window.addEventListener('pointercancel', cancelDrag);
+	}
+
+	function findTarget(x: number, y: number): DropTarget {
+		const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-drop]');
+		if (!el) return null;
+		if (el.dataset.drop === 'new') return { kind: 'new' };
+		return { kind: 'group', group: el.dataset.group ?? '' };
+	}
+
+	function moveDrag(event: PointerEvent) {
+		if (!drag) return;
+		drag.x = event.clientX;
+		drag.y = event.clientY;
+		if (!drag.active) {
+			if (Math.hypot(drag.x - drag.startX, drag.y - drag.startY) < 6) return;
+			drag.active = true;
+			context = null;
+			document.body.style.userSelect = 'none';
+		}
+		drag.target = findTarget(drag.x, drag.y);
+
+		const box = scroller.getBoundingClientRect();
+		const edge = 48;
+		if (drag.y < box.top + edge) scroller.scrollBy({ top: -12 });
+		else if (drag.y > box.bottom - edge) scroller.scrollBy({ top: 12 });
+	}
+
+	function endDrag() {
+		const done = drag;
+		const item = dragged;
+		cancelDrag();
+		if (!done?.active || !item) return;
+		swallowClick = true;
+		setTimeout(() => (swallowClick = false));
+		const target = done.target;
+		if (target?.kind === 'new') onNewGroup(item.id);
+		else if (target?.kind === 'group' && target.group !== item.group) onMoveGroup(item.id, target.group);
+	}
+
+	function cancelDrag() {
+		drag = null;
+		document.body.style.userSelect = '';
+		window.removeEventListener('pointermove', moveDrag);
+		window.removeEventListener('pointerup', endDrag);
+		window.removeEventListener('pointercancel', cancelDrag);
+	}
+
+	$effect(() => cancelDrag);
 
 	function label(group: string) {
 		return group === '' ? m.group_ungrouped() : group;
@@ -90,7 +183,7 @@
 	}
 </script>
 
-<div class="flex min-w-0 flex-1 flex-col bg-deep">
+<div class="relative flex min-w-0 flex-1 flex-col bg-deep">
 	<div class="flex shrink-0 items-center gap-3 px-3.5 py-2.25">
 		<div class="flex max-w-105 flex-1 items-center">
 			<SearchField
@@ -115,10 +208,23 @@
 
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 	<div
-		class="min-h-0 flex-1 overflow-y-auto px-3.5 pb-6 pt-0.5"
+		bind:this={scroller}
+		class="min-h-0 flex-1 overflow-y-auto px-3.5 pt-0.5 {dragged ? 'pb-20' : 'pb-6'}"
 		onclick={(e) => e.target === e.currentTarget && onSelect('')}
+		onclickcapture={(e) => {
+			if (!swallowClick) return;
+			swallowClick = false;
+			e.stopPropagation();
+			e.preventDefault();
+		}}
 	>
 		{#each grouped as section (section.group)}
+			<div
+				class="-mx-1.5 rounded-lg px-1.5 pb-1 transition-[background-color,box-shadow] duration-150
+					{isTarget(section.group) ? 'bg-brand-soft shadow-[inset_0_0_0_1px_var(--color-brand-line)]' : ''}"
+				data-drop="group"
+				data-group={section.group}
+			>
 			<div class="mb-2 mt-3.5 flex items-center gap-2.5">
 				<button
 					class="flex items-center gap-2 rounded-full py-1 pl-1.5 pr-2.5 font-semibold text-muted
@@ -143,12 +249,16 @@
 					{#each section.items as item (item.id)}
 						{@const isRunning = running.includes(item.id)}
 						<div
-							class="group relative w-30.5 rounded-lg transition-[background-color,box-shadow,transform] duration-150
+							class="group relative w-30.5 select-none rounded-lg transition-[background-color,box-shadow,transform,opacity] duration-150
+								{dragged?.id === item.id ? 'opacity-35' : ''}
 								{selectedId === item.id
 								? 'bg-brand-soft shadow-[inset_0_0_0_1px_var(--color-brand-line)]'
-								: 'hover:-translate-y-0.5 hover:bg-window'}"
+								: dragged
+									? ''
+									: 'hover:-translate-y-0.5 hover:bg-window'}"
 						>
 							<button
+								onpointerdown={(e) => startDrag(e, item.id)}
 								class="flex w-full flex-col items-center gap-2.25 rounded-[inherit] px-2 pb-2.75 pt-3 text-inherit"
 								onclick={() => onSelect(item.id)}
 								ondblclick={() => onLaunch(item.id)}
@@ -188,6 +298,7 @@
 					{/each}
 				</div>
 			{/if}
+			</div>
 		{/each}
 
 		{#if grouped.length === 0}
@@ -206,7 +317,42 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if dragged}
+		<div
+			class="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center gap-2 px-3.5 animate-rise"
+		>
+			{#if !hasUngrouped && dragged.group !== ''}
+				{@render dropZone('group', '', 'close', m.grid_drop_ungrouped(), drag?.target?.kind === 'group' && drag.target.group === '')}
+			{/if}
+			{@render dropZone('new', '', 'plus', m.grid_drop_new_group(), drag?.target?.kind === 'new')}
+		</div>
+	{/if}
 </div>
+
+{#snippet dropZone(kind: string, group: string, icon: string, text: string, hot: boolean)}
+	<div
+		class="pointer-events-auto flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 font-medium shadow-md
+			backdrop-blur-sm transition-colors duration-150
+			{hot ? 'border-brand bg-brand-soft-hi text-ink' : 'border-line-hi bg-window/90 text-muted'}"
+		data-drop={kind}
+		data-group={group}
+	>
+		<Icon name={icon} size={15} />
+		{text}
+	</div>
+{/snippet}
+
+{#if dragged}
+	<div
+		class="pointer-events-none fixed z-50 flex items-center gap-2 rounded-lg border border-brand-line bg-window px-2.5 py-1.5 shadow-lg"
+		style:left="{(drag?.x ?? 0) + 14}px"
+		style:top="{(drag?.y ?? 0) + 14}px"
+	>
+		<InstanceIcon name={dragged.icon} image={dragged.iconImage} size={22} />
+		<span class="max-w-40 truncate font-medium">{dragged.name}</span>
+	</div>
+{/if}
 
 {#if context}
 	{@const item = instances.find((i) => i.id === context?.id)}

@@ -1156,5 +1156,9 @@
 	"onboarding_summary_instance_count": "{count}",
 	"settings_rerun_onboarding": "Run setup again",
 	"onboarding_account_required": "Add at least one account to continue",
-	"onboarding_java_required": "A working Java is required to continue"
+	"onboarding_java_required": "A working Java is required to continue",
+	"group_new_option": "+ New group…",
+	"group_new_name": "New group name",
+	"grid_drop_ungrouped": "Remove from group",
+	"grid_drop_new_group": "New group"
 }

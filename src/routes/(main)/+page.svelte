@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Field, TextInput } from '$lib/ui';
+	import { Button, Field, Select, TextInput } from '$lib/ui';
 	import Icon from '$lib/ui/Icon.svelte';
 	import InstanceGrid from '$lib/components/InstanceGrid.svelte';
 	import InstanceActions from '$lib/components/InstanceActions.svelte';
@@ -25,7 +25,7 @@
 
 
 	let confirmingDelete = $state(false);
-	let groupDialog = $state<{ id: string; value: string } | null>(null);
+	let groupDialog = $state<{ id: string; value: string; creating: boolean } | null>(null);
 	let duplicateDialog = $state<{ id: string; value: string } | null>(null);
 	let exportDialog = $state<{
 		id: string;
@@ -37,6 +37,7 @@
 
 	const selected = $derived(findInstance(app.selectedId));
 	const groups = $derived(groupsOf(app.instances));
+	const NEW_GROUP = '\u0000new';
 
 	function launch(id: string) {
 		const target = findInstance(id);
@@ -92,6 +93,11 @@
 		if (!groupDialog) return;
 		const { id, value } = groupDialog;
 		groupDialog = null;
+		await moveToGroup(id, value.trim());
+	}
+
+	async function moveToGroup(id: string, value: string) {
+		if (findInstance(id)?.group === value) return;
 		try {
 			await api.saveInstanceMeta(app.baseDir, id, { group: value });
 			await refreshInstances();
@@ -225,6 +231,8 @@
 			includeScreenshots: false
 		})}
 	onOpenFolder={(id) => openFolder(id)}
+	onMoveGroup={moveToGroup}
+	onNewGroup={(id) => (groupDialog = { id, value: '', creating: true })}
 	onDelete={(id) => {
 		app.selectedId = id;
 		confirmingDelete = true;
@@ -239,7 +247,7 @@
 		onKill={() => app.selectedId && kill(app.selectedId)}
 		onEdit={() => app.selectedId && edit(app.selectedId)}
 		onRepair={() => app.selectedId && repair(app.selectedId)}
-		onGroup={() => selected && (groupDialog = { id: selected.id, value: selected.group })}
+		onGroup={() => selected && (groupDialog = { id: selected.id, value: selected.group, creating: false })}
 		onDuplicate={() =>
 			selected && (duplicateDialog = { id: selected.id, value: m.copy_suffix({ name: selected.name }) })}
 		onExport={() =>
@@ -278,17 +286,46 @@
 {#if groupDialog}
 	<Dialog title={m.dialog_change_group_title()} width="380px" onclose={() => (groupDialog = null)}>
 		<div class="px-5 py-5">
-			<Field label={m.common_group()} for="group-name">
-				<TextInput id="group-name" bind:value={groupDialog.value} list="known-groups" placeholder={m.common_ungrouped()} />
-				<datalist id="known-groups">
+			<Field label={m.common_group()} for="group-pick">
+				<Select
+					id="group-pick"
+					value={groupDialog.creating ? NEW_GROUP : groupDialog.value}
+					onchange={(e) => {
+						if (!groupDialog) return;
+						const picked = e.currentTarget.value;
+						groupDialog.creating = picked === NEW_GROUP;
+						groupDialog.value = picked === NEW_GROUP ? '' : picked;
+					}}
+				>
+					<option value="">{m.group_ungrouped()}</option>
 					{#each knownGroups() as g (g)}
-						<option value={g}></option>
+						<option value={g}>{g}</option>
 					{/each}
-				</datalist>
+					<option value={NEW_GROUP}>{m.group_new_option()}</option>
+				</Select>
 			</Field>
+			{#if groupDialog.creating}
+				<div class="mt-3">
+					<Field label={m.group_new_name()} for="group-name">
+						<!-- svelte-ignore a11y_autofocus -->
+						<TextInput
+							id="group-name"
+							autofocus
+							bind:value={groupDialog.value}
+							onkeydown={(e) => e.key === 'Enter' && groupDialog?.value.trim() && saveGroup()}
+						/>
+					</Field>
+				</div>
+			{/if}
 		</div>
 		{#snippet footer()}
-			<Button variant="primary" onclick={saveGroup}>{m.common_ok()}</Button>
+			<Button
+				variant="primary"
+				disabled={groupDialog?.creating && !groupDialog.value.trim()}
+				onclick={saveGroup}
+			>
+				{m.common_ok()}
+			</Button>
 			<Button onclick={() => (groupDialog = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
