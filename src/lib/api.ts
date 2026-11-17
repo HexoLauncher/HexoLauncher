@@ -74,6 +74,7 @@ export interface LauncherConfig {
 	api: ApiConfig;
 	schematics: SchematicsConfig;
 	download: DownloadConfig;
+	onboarded: boolean;
 }
 
 export interface Paths {

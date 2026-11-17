@@ -454,6 +454,17 @@
 					bind:checked={config.ui.runningBadge}
 					onchange={() => save(true)}
 				/>
+				<div class="px-0.5 pt-2">
+					<Button
+						icon="sparkles"
+						onclick={() => {
+							config.onboarded = false;
+							save(true);
+						}}
+					>
+						{m.settings_rerun_onboarding()}
+					</Button>
+				</div>
 			</Group>
 
 		{:else if page === 'theme'}

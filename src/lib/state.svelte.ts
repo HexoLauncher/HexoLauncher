@@ -39,7 +39,8 @@ export function defaultConfig(): LauncherConfig {
 		commands: { preLaunch: '', postExit: '' },
 		api: { curseforgeApiKey: '' },
 		schematics: { sync: false },
-		download: { source: 'official', customUrl: '' }
+		download: { source: 'official', customUrl: '' },
+		onboarded: true
 	};
 }
 

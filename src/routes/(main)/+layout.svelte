@@ -5,6 +5,7 @@
 	import MainToolbar from '$lib/components/MainToolbar.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
 	import UpdateDialog from '$lib/components/UpdateDialog.svelte';
+	import Onboarding from '$lib/components/Onboarding.svelte';
 	import { check, type Update } from '@tauri-apps/plugin-updater';
 	import * as api from '$lib/api';
 	import {
@@ -114,6 +115,10 @@
 		/>
 	{/if}
 </div>
+
+{#if app.ready && !app.config.onboarded}
+	<Onboarding />
+{/if}
 
 {#if update}
 	<UpdateDialog {update} onclose={() => (update = null)} />

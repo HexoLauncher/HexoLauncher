@@ -71,8 +71,12 @@ import LuUpload from '~icons/lucide/upload';
 import LuUser from '~icons/lucide/user';
 import LuWrench from '~icons/lucide/wrench';
 import LuX from '~icons/lucide/x';
+import LuSparkles from '~icons/lucide/sparkles';
+import LuPartyPopper from '~icons/lucide/party-popper';
 
 export const ICONS: Record<string, Component> = {
+	sparkles: LuSparkles,
+	'party-popper': LuPartyPopper,
 	plus: LuPlus,
 	minus: LuMinus,
 	check: LuCheck,

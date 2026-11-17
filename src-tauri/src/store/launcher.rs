@@ -29,6 +29,7 @@ pub struct LauncherConfig {
     pub api: ApiConfig,
     pub schematics: SchematicsConfig,
     pub download: DownloadConfig,
+    pub onboarded: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +151,7 @@ impl Default for LauncherConfig {
             api: ApiConfig::default(),
             schematics: SchematicsConfig::default(),
             download: DownloadConfig::default(),
+            onboarded: true,
         }
     }
 }
@@ -231,7 +233,12 @@ impl ApiConfig {
 
 impl LauncherConfig {
     pub async fn load() -> CmdResult<Self> {
-        Ok(read_json(&store_file(FILE)?).await?.unwrap_or_default())
+        Ok(read_json(&store_file(FILE)?)
+            .await?
+            .unwrap_or_else(|| Self {
+                onboarded: false,
+                ..Self::default()
+            }))
     }
 
     pub async fn save(&self) -> CmdResult<()> {
