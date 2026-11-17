@@ -16,12 +16,14 @@
 	import {
 		centerDistance,
 		drawChunkGrid,
+		drawIconMarker,
 		drawMarker,
 		scaleText,
 		themeColors,
 		visibleRegions,
 		type ThemeColors
 	} from '$lib/tools/draw';
+	import { structureSprite, structureSpriteUrl } from '$lib/tools/structureIcons';
 	import { STRUCTURE_SETS, setLabel, tools, worldRef } from '$lib/tools/state.svelte';
 	import type { SeedMap } from '$lib/tools/pkg/mcmap_wasm.js';
 	import { m } from '$lib/paraglide/messages.js';
@@ -311,7 +313,7 @@
 						continue;
 					}
 					for (const s of list) {
-						drawMarker(ctx, f, f.toX(s.x), f.toY(s.z), info.color, 'dot');
+						drawIconMarker(ctx, f, f.toX(s.x), f.toY(s.z), info.color, structureSprite(set, info.color, () => canvas?.redraw()));
 						markers.push({ sx: f.toX(s.x), sy: f.toY(s.z), text: `${info.label()} · ${s.structure ?? ''} · ${s.x}, ${s.z}` });
 					}
 				}
@@ -320,7 +322,7 @@
 		if (tools.strongholds && tools.dimension === 'overworld') {
 			requestStrongholds();
 			for (const s of strongholds?.list ?? []) {
-				drawMarker(ctx, f, f.toX(s.x), f.toY(s.z), '#7fffd4', 'diamond');
+				drawIconMarker(ctx, f, f.toX(s.x), f.toY(s.z), '#7fffd4', structureSprite('strongholds', '#7fffd4', () => canvas?.redraw()));
 				markers.push({ sx: f.toX(s.x), sy: f.toY(s.z), text: `${m.tools_strongholds()} · ${s.x}, ${s.z}` });
 			}
 		}
@@ -507,7 +509,7 @@
 				{#each available.filter((n) => STRUCTURE_SETS[n].dimension === tools.dimension) as name (name)}
 					<CheckRow compact>
 						<input type="checkbox" checked={tools.sets.includes(name)} onchange={(e) => toggleSet(name, e.currentTarget.checked)} />
-						<span class="inline-block size-2.5 shrink-0 rounded-full" style:background={STRUCTURE_SETS[name].color}></span>
+						<img src={structureSpriteUrl(name, STRUCTURE_SETS[name].color)} alt="" class="size-5 shrink-0" />
 						{setLabel(name)}
 					</CheckRow>
 				{/each}

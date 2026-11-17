@@ -59,6 +59,23 @@ export function drawMarker(
 	ctx.stroke();
 }
 
+export function drawIconMarker(
+	ctx: CanvasRenderingContext2D,
+	f: Frame,
+	x: number,
+	y: number,
+	color: string,
+	sprite: HTMLImageElement | null
+) {
+	if (x < -16 || y < -16 || x > f.width + 16 || y > f.height + 16) return;
+	if (!sprite) {
+		drawMarker(ctx, f, x, y, color, 'dot');
+		return;
+	}
+	const size = sprite.naturalWidth;
+	ctx.drawImage(sprite, Math.round(x - size / 2), Math.round(y - size / 2), size, size);
+}
+
 export function drawChunkGrid(ctx: CanvasRenderingContext2D, f: Frame) {
 	const chunkPx = 16 / f.b;
 	if (chunkPx < 24) return;
