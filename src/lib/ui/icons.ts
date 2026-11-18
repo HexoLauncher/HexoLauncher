@@ -33,6 +33,7 @@ import LuExternalLink from '~icons/lucide/external-link';
 import LuEye from '~icons/lucide/eye';
 import LuEyeOff from '~icons/lucide/eye-off';
 import LuFileText from '~icons/lucide/file-text';
+import LuArchive from '~icons/lucide/archive';
 import LuFolder from '~icons/lucide/folder';
 import LuGlobe from '~icons/lucide/globe';
 import LuImage from '~icons/lucide/image';
@@ -107,6 +108,7 @@ export const ICONS: Record<string, Component> = {
 	package: LuPackage,
 	image: LuImage,
 	notes: LuFileText,
+	archive: LuArchive,
 	server: LuServer,
 	globe: LuGlobe,
 	terminal: LuTerminal,

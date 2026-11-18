@@ -286,7 +286,7 @@ fn prepare_edit(world: &World, dir: &std::path::Path, backup: bool) -> CmdResult
 }
 
 /// `YYYY-MM-DD_HH-MM-SS`（UTC），和遊戲備份檔名的格式相同。
-fn timestamp() -> String {
+pub(super) fn timestamp() -> String {
     let secs = now_secs();
     let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
     // Howard Hinnant 的 civil_from_days。

@@ -344,6 +344,8 @@ pub(super) async fn update_from_path(
         _ => None,
     };
 
+    super::backup::create(&base, instance_name, "modpack-update").await?;
+
     let mut meta = InstanceMeta::load(&dir, instance_name).await?;
     let installed = super::instance::load_config(&base, instance_name)
         .await

@@ -23,6 +23,7 @@
 		ModEntry,
 		ModpackUpdateResult,
 		ModUpdateEntry,
+		BackupEntry,
 		PackEntry,
 		RunningGame,
 		ServerEntry,
@@ -57,6 +58,7 @@
 		{ id: 'worlds', label: m.editor_page_worlds(), icon: 'globe' },
 		{ id: 'servers', label: m.editor_page_servers(), icon: 'server' },
 		{ id: 'screenshots', label: m.editor_page_screenshots(), icon: 'image' },
+		{ id: 'backups', label: m.editor_page_backups(), icon: 'archive' },
 		{ id: 'notes', label: m.editor_page_notes(), icon: 'notes' },
 		{ id: 'logs', label: m.editor_page_logs(), icon: 'list' },
 		{ id: 'settings', label: m.editor_page_settings(), icon: 'settings' }
@@ -122,6 +124,9 @@
 	let shaderPacks = $state<PackEntry[]>([]);
 	let worlds = $state<WorldEntry[]>([]);
 	let servers = $state<ServerEntry[]>([]);
+	let backups = $state<BackupEntry[]>([]);
+	let selectedBackup = $state<string | null>(null);
+	let restoreTarget = $state<BackupEntry | null>(null);
 	let screenshots = $state<FileEntry[]>([]);
 	let logFiles = $state<FileEntry[]>([]);
 	let logFile = $state('');
@@ -165,6 +170,14 @@
 
 	let browse = $state<ContentKind | null>(null);
 
+	const currentBackup = $derived(backups.find((b) => b.fileName === selectedBackup) ?? null);
+
+	function backupReason(reason: string) {
+		const key = `editor_backup_reason_${reason}` as keyof typeof m;
+		const label = m[key] as unknown as (() => string) | undefined;
+		return typeof label === 'function' ? label() : reason;
+	}
+
 	const title = $derived(pages.find((p) => p.id === page)?.label ?? '');
 
 	function report(message: string) {
@@ -198,6 +211,10 @@
 				case 'worlds':
 					worlds = await api.listWorlds(baseDir, instance.id);
 					if (!worlds.some((w) => w.folder === selectedWorld)) selectedWorld = null;
+					break;
+				case 'backups':
+					backups = await api.listBackups(baseDir, instance.id);
+					if (!backups.some((b) => b.fileName === selectedBackup)) selectedBackup = null;
 					break;
 				case 'servers':
 					servers = await api.listServers(baseDir, instance.id);
@@ -417,6 +434,56 @@
 		}
 	}
 
+	async function backupFirst(reason: string) {
+		try {
+			await api.createBackup(baseDir, instance.id, reason);
+			if (loaded.includes('backups')) await load('backups', true);
+			return true;
+		} catch (e) {
+			fail(m.editor_error_backup(), e);
+			return false;
+		}
+	}
+
+	async function createManualBackup() {
+		if (busy) return;
+		busy = m.editor_busy_backup();
+		try {
+			await api.createBackup(baseDir, instance.id, 'manual');
+			await load('backups', true);
+			report(m.editor_status_backup_created());
+		} catch (e) {
+			fail(m.editor_error_backup(), e);
+		} finally {
+			busy = '';
+		}
+	}
+
+	async function restoreBackup(entry: BackupEntry) {
+		restoreTarget = null;
+		busy = m.editor_busy_backup();
+		try {
+			const safety = await api.restoreBackup(baseDir, instance.id, entry.fileName);
+			loaded.length = 0;
+			await load('backups', true);
+			report(m.editor_status_backup_restored({ file: safety }));
+		} catch (e) {
+			fail(m.editor_error_backup_restore(), e);
+		} finally {
+			busy = '';
+		}
+	}
+
+	async function removeBackup(entry: BackupEntry) {
+		try {
+			await api.deleteBackup(baseDir, instance.id, entry.fileName);
+			await load('backups', true);
+			report(m.editor_status_backup_deleted());
+		} catch (e) {
+			fail(m.editor_error_backup_delete(), e);
+		}
+	}
+
 	async function removeMod(fileName: string) {
 		try {
 			await api.deleteMod(baseDir, instance.id, fileName);
@@ -513,6 +580,11 @@
 		const pending = [...updates];
 		const failures: string[] = [];
 		let completed = 0;
+		busy = m.editor_busy_backup();
+		if (!(await backupFirst('mod-update'))) {
+			busy = '';
+			return;
+		}
 		try {
 			for (const [index, update] of pending.entries()) {
 				busy = m.common_progress_count({
@@ -548,6 +620,13 @@
 
 	async function reinstall(request?: { mcVersion: string; loader: LoaderKind; loaderVersion: string }) {
 		versionDialog = null;
+		if (request) {
+			busy = m.editor_busy_backup();
+			if (!(await backupFirst('version-change'))) {
+				busy = '';
+				return;
+			}
+		}
 		busy = request ? m.editor_busy_install_version() : m.editor_busy_repair();
 
 		let unlisten: (() => void) | undefined;
@@ -1214,6 +1293,51 @@
 						</div>
 					</div>
 
+				{:else if page === 'backups'}
+					<p class="shrink-0 text-[11.5px] leading-normal text-faint">{m.editor_backups_hint()}</p>
+					<div class="flex min-h-0 flex-1 gap-2.25">
+						<TableBox>
+							<Table>
+								<thead>
+									<tr>
+										<th style="width:36%">{m.editor_backup_time()}</th>
+										<th>{m.editor_backup_reason()}</th>
+										<th style="width:90px">{m.editor_backup_size()}</th>
+									</tr>
+								</thead>
+								<tbody>
+									{#each backups as backup (backup.fileName)}
+										<tr
+											class="cursor-pointer {selectedBackup === backup.fileName ? 'bg-brand-soft' : ''}"
+											onclick={() => (selectedBackup = backup.fileName)}
+										>
+											<td class="font-mono text-[11.5px]">{backup.createdAt.replace('_', ' ').replace(/-(\d\d)-(\d\d)$/, ':$1:$2')}</td>
+											<td class="text-muted">{backupReason(backup.reason)}</td>
+											<td class="text-muted">{formatSize(backup.size)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</Table>
+							{#if backups.length === 0}
+								<p class="px-3 py-4 text-center text-muted">{m.editor_backups_empty()}</p>
+							{/if}
+						</TableBox>
+						{@render sideButtons([
+							{ label: m.editor_backup_create(), action: createManualBackup },
+							{
+								label: m.editor_backup_restore(),
+								disabled: !currentBackup || !!running,
+								action: () => (restoreTarget = currentBackup)
+							},
+							{
+								label: m.common_delete(),
+								disabled: !currentBackup,
+								action: () => currentBackup && removeBackup(currentBackup)
+							},
+							{ label: m.common_reload(), action: () => load('backups', true) }
+						])}
+					</div>
+
 				{:else if page === 'servers'}
 					<div class="flex min-h-0 flex-1 gap-2.25">
 						<TableBox>
@@ -1421,6 +1545,20 @@
 				{m.common_install()}
 			</Button>
 			<Button onclick={() => (versionDialog = null)}>{m.common_cancel()}</Button>
+		{/snippet}
+	</Dialog>
+{/if}
+
+{#if restoreTarget}
+	{@const target = restoreTarget}
+	<Dialog title={m.editor_backup_restore_title()} width="460px" onclose={() => (restoreTarget = null)}>
+		<div class="flex flex-col gap-2 px-4.5 py-4 leading-[1.7]">
+			<p>{m.editor_backup_restore_confirm({ time: target.createdAt.replace('_', ' ') })}</p>
+			<p class="text-muted">{m.editor_backup_restore_repair()}</p>
+		</div>
+		{#snippet footer()}
+			<Button onclick={() => restoreBackup(target)}>{m.editor_backup_restore()}</Button>
+			<Button variant="primary" onclick={() => (restoreTarget = null)}>{m.common_cancel()}</Button>
 		{/snippet}
 	</Dialog>
 {/if}

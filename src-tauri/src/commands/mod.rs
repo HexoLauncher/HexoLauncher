@@ -1,4 +1,5 @@
 pub mod assets;
+pub mod backup;
 pub mod auth;
 pub mod blueprint;
 pub mod content;

@@ -1549,3 +1549,22 @@ export const onToolsProgress = (handler: (progress: ToolProgress) => void) =>
 export function isCancelled(error: unknown) {
 	return !!error && typeof error === 'object' && (error as NolauncherCmdError).kind === 'cancelled';
 }
+
+export interface BackupEntry {
+	fileName: string;
+	reason: string;
+	createdAt: string;
+	size: number;
+}
+
+export const createBackup = (baseDir: string, instanceName: string, reason = 'manual') =>
+	invoke<string>('create_backup', { baseDir, instanceName, reason });
+
+export const listBackups = (baseDir: string, instanceName: string) =>
+	invoke<BackupEntry[]>('list_backups', { baseDir, instanceName });
+
+export const deleteBackup = (baseDir: string, instanceName: string, fileName: string) =>
+	invoke<void>('delete_backup', { baseDir, instanceName, fileName });
+
+export const restoreBackup = (baseDir: string, instanceName: string, fileName: string) =>
+	invoke<string>('restore_backup', { baseDir, instanceName, fileName });
