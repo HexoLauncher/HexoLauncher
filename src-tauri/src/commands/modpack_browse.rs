@@ -284,6 +284,7 @@ pub async fn update_remote_modpack(
         }
     };
     ensure_not_linked(Path::new(&base_dir), &instance_name).await?;
+    super::install::progress_emitter(&app, &instance_name)(0, 1, "正在下載模組包");
     let path = download_pack(&base_dir, platform, &pack_id, &version_id).await?;
     let source = ModpackSource {
         platform: Some(platform),

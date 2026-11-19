@@ -79,6 +79,19 @@
 	let page = $state('general');
 	let status = $state('');
 	let busy = $state('');
+	let busyProgress = $state<{ done: number; total: number } | null>(null);
+
+	$effect(() => {
+		if (!busy) busyProgress = null;
+	});
+
+	function listenProgress() {
+		return api.onInstallProgress((p) => {
+			if (p.instanceName !== instance.id) return;
+			busy = p.message;
+			busyProgress = p.total > 1 ? { done: p.done, total: p.total } : null;
+		});
+	}
 
 
 	let form = $state(untrack(() => ({
@@ -435,26 +448,33 @@
 	}
 
 	async function backupFirst(reason: string) {
+		let unlisten: (() => void) | undefined;
 		try {
+			unlisten = await listenProgress();
 			await api.createBackup(baseDir, instance.id, reason);
 			if (loaded.includes('backups')) await load('backups', true);
 			return true;
 		} catch (e) {
 			fail(m.editor_error_backup(), e);
 			return false;
+		} finally {
+			unlisten?.();
 		}
 	}
 
 	async function createManualBackup() {
 		if (busy) return;
 		busy = m.editor_busy_backup();
+		let unlisten: (() => void) | undefined;
 		try {
+			unlisten = await listenProgress();
 			await api.createBackup(baseDir, instance.id, 'manual');
 			await load('backups', true);
 			report(m.editor_status_backup_created());
 		} catch (e) {
 			fail(m.editor_error_backup(), e);
 		} finally {
+			unlisten?.();
 			busy = '';
 		}
 	}
@@ -631,14 +651,7 @@
 
 		let unlisten: (() => void) | undefined;
 		try {
-			unlisten = await api.onInstallProgress((p) => {
-				if (p.instanceName === instance.id) {
-					busy =
-							p.total > 1
-								? m.common_progress_count({ message: p.message, done: p.done, total: p.total })
-								: p.message;
-				}
-			});
+			unlisten = await listenProgress();
 
 			const updated = request
 				? await api.installInstance({
@@ -706,14 +719,7 @@
 		busy = m.editor_busy_update_pack();
 		let unlisten: (() => void) | undefined;
 		try {
-			unlisten = await api.onInstallProgress((p) => {
-				if (p.instanceName === instance.id) {
-					busy =
-							p.total > 1
-								? m.common_progress_count({ message: p.message, done: p.done, total: p.total })
-								: p.message;
-				}
-			});
+			unlisten = await listenProgress();
 
 			const result = await task();
 			onchanged(result.instance);
@@ -1676,8 +1682,22 @@
 			class="flex items-center gap-3 rounded-xl border border-line bg-window px-6 py-5 shadow-lg"
 			role="status"
 		>
-			<span class="size-5 animate-spin rounded-full border-2 border-line border-t-brand"></span>
-			{busy}
+			<span class="size-5 shrink-0 animate-spin rounded-full border-2 border-line border-t-brand"></span>
+			<div class="flex min-w-72 flex-col gap-2">
+				<span>
+					{busyProgress
+						? m.common_progress_count({ message: busy, done: busyProgress.done, total: busyProgress.total })
+						: busy}
+				</span>
+				{#if busyProgress}
+					<div class="h-1.5 overflow-hidden rounded-full bg-btn">
+						<div
+							class="h-full rounded-full bg-brand transition-[width] duration-150"
+							style="width:{Math.min(100, (busyProgress.done / busyProgress.total) * 100)}%"
+						></div>
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 {/if}

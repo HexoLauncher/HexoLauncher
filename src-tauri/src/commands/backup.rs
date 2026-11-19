@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use hexomc_lib::ProgressFn;
 use serde::Serialize;
 use tauri::Emitter;
 use zip::write::SimpleFileOptions;
@@ -70,20 +71,16 @@ fn add_file<W: Write + std::io::Seek>(
     Ok(())
 }
 
-fn add_tree<W: Write + std::io::Seek>(
-    zip: &mut zip::ZipWriter<W>,
-    path: &Path,
-    name: &str,
-) -> CmdResult<()> {
+fn collect(path: &Path, name: &str, out: &mut Vec<(PathBuf, String)>) -> CmdResult<()> {
     let meta = std::fs::symlink_metadata(path)?;
     if meta.is_dir() {
         for entry in std::fs::read_dir(path)? {
             let entry = entry?;
             let child = format!("{}/{}", name, entry.file_name().to_string_lossy());
-            add_tree(zip, &entry.path(), &child)?;
+            collect(&entry.path(), &child, out)?;
         }
     } else if meta.is_file() {
-        add_file(zip, path, name)?;
+        out.push((path.to_path_buf(), name.to_string()));
     }
     Ok(())
 }
@@ -92,13 +89,17 @@ fn zip_err(e: zip::result::ZipError) -> CmdError {
     CmdError::new("zip", e.to_string())
 }
 
-fn write_backup(instance: &Path, mc: &Path, dest: &Path) -> CmdResult<()> {
-    let file = std::fs::File::create(dest)?;
-    let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
+fn write_backup(
+    instance: &Path,
+    mc: &Path,
+    dest: &Path,
+    progress: Option<&ProgressFn>,
+) -> CmdResult<()> {
+    let mut files = Vec::new();
     for entry in MINECRAFT_ENTRIES {
         let path = mc.join(entry);
         if path.exists() {
-            add_tree(&mut zip, &path, &format!("{MINECRAFT_PREFIX}{entry}"))?;
+            collect(&path, &format!("{MINECRAFT_PREFIX}{entry}"), &mut files)?;
         }
     }
     for entry in std::fs::read_dir(instance)? {
@@ -106,10 +107,23 @@ fn write_backup(instance: &Path, mc: &Path, dest: &Path) -> CmdResult<()> {
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
         if path.is_file() && name.to_ascii_lowercase().ends_with(".json") {
-            add_file(&mut zip, &path, &format!("{INSTANCE_PREFIX}{name}"))?;
+            files.push((path, format!("{INSTANCE_PREFIX}{name}")));
         }
     }
+
+    let file = std::fs::File::create(dest)?;
+    let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(file));
+    let total = files.len();
+    for (index, (path, name)) in files.iter().enumerate() {
+        if let Some(report) = progress {
+            report(index, total, "正在備份目前的模組與設定");
+        }
+        add_file(&mut zip, path, name)?;
+    }
     zip.finish().map_err(zip_err)?;
+    if let Some(report) = progress {
+        report(total, total, "正在備份目前的模組與設定");
+    }
     Ok(())
 }
 
@@ -130,6 +144,15 @@ fn prune(dir: &Path) {
 }
 
 pub async fn create(base: &Path, instance_name: &str, reason: &str) -> CmdResult<String> {
+    create_with_progress(base, instance_name, reason, None).await
+}
+
+pub async fn create_with_progress(
+    base: &Path,
+    instance_name: &str,
+    reason: &str,
+    progress: Option<ProgressFn>,
+) -> CmdResult<String> {
     validate_reason(reason)?;
     let instance = instance_dir(base, instance_name)?;
     let mc = minecraft_dir(base, instance_name)?;
@@ -138,7 +161,7 @@ pub async fn create(base: &Path, instance_name: &str, reason: &str) -> CmdResult
     let task_dest = dest.clone();
     tokio::task::spawn_blocking(move || {
         std::fs::create_dir_all(task_dest.parent().unwrap_or(Path::new(".")))?;
-        let result = write_backup(&instance, &mc, &task_dest);
+        let result = write_backup(&instance, &mc, &task_dest, progress.as_ref());
         if result.is_err() {
             let _ = std::fs::remove_file(&task_dest);
         }
@@ -170,11 +193,18 @@ fn guard_not_running(state: &AppState, instance_name: &str) -> CmdResult<()> {
 }
 
 #[tauri::command]
-pub async fn create_backup(base_dir: String, instance_name: String, reason: Option<String>) -> CmdResult<String> {
-    create(
+pub async fn create_backup(
+    app: tauri::AppHandle,
+    base_dir: String,
+    instance_name: String,
+    reason: Option<String>,
+) -> CmdResult<String> {
+    let progress = super::install::progress_emitter(&app, &instance_name);
+    create_with_progress(
         Path::new(&base_dir),
         &instance_name,
         reason.as_deref().unwrap_or("manual"),
+        Some(progress),
     )
     .await
 }

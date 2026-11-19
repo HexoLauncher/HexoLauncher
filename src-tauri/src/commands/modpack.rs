@@ -344,14 +344,21 @@ pub(super) async fn update_from_path(
         _ => None,
     };
 
-    super::backup::create(&base, instance_name, "modpack-update").await?;
+    let progress = progress_emitter(&app, instance_name);
+    super::backup::create_with_progress(
+        &base,
+        instance_name,
+        "modpack-update",
+        Some(progress.clone()),
+    )
+    .await?;
+    progress(0, 1, "正在更新模組包");
 
     let mut meta = InstanceMeta::load(&dir, instance_name).await?;
     let installed = super::instance::load_config(&base, instance_name)
         .await
         .is_ok_and(|config| super::instance::is_healthy(&dir, &config));
 
-    let progress = progress_emitter(&app, instance_name);
     let ModpackUpdateResult {
         install,
         removed_files,
