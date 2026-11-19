@@ -79,14 +79,15 @@ pub async fn install_content(
 ) -> CmdResult<InstalledContent> {
     let folder = match kind {
         ProjectKind::Mod => {
-            return Err(CmdError::new(
+            return Err(CmdError::coded(
                 "installPlanRequired",
-                "Prepare a mod installation plan first.",
+                "install_plan_required",
+                &[],
             ))
         }
         _ => kind
             .folder()
-            .ok_or_else(|| CmdError::launcher("模組包請從「新增實例」安裝"))?,
+            .ok_or_else(|| CmdError::launcher_code("modpack_use_new_instance", &[]))?,
     };
     let file = browser()
         .await?

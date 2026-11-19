@@ -72,7 +72,8 @@ pub struct ForeignImportRequest {
 pub struct ForeignImportFailure {
     pub path: String,
     pub name: String,
-    pub message: String,
+    #[serde(flatten)]
+    pub error: CmdError,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -174,12 +175,8 @@ pub async fn detect_foreign_launchers() -> CmdResult<Vec<ForeignLauncher>> {
 
 #[tauri::command]
 pub async fn list_foreign_instances(path: String) -> CmdResult<Vec<ForeignInstance>> {
-    let root = detect_root(Path::new(path.trim())).ok_or_else(|| {
-        CmdError::new(
-            "notLauncherDir",
-            "這個資料夾裡找不到可以匯入的實例，請選 Prism / MultiMC 的資料目錄、.minecraft 資料夾、CurseForge 的 Instances 資料夾或 Modrinth App 的資料目錄",
-        )
-    })?;
+    let root = detect_root(Path::new(path.trim()))
+        .ok_or_else(|| CmdError::coded("notLauncherDir", "foreign_none_found", &[]))?;
 
     let mut result: Vec<ForeignInstance> =
         list_root(&root).await.into_iter().map(|f| f.info).collect();
@@ -215,9 +212,10 @@ pub async fn import_foreign_instances(
 
         let result = match found {
             Some(found) => import_one(&app, &base, found, mode, &group).await,
-            None => Err(CmdError::new(
+            None => Err(CmdError::coded(
                 "notLauncherDir",
-                "找不到這個實例，可能已經在原本的啟動器裡被刪除",
+                "foreign_instance_gone",
+                &[],
             )),
         };
         match result {
@@ -225,7 +223,7 @@ pub async fn import_foreign_instances(
             Err(e) => failed.push(ForeignImportFailure {
                 path,
                 name,
-                message: e.message,
+                error: e,
             }),
         }
     }
@@ -253,14 +251,10 @@ async fn import_one(
         java_path,
     } = found;
 
-    let game_dir = game_dir.ok_or_else(|| {
-        CmdError::launcher("這個實例還沒有遊戲目錄（.minecraft），先在原本的啟動器裡啟動一次")
-    })?;
+    let game_dir = game_dir.ok_or_else(|| CmdError::launcher_code("foreign_no_game_dir", &[]))?;
 
     if mode == ImportMode::Link && game_dir.starts_with(base) {
-        return Err(CmdError::launcher(
-            "這個實例已經在啟動器的資料目錄裡，不能再建立連結",
-        ));
+        return Err(CmdError::launcher_code("foreign_already_in_data", &[]));
     }
 
     let id = unique_instance_id(base, &info.name).await?;
@@ -335,14 +329,14 @@ async fn place_game_dir(
                         instance_name: id.clone(),
                         done,
                         total,
-                        message: "正在複製遊戲目錄".to_string(),
+                        message: "progress.copy_game_dir".to_string(),
                     },
                 );
             }
         })
     })
     .await
-    .map_err(|e| CmdError::launcher(format!("複製中斷: {}", e)))?
+    .map_err(|e| CmdError::launcher_code("copy_interrupted", &[("detail", &e)]))?
     .map_err(CmdError::from)
 }
 
@@ -437,13 +431,13 @@ pub(super) async fn link_dir(source: &Path, link: &Path) -> CmdResult<()> {
     let output = command
         .output()
         .await
-        .map_err(|e| CmdError::launcher(format!("無法建立連結: {}", e)))?;
+        .map_err(|e| CmdError::launcher_code("link_failed", &[("detail", &e)]))?;
 
     if !output.status.success() {
-        return Err(CmdError::launcher(format!(
-            "無法建立連結: {}",
-            String::from_utf8_lossy(&output.stdout).trim()
-        )));
+        return Err(CmdError::launcher_code(
+            "link_failed",
+            &[("detail", &String::from_utf8_lossy(&output.stdout).trim())],
+        ));
     }
     Ok(())
 }
@@ -451,7 +445,7 @@ pub(super) async fn link_dir(source: &Path, link: &Path) -> CmdResult<()> {
 #[cfg(not(windows))]
 pub(super) async fn link_dir(source: &Path, link: &Path) -> CmdResult<()> {
     std::os::unix::fs::symlink(source, link)
-        .map_err(|e| CmdError::launcher(format!("無法建立連結: {}", e)))
+        .map_err(|e| CmdError::launcher_code("link_failed", &[("detail", &e)]))
 }
 
 pub(super) fn is_link(meta: &std::fs::Metadata) -> bool {

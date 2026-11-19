@@ -686,7 +686,7 @@
 										{/if}
 										{#each imported.failed as failure (failure.path)}
 											<p class="mt-1 text-danger">
-												{m.onboarding_import_failed({ name: failure.name, message: failure.message })}
+												{m.onboarding_import_failed({ name: failure.name, message: api.errorMessage(failure) })}
 											</p>
 										{/each}
 									</div>

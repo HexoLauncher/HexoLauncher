@@ -118,17 +118,12 @@ pub async fn repair_instance(
     let base = Path::new(&base_dir);
     let dir = instance_dir(base, &instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
 
     let meta = InstanceMeta::load(&dir, &instance_name).await?;
     if meta.mc_version.is_empty() {
-        return Err(CmdError::launcher(
-            "這個實例沒有記錄 Minecraft 版本，請用「變更版本」重新指定",
-        ));
+        return Err(CmdError::launcher_code("instance_no_mc_version", &[]));
     }
 
     install_instance(
@@ -194,9 +189,13 @@ async fn resolve_loader_version(
     let installer = build_installer(loader, "", tool_java.clone());
     let versions = installer.available_versions(mc_version).await?;
     versions.into_iter().next().map(Some).ok_or_else(|| {
-        CmdError::new(
+        CmdError::coded(
             "unsupportedLoader",
-            format!("{:?} 沒有支援 Minecraft {}", loader, mc_version),
+            "loader_unsupported_mc",
+            &[
+                ("loader", &format!("{:?}", loader)),
+                ("version", &mc_version),
+            ],
         )
     })
 }

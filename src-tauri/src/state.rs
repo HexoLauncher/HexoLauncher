@@ -100,7 +100,7 @@ pub struct GameEnded {
 }
 
 fn poisoned(what: &str) -> CmdError {
-    CmdError::launcher(format!("內部狀態鎖毀損: {}", what))
+    CmdError::launcher_code("state_poisoned", &[("what", &what)])
 }
 
 impl AppState {

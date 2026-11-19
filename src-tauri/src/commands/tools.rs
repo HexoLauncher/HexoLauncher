@@ -1,8 +1,8 @@
 use mcmap_util::seed::structure::{structure_set, vanilla_structure_sets, Placement};
 use mcmap_util::seed::{parse_seed, GenVersion};
 use mcmap_util::tech::{
-    find_slime_afk_spots_tracked, find_structure_clusters_tracked, Cancelled, ClusterSearch, SearchArea,
-    SlimeSearch, SlimeSpot, SpawnRing, StructureCluster, Task,
+    find_slime_afk_spots_tracked, find_structure_clusters_tracked, Cancelled, ClusterSearch,
+    SearchArea, SlimeSearch, SlimeSpot, SpawnRing, StructureCluster, Task,
 };
 use mcmap_util::world::{ChunkStat, PruneFilter, PruneReport};
 use mcmap_util::World;
@@ -59,12 +59,12 @@ pub struct EditResult {
 }
 
 fn seed_of(text: &str) -> CmdResult<i64> {
-    parse_seed(text).ok_or_else(|| CmdError::launcher("請輸入種子"))
+    parse_seed(text).ok_or_else(|| CmdError::launcher_code("seed_required", &[]))
 }
 
 fn version_of(text: &str) -> CmdResult<GenVersion> {
     GenVersion::parse(text)
-        .ok_or_else(|| CmdError::launcher(format!("不支援的版本: {text}（需要 1.18 以上）")))
+        .ok_or_else(|| CmdError::launcher_code("version_unsupported", &[("text", &text)]))
 }
 
 /// 搜尋進度事件：`{ taskId, done, total }`，執行中每 150ms 一次，結束時再送一次。
@@ -89,7 +89,14 @@ type Reporter = Arc<dyn Fn(u64, u64) + Send + Sync>;
 
 fn event_reporter(app: AppHandle, task_id: String) -> Reporter {
     Arc::new(move |done, total| {
-        let _ = app.emit(EVENT_TOOLS_PROGRESS, ProgressEvent { task_id: task_id.clone(), done, total });
+        let _ = app.emit(
+            EVENT_TOOLS_PROGRESS,
+            ProgressEvent {
+                task_id: task_id.clone(),
+                done,
+                total,
+            },
+        );
     })
 }
 
@@ -133,7 +140,7 @@ async fn tracked<T: Send + 'static>(
     }
     match result {
         Err(e) => Err(CmdError::launcher(e.to_string())),
-        Ok(Err(Cancelled)) => Err(CmdError::new("cancelled", "已取消搜尋")),
+        Ok(Err(Cancelled)) => Err(CmdError::coded("cancelled", "search_cancelled", &[])),
         Ok(Ok(value)) => Ok(value),
     }
 }
@@ -148,24 +155,34 @@ pub fn tools_cancel(task_id: String) {
     }
 }
 
-async fn blocking<T: Send + 'static>(f: impl FnOnce() -> CmdResult<T> + Send + 'static) -> CmdResult<T> {
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> CmdResult<T> + Send + 'static,
+) -> CmdResult<T> {
     tokio::task::spawn_blocking(f)
         .await
         .map_err(|e| CmdError::launcher(e.to_string()))?
 }
 
 fn open_world(dir: &std::path::Path) -> CmdResult<World> {
-    World::open(dir).map_err(|e| CmdError::launcher(format!("讀取世界失敗: {e}")))
+    World::open(dir).map_err(|e| CmdError::launcher_code("world_read_failed", &[("detail", &e)]))
 }
 
 /// 只接受世界裡實際存在的維度，避免維度 id 被拿來組出存檔外的路徑。
 fn dimension_of(world: &World, id: &str) -> CmdResult<mcmap_util::world::DimensionStorage> {
-    let id = if id.contains(':') { id.to_string() } else { format!("minecraft:{id}") };
-    let known = ["minecraft:overworld", "minecraft:the_nether", "minecraft:the_end"];
+    let id = if id.contains(':') {
+        id.to_string()
+    } else {
+        format!("minecraft:{id}")
+    };
+    let known = [
+        "minecraft:overworld",
+        "minecraft:the_nether",
+        "minecraft:the_end",
+    ];
     if known.contains(&id.as_str()) || world.dimensions().iter().any(|d| d.id == id) {
         Ok(world.dimension(&id))
     } else {
-        Err(CmdError::launcher(format!("未知的維度: {id}")))
+        Err(CmdError::launcher_code("unknown_dimension", &[("id", &id)]))
     }
 }
 
@@ -175,7 +192,11 @@ fn lib_err(e: mcmap_util::Error) -> CmdError {
 
 /// 世界名稱、種子、維度、玩家位置等地圖需要的資訊。
 #[tauri::command]
-pub async fn tools_world_info(base_dir: String, instance_name: String, folder: String) -> CmdResult<WorldInfo> {
+pub async fn tools_world_info(
+    base_dir: String,
+    instance_name: String,
+    folder: String,
+) -> CmdResult<WorldInfo> {
     let dir = world_dir(&base_dir, &instance_name, &folder)?;
     blocking(move || {
         let world = open_world(&dir)?;
@@ -242,7 +263,9 @@ pub async fn tools_render_region(
         if !dim.regions().contains(&(rx, rz)) {
             return Ok(Response::new(Vec::new()));
         }
-        Ok(Response::new(dim.render_region(rx, rz).map_err(lib_err)?.rgba))
+        Ok(Response::new(
+            dim.render_region(rx, rz).map_err(lib_err)?.rgba,
+        ))
     })
     .await
 }
@@ -260,7 +283,9 @@ pub async fn tools_region_chunks(
     let dir = world_dir(&base_dir, &instance_name, &folder)?;
     blocking(move || {
         let world = open_world(&dir)?;
-        dimension_of(&world, &dimension)?.chunk_stats(rx, rz).map_err(lib_err)
+        dimension_of(&world, &dimension)?
+            .chunk_stats(rx, rz)
+            .map_err(lib_err)
     })
     .await
 }
@@ -268,7 +293,7 @@ pub async fn tools_region_chunks(
 /// 編輯前的準備：確認遊戲沒有開著這個世界，需要時先備份到 `.minecraft/backups/`。
 fn prepare_edit(world: &World, dir: &std::path::Path, backup: bool) -> CmdResult<Option<String>> {
     if world.is_locked() {
-        return Err(CmdError::launcher("遊戲正在使用這個世界，請先關閉遊戲或回到標題畫面"));
+        return Err(CmdError::launcher_code("world_in_use", &[]));
     }
     if !backup {
         return Ok(None);
@@ -277,11 +302,16 @@ fn prepare_edit(world: &World, dir: &std::path::Path, backup: bool) -> CmdResult
         .parent()
         .and_then(|saves| saves.parent())
         .map(|mc| mc.join("backups"))
-        .ok_or_else(|| CmdError::launcher("找不到備份資料夾"))?;
+        .ok_or_else(|| CmdError::launcher_code("backup_dir_missing", &[]))?;
     std::fs::create_dir_all(&backups)?;
-    let folder = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let folder = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let dest = backups.join(format!("{}_{}_tools.zip", timestamp(), folder));
-    world.backup(&dest).map_err(|e| CmdError::launcher(format!("備份失敗: {e}")))?;
+    world
+        .backup(&dest)
+        .map_err(|e| CmdError::launcher_code("world_backup_failed", &[("detail", &e)]))?;
     Ok(Some(dest.to_string_lossy().to_string()))
 }
 
@@ -318,7 +348,7 @@ pub async fn tools_regenerate_chunks(
     backup: bool,
 ) -> CmdResult<EditResult> {
     if chunks.is_empty() {
-        return Err(CmdError::launcher("沒有選取任何區塊"));
+        return Err(CmdError::launcher_code("no_chunks_selected", &[]));
     }
     let dir = world_dir(&base_dir, &instance_name, &folder)?;
     blocking(move || {
@@ -348,7 +378,7 @@ pub async fn tools_prune_chunks(
     backup: bool,
 ) -> CmdResult<EditResult> {
     if max_inhabited_ticks.is_none() && unloaded_days.is_none() {
-        return Err(CmdError::launcher("請至少選擇一個清理條件"));
+        return Err(CmdError::launcher_code("pick_clean_condition", &[]));
     }
     let filter = PruneFilter {
         max_inhabited_ticks,
@@ -358,7 +388,11 @@ pub async fn tools_prune_chunks(
     blocking(move || {
         let world = open_world(&dir)?;
         let dim = dimension_of(&world, &dimension)?;
-        let backup = if dry_run { None } else { prepare_edit(&world, &dir, backup)? };
+        let backup = if dry_run {
+            None
+        } else {
+            prepare_edit(&world, &dir, backup)?
+        };
         let report = world.prune(&dim.id, &filter, dry_run).map_err(lib_err)?;
         Ok(EditResult { report, backup })
     })
@@ -417,27 +451,44 @@ pub struct SlimeQuery {
 }
 
 #[tauri::command]
-pub async fn tools_slime_spots(app: AppHandle, query: SlimeQuery, task_id: String) -> CmdResult<Vec<SlimeSpot>> {
+pub async fn tools_slime_spots(
+    app: AppHandle,
+    query: SlimeQuery,
+    task_id: String,
+) -> CmdResult<Vec<SlimeSpot>> {
     let report = event_reporter(app, task_id.clone());
     slime_spots(query, task_id, report).await
 }
 
-async fn slime_spots(query: SlimeQuery, task_id: String, report: Reporter) -> CmdResult<Vec<SlimeSpot>> {
+async fn slime_spots(
+    query: SlimeQuery,
+    task_id: String,
+    report: Reporter,
+) -> CmdResult<Vec<SlimeSpot>> {
     let seed = seed_of(&query.seed)?;
     if !(1..=MAX_SLIME_RADIUS).contains(&query.radius) {
-        return Err(CmdError::launcher(format!("搜尋半徑需在 1 到 {MAX_SLIME_RADIUS} 格之間")));
+        return Err(CmdError::launcher_code(
+            "slime_radius",
+            &[("max", &MAX_SLIME_RADIUS)],
+        ));
     }
     if !(query.ring_min >= 0.0 && query.ring_max > query.ring_min && query.ring_max <= 256.0) {
-        return Err(CmdError::launcher("生怪範圍不合理"));
+        return Err(CmdError::launcher_code("spawn_range_invalid", &[]));
     }
     let opts = SlimeSearch {
         area: SearchArea::around(query.center_x, query.center_z, query.radius),
-        ring: SpawnRing { min: query.ring_min, max: query.ring_max },
+        ring: SpawnRing {
+            min: query.ring_min,
+            max: query.ring_max,
+        },
         step: query.step.clamp(1, 16),
         limit: query.limit.clamp(1, 100),
         min_separation: query.min_separation.max(0.0),
     };
-    tracked(task_id, report, move |task| find_slime_afk_spots_tracked(seed, &opts, task)).await
+    tracked(task_id, report, move |task| {
+        find_slime_afk_spots_tracked(seed, &opts, task)
+    })
+    .await
 }
 
 #[derive(Debug, Deserialize)]
@@ -474,17 +525,27 @@ async fn structure_clusters(
     let seed = seed_of(&query.seed)?;
     let version = version_of(&query.version)?;
     let set = structure_set(version, &query.set)
-        .ok_or_else(|| CmdError::launcher(format!("未知的結構: {}", query.set)))?;
+        .ok_or_else(|| CmdError::launcher_code("unknown_structure", &[("name", &query.set)]))?;
     if !(1..=MAX_CLUSTER_RADIUS).contains(&query.radius) {
-        return Err(CmdError::launcher(format!("搜尋半徑需在 1 到 {MAX_CLUSTER_RADIUS} 格之間")));
+        return Err(CmdError::launcher_code(
+            "cluster_radius",
+            &[("max", &MAX_CLUSTER_RADIUS)],
+        ));
     }
     if !(16.0..=256.0).contains(&query.ring_max) {
-        return Err(CmdError::launcher("掛機範圍需在 16 到 256 格之間"));
+        return Err(CmdError::launcher_code("afk_range", &[]));
     }
     let mut opts = ClusterSearch {
         min_count: query.min_count.clamp(2, 4),
-        ring: SpawnRing { min: 24.0, max: query.ring_max },
-        ..ClusterSearch::quads(SearchArea::around(query.center_x, query.center_z, query.radius))
+        ring: SpawnRing {
+            min: 24.0,
+            max: query.ring_max,
+        },
+        ..ClusterSearch::quads(SearchArea::around(
+            query.center_x,
+            query.center_z,
+            query.radius,
+        ))
     };
     if let Some(min) = query.min_coverage {
         opts = opts.by_coverage(min);
@@ -518,11 +579,15 @@ mod tests {
         Arc::new(|_, _| {})
     }
 
-    fn search_slime(query: SlimeQuery) -> impl std::future::Future<Output = CmdResult<Vec<SlimeSpot>>> {
+    fn search_slime(
+        query: SlimeQuery,
+    ) -> impl std::future::Future<Output = CmdResult<Vec<SlimeSpot>>> {
         slime_spots(query, "test".into(), quiet())
     }
 
-    fn search_clusters(query: ClusterQuery) -> impl std::future::Future<Output = CmdResult<Vec<StructureCluster>>> {
+    fn search_clusters(
+        query: ClusterQuery,
+    ) -> impl std::future::Future<Output = CmdResult<Vec<StructureCluster>>> {
         let id = format!("test-{}", query.set);
         structure_clusters(query, id, quiet())
     }
@@ -558,7 +623,11 @@ mod tests {
         });
         let err = result.unwrap_err();
         assert_eq!(err.kind, "cancelled");
-        assert!(started.elapsed() < Duration::from_secs(30), "{:?}", started.elapsed());
+        assert!(
+            started.elapsed() < Duration::from_secs(30),
+            "{:?}",
+            started.elapsed()
+        );
         let reports = reports.lock().unwrap();
         assert!(reports.len() >= 2);
         let &(done, total) = reports.last().unwrap();
@@ -581,7 +650,11 @@ mod tests {
         };
         assert!(run(search_slime(slime(0))).is_err());
         assert!(run(search_slime(slime(MAX_SLIME_RADIUS + 1))).is_err());
-        assert!(run(search_slime(SlimeQuery { seed: " ".into(), ..slime(100) })).is_err());
+        assert!(run(search_slime(SlimeQuery {
+            seed: " ".into(),
+            ..slime(100)
+        }))
+        .is_err());
         assert!(tools_structure_sets("1.16.5".into()).is_err());
     }
 
@@ -603,7 +676,9 @@ mod tests {
 
         let sets = tools_structure_sets("26".into()).unwrap();
         assert!(sets.iter().any(|s| s.name == "swamp_huts"));
-        assert!(sets.iter().all(|s| s.name != "mineshafts" && s.name != "strongholds"));
+        assert!(sets
+            .iter()
+            .all(|s| s.name != "mineshafts" && s.name != "strongholds"));
 
         let query = |set: &str, min_coverage| ClusterQuery {
             seed: "2960637590762717488".into(),
@@ -618,8 +693,18 @@ mod tests {
             check_biomes: true,
         };
         // Same seed as the mcmap_util checks: 2 triple witch huts, 2 triple monuments by coverage.
-        assert_eq!(run(search_clusters(query("swamp_huts", None))).unwrap().len(), 2);
-        assert_eq!(run(search_clusters(query("ocean_monuments", Some(0.25)))).unwrap().len(), 2);
+        assert_eq!(
+            run(search_clusters(query("swamp_huts", None)))
+                .unwrap()
+                .len(),
+            2
+        );
+        assert_eq!(
+            run(search_clusters(query("ocean_monuments", Some(0.25))))
+                .unwrap()
+                .len(),
+            2
+        );
         assert!(run(search_clusters(query("nope", None))).is_err());
     }
 
@@ -644,27 +729,73 @@ mod tests {
         ))
         .unwrap();
         println!("{info:?}");
-        assert!(info.seed.as_deref().is_some_and(|s| s.parse::<i64>().is_ok()));
+        assert!(info
+            .seed
+            .as_deref()
+            .is_some_and(|s| s.parse::<i64>().is_ok()));
         assert!(info.version.is_some());
         assert!(info.dimensions.iter().any(|d| d == "minecraft:overworld"));
 
-        let (base, inst) = (base.to_string_lossy().to_string(), "Fabulously-Optimized".to_string());
-        let folder = std::fs::read_dir(&saves).unwrap().find_map(|e| e.ok()).unwrap().file_name().to_string_lossy().to_string();
-        let regions = run(tools_world_regions(base.clone(), inst.clone(), folder.clone(), "overworld".into())).unwrap();
+        let (base, inst) = (
+            base.to_string_lossy().to_string(),
+            "Fabulously-Optimized".to_string(),
+        );
+        let folder = std::fs::read_dir(&saves)
+            .unwrap()
+            .find_map(|e| e.ok())
+            .unwrap()
+            .file_name()
+            .to_string_lossy()
+            .to_string();
+        let regions = run(tools_world_regions(
+            base.clone(),
+            inst.clone(),
+            folder.clone(),
+            "overworld".into(),
+        ))
+        .unwrap();
         assert!(!regions.is_empty());
         let (rx, rz) = regions[0];
-        let stats = run(tools_region_chunks(base.clone(), inst.clone(), folder.clone(), "minecraft:overworld".into(), rx, rz)).unwrap();
+        let stats = run(tools_region_chunks(
+            base.clone(),
+            inst.clone(),
+            folder.clone(),
+            "minecraft:overworld".into(),
+            rx,
+            rz,
+        ))
+        .unwrap();
         assert!(!stats.is_empty());
         // Path tricks in the dimension id are rejected.
-        assert!(run(tools_world_regions(base.clone(), inst.clone(), folder.clone(), "minecraft:../../x".into())).is_err());
-        let prune = |ticks, days| tools_prune_chunks(base.clone(), inst.clone(), folder.clone(), "overworld".into(), ticks, days, true, true);
+        assert!(run(tools_world_regions(
+            base.clone(),
+            inst.clone(),
+            folder.clone(),
+            "minecraft:../../x".into()
+        ))
+        .is_err());
+        let prune = |ticks, days| {
+            tools_prune_chunks(
+                base.clone(),
+                inst.clone(),
+                folder.clone(),
+                "overworld".into(),
+                ticks,
+                days,
+                true,
+                true,
+            )
+        };
         let dry = run(prune(Some(0), None)).unwrap();
         assert_eq!(dry.report.removed, 0);
         assert!(dry.backup.is_none());
         // Every chunk was saved after 1970, and none in the future.
         let all = run(prune(None, Some(-1.0))).unwrap();
         assert_eq!(all.report.removed, all.report.scanned);
-        assert_eq!(run(prune(None, Some(365.0 * 60.0))).unwrap().report.removed, 0);
+        assert_eq!(
+            run(prune(None, Some(365.0 * 60.0))).unwrap().report.removed,
+            0
+        );
         assert!(run(prune(None, None)).is_err());
     }
 

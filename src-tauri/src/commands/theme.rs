@@ -17,15 +17,17 @@ fn extension_of(path: &std::path::Path) -> CmdResult<String> {
         .to_ascii_lowercase();
 
     if !ALLOWED.contains(&ext.as_str()) {
-        return Err(CmdError::launcher(format!(
-            "不支援的圖片格式: {}（可用 {}）",
-            if ext.is_empty() {
-                "（沒有副檔名）"
-            } else {
-                &ext
-            },
-            ALLOWED.join("、")
-        )));
+        return Err(if ext.is_empty() {
+            CmdError::launcher_code(
+                "theme_bad_format_noext",
+                &[("allowed", &ALLOWED.join(", "))],
+            )
+        } else {
+            CmdError::launcher_code(
+                "theme_bad_format",
+                &[("ext", &ext), ("allowed", &ALLOWED.join(", "))],
+            )
+        });
     }
     Ok(ext)
 }
@@ -36,7 +38,10 @@ fn stored_path(name: &str) -> CmdResult<PathBuf> {
         && !name.contains('\\')
         && !name.contains("..");
     if !ok {
-        return Err(CmdError::launcher(format!("不是背景圖檔名: {}", name)));
+        return Err(CmdError::launcher_code(
+            "not_background_name",
+            &[("name", &name)],
+        ));
     }
     Ok(store_dir()?.join(name))
 }
@@ -83,7 +88,10 @@ pub async fn background_image_path(name: String) -> CmdResult<String> {
     let path = stored_path(&name)?;
     extension_of(&path)?;
     if !path.is_file() {
-        return Err(CmdError::launcher(format!("找不到背景圖: {}", name)));
+        return Err(CmdError::launcher_code(
+            "background_not_found",
+            &[("name", &name)],
+        ));
     }
     Ok(crate::commands::path_string(&path))
 }

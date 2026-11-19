@@ -1,4 +1,3 @@
-use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuEvent, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -13,8 +12,6 @@ const MENU_QUIT: &str = "background-quit";
 #[cfg(target_os = "macos")]
 const MENU_APP_QUIT: &str = "app-quit";
 
-static LOCALE: Mutex<String> = Mutex::new(String::new());
-
 struct Labels {
     tooltip: &'static str,
     show: &'static str,
@@ -22,26 +19,10 @@ struct Labels {
 }
 
 fn labels() -> Labels {
-    let locale = LOCALE.lock().map(|l| l.clone()).unwrap_or_default();
-    if locale.starts_with("zh") {
-        Labels {
-            tooltip: "遊戲執行中，啟動器在背景常駐",
-            show: "顯示啟動器",
-            quit: "結束啟動器（遊戲會繼續執行）",
-        }
-    } else {
-        Labels {
-            tooltip: "A game is running; the launcher stays in the background",
-            show: "Show launcher",
-            quit: "Quit launcher (games keep running)",
-        }
-    }
-}
-
-#[tauri::command]
-pub fn set_ui_locale(locale: String) {
-    if let Ok(mut current) = LOCALE.lock() {
-        *current = locale;
+    Labels {
+        tooltip: "A game is running; the launcher stays in the background",
+        show: "Show launcher",
+        quit: "Quit launcher (games keep running)",
     }
 }
 

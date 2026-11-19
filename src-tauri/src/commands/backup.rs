@@ -46,7 +46,10 @@ fn validate_reason(reason: &str) -> CmdResult<()> {
     if ok {
         Ok(())
     } else {
-        Err(CmdError::launcher(format!("備份原因不合法: {reason}")))
+        Err(CmdError::launcher_code(
+            "backup_reason_invalid",
+            &[("reason", &reason)],
+        ))
     }
 }
 
@@ -116,13 +119,13 @@ fn write_backup(
     let total = files.len();
     for (index, (path, name)) in files.iter().enumerate() {
         if let Some(report) = progress {
-            report(index, total, "正在備份目前的模組與設定");
+            report(index, total, "progress.backup_current");
         }
         add_file(&mut zip, path, name)?;
     }
     zip.finish().map_err(zip_err)?;
     if let Some(report) = progress {
-        report(total, total, "正在備份目前的模組與設定");
+        report(total, total, "progress.backup_current");
     }
     Ok(())
 }
@@ -187,7 +190,7 @@ fn parse_name(file_name: &str) -> Option<(String, String)> {
 
 fn guard_not_running(state: &AppState, instance_name: &str) -> CmdResult<()> {
     if state.is_running(instance_name)? {
-        return Err(CmdError::launcher("遊戲正在執行，請先關閉遊戲"));
+        return Err(CmdError::launcher_code("game_running_close_first", &[]));
     }
     Ok(())
 }
@@ -242,7 +245,10 @@ pub async fn delete_backup(
     validate_file_name(&file_name)?;
     let path = backups_dir(Path::new(&base_dir), &instance_name)?.join(&file_name);
     if !path.is_file() {
-        return Err(CmdError::launcher(format!("找不到備份: {file_name}")));
+        return Err(CmdError::launcher_code(
+            "backup_not_found",
+            &[("name", &file_name)],
+        ));
     }
     tokio::fs::remove_file(path).await?;
     Ok(())
@@ -304,7 +310,10 @@ pub async fn restore_backup(
     let base = Path::new(&base_dir);
     let archive = backups_dir(base, &instance_name)?.join(&file_name);
     if !archive.is_file() {
-        return Err(CmdError::launcher(format!("找不到備份: {file_name}")));
+        return Err(CmdError::launcher_code(
+            "backup_not_found",
+            &[("name", &file_name)],
+        ));
     }
     super::modpack::ensure_not_linked(base, &instance_name).await?;
 

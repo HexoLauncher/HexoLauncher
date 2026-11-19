@@ -294,14 +294,14 @@ pub async fn delete_pack(
 ) -> CmdResult<()> {
     check_name(&file_name)?;
     if kind != "resourcepacks" && kind != "shaderpacks" {
-        return Err(CmdError::launcher(format!("未知的類型: {}", kind)));
+        return Err(CmdError::launcher_code("unknown_type", &[("kind", &kind)]));
     }
     let path = minecraft_dir(Path::new(&base_dir), &instance_name)?
         .join(&kind)
         .join(&file_name);
     let meta = tokio::fs::symlink_metadata(&path)
         .await
-        .map_err(|_| CmdError::launcher(format!("找不到檔案: {}", file_name)))?;
+        .map_err(|_| CmdError::launcher_code("file_not_found", &[("name", &file_name)]))?;
     if meta.is_dir() {
         tokio::fs::remove_dir_all(&path).await?;
     } else {
@@ -346,7 +346,10 @@ pub(crate) fn world_dir(base_dir: &str, instance_name: &str, folder: &str) -> Cm
         .join("saves")
         .join(folder);
     if !path.join("level.dat").exists() {
-        return Err(CmdError::launcher(format!("找不到世界: {}", folder)));
+        return Err(CmdError::launcher_code(
+            "world_not_found",
+            &[("name", &folder)],
+        ));
     }
     Ok(path)
 }
@@ -358,7 +361,7 @@ pub async fn open_world_folder(
     folder: String,
 ) -> CmdResult<()> {
     let path = world_dir(&base_dir, &instance_name, &folder)?;
-    open::that(&path).map_err(|e| CmdError::launcher(format!("無法開啟資料夾: {}", e)))
+    open::that(&path).map_err(|e| CmdError::launcher_code("open_folder_failed", &[("detail", &e)]))
 }
 
 #[tauri::command]

@@ -3,9 +3,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use hexomc_lib::{
-    download_java_with_progress, download_vendor_java_with_progress, pick_java,
-    probe_java_runtime, scan_java as scan_runtimes, JavaInfo, JavaRelease, JavaRuntime,
-    JavaVendor, ProgressFn,
+    download_java_with_progress, download_vendor_java_with_progress, pick_java, probe_java_runtime,
+    scan_java as scan_runtimes, JavaInfo, JavaRelease, JavaRuntime, JavaVendor, ProgressFn,
 };
 use serde::Serialize;
 use tauri::Emitter;
@@ -48,15 +47,15 @@ pub async fn detect_java_candidates() -> Vec<JavaRuntime> {
 pub async fn test_java(path: String) -> CmdResult<JavaDto> {
     let path = PathBuf::from(&path);
     if !path.is_file() {
-        return Err(CmdError::launcher(format!(
-            "檔案不存在: {}",
-            path.display()
-        )));
+        return Err(CmdError::launcher_code(
+            "file_not_exist",
+            &[("path", &path.display())],
+        ));
     }
     probe_java_runtime(&path)
         .await
         .map(|r| JavaDto::from(r.info()))
-        .ok_or_else(|| CmdError::launcher("這個檔案不是可用的 java 執行檔"))
+        .ok_or_else(|| CmdError::launcher_code("not_java_executable", &[]))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -166,7 +165,10 @@ pub async fn resolve_java(
     if let Some(raw) = explicit_path.filter(|p| !p.is_empty()) {
         let path = PathBuf::from(raw);
         if !path.exists() {
-            return Err(CmdError::launcher(format!("指定的 Java 不存在: {}", raw)));
+            return Err(CmdError::launcher_code(
+                "java_path_missing",
+                &[("path", &raw)],
+            ));
         }
 
         let info = probe_java_runtime(&path)
@@ -177,12 +179,14 @@ pub async fn resolve_java(
                 version: required_version,
             });
         if info.version < required_version {
-            return Err(CmdError::new(
+            return Err(CmdError::coded(
                 "javaTooOld",
-                format!(
-                    "指定的 Java {} 版本太舊，這個實例至少需要 Java {}：{}",
-                    info.version, required_version, raw
-                ),
+                "java_too_old",
+                &[
+                    ("found", &info.version),
+                    ("required", &required_version),
+                    ("path", &raw),
+                ],
             ));
         }
         return Ok(Some(info));
@@ -214,7 +218,11 @@ pub async fn resolve_instance_java(
 }
 
 pub fn java_not_found(required_version: u32) -> CmdError {
-    CmdError::new("javaNotFound", format!("找不到 Java {}", required_version))
+    CmdError::coded(
+        "javaNotFound",
+        "java_not_found",
+        &[("version", &required_version)],
+    )
 }
 
 pub async fn pick_java_for_tools() -> Option<JavaInfo> {

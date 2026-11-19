@@ -126,7 +126,7 @@ impl DownloadConfig {
                 Ok(DownloadSource::Official)
             }
             DownloadKind::Custom => DownloadSource::custom(&self.custom_url).map_err(|_| {
-                CmdError::launcher(format!("鏡像網址無效: {}", self.custom_url.trim()))
+                CmdError::launcher_code("invalid_mirror_url", &[("url", &self.custom_url.trim())])
             }),
         }
     }
@@ -259,7 +259,7 @@ pub fn default_base_dir() -> CmdResult<PathBuf> {
     dirs::data_dir()
         .map(|d| d.join(super::APP_DIR))
         .or_else(|| std::env::current_dir().ok().map(|d| d.join("mc_data")))
-        .ok_or_else(|| CmdError::launcher("無法取得系統資料目錄"))
+        .ok_or_else(|| CmdError::launcher_code("no_data_dir", &[]))
 }
 
 pub async fn prepare(base: &Path) -> CmdResult<()> {

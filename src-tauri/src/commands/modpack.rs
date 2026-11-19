@@ -207,20 +207,16 @@ pub(super) async fn browser() -> CmdResult<Browser> {
 }
 
 pub(super) async fn curseforge_key() -> CmdResult<String> {
-    LauncherConfig::load().await?.api.curseforge_key().ok_or_else(|| {
-        CmdError::new(
-            "curseforgeKeyMissing",
-            "使用 CurseForge 需要 API 金鑰，請先到「設定」填入",
-        )
-    })
+    LauncherConfig::load()
+        .await?
+        .api
+        .curseforge_key()
+        .ok_or_else(|| CmdError::coded("curseforgeKeyMissing", "curseforge_key_missing", &[]))
 }
 
 async fn read_pack_file(path: &Path) -> CmdResult<ModpackPreview> {
     let format = detect_modpack_format(path).await.map_err(|e| match e {
-        HexoError::Other(_) => CmdError::new(
-            "notModpack",
-            "這不是 Modrinth（.mrpack）、CurseForge 或 HMCL 模組包；「匯出實例」產生的壓縮檔請改用「從壓縮檔匯入」",
-        ),
+        HexoError::Other(_) => CmdError::coded("notModpack", "not_modpack", &[]),
         other => other.into(),
     })?;
 
@@ -296,12 +292,10 @@ pub(super) async fn ensure_not_linked(base: &Path, instance_name: &str) -> CmdRe
         .await
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| mc_dir.display().to_string());
-    Err(CmdError::new(
+    Err(CmdError::coded(
         "instanceLinked",
-        format!(
-            "這個實例是用「連結」方式從其他啟動器匯入的，遊戲資料夾實際上在：{}\n更新模組包會直接改到那個啟動器的檔案，而它記錄的載入器版本不會跟著更新，可能導致它無法啟動，所以已停止更新。\n請到原本的啟動器更新這個模組包，或改用「複製」方式重新匯入後再更新。",
-            target
-        ),
+        "instance_linked_update",
+        &[("path", &target)],
     ))
 }
 
@@ -330,10 +324,7 @@ pub(super) async fn update_from_path(
     let base = PathBuf::from(base_dir);
     let dir = instance_dir(&base, instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
     ensure_not_linked(&base, instance_name).await?;
 
@@ -352,7 +343,7 @@ pub(super) async fn update_from_path(
         Some(progress.clone()),
     )
     .await?;
-    progress(0, 1, "正在更新模組包");
+    progress(0, 1, "progress.update_modpack");
 
     let mut meta = InstanceMeta::load(&dir, instance_name).await?;
     let installed = super::instance::load_config(&base, instance_name)

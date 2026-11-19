@@ -46,7 +46,6 @@ fn main() {
         .on_menu_event(background::on_menu_event)
         .on_tray_icon_event(background::on_tray_icon_event)
         .invoke_handler(tauri::generate_handler![
-            background::set_ui_locale,
             store::launcher::get_launcher_config,
             store::launcher::save_launcher_config,
             store::launcher::resolve_paths,

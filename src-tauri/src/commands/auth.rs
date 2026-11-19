@@ -37,7 +37,7 @@ pub async fn ms_login_poll(
 ) -> CmdResult<Vec<AccountView>> {
     let session = state
         .take_login_session(&session_id)?
-        .ok_or_else(|| CmdError::new("authError", "登入 session 不存在或已使用，請重新登入"))?;
+        .ok_or_else(|| CmdError::coded("authError", "login_session_missing", &[]))?;
 
     let auth = ms_auth()?.poll_device_code(&session).await?;
     store_account(from_auth(auth)).await

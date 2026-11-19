@@ -63,10 +63,7 @@ fn link_target(path: &Path) -> Option<String> {
 pub async fn load_config(base_dir: &Path, name: &str) -> CmdResult<InstanceConfig> {
     let dir = instance_dir(base_dir, name)?;
     if !InstanceConfig::save_path(&dir).exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", name),
-        ));
+        return Err(CmdError::instance_not_found(&name));
     }
     Ok(InstanceConfig::load(&dir).await?)
 }
@@ -211,10 +208,7 @@ pub async fn get_instance(base_dir: String, instance_name: String) -> CmdResult<
     let base = Path::new(&base_dir);
     let dir = instance_dir(base, &instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
     build_view(base, &instance_name, &LocalStore::load().await?).await
 }
@@ -251,10 +245,10 @@ pub async fn create_instance(
 
     let name = name.trim().to_string();
     if name.is_empty() {
-        return Err(CmdError::launcher("實例名稱不可為空"));
+        return Err(CmdError::launcher_code("instance_name_empty", &[]));
     }
     if mc_version.trim().is_empty() {
-        return Err(CmdError::launcher("請先選一個 Minecraft 版本"));
+        return Err(CmdError::launcher_code("pick_mc_version", &[]));
     }
 
     let base = Path::new(&base_dir);
@@ -304,17 +298,14 @@ pub async fn save_instance_meta(
     let base = Path::new(&base_dir);
     let dir = instance_dir(base, &instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
 
     let mut meta = InstanceMeta::load(&dir, &instance_name).await?;
     if let Some(name) = patch.name {
         let name = name.trim().to_string();
         if name.is_empty() {
-            return Err(CmdError::launcher("實例名稱不可為空"));
+            return Err(CmdError::launcher_code("instance_name_empty", &[]));
         }
         meta.name = name;
     }
@@ -366,10 +357,7 @@ pub async fn delete_instance(
     let base = Path::new(&base_dir);
     let dir = instance_dir(base, &instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
     // 從別的啟動器連結進來的遊戲目錄要先拆掉連結本身，
     // 不然 remove_dir_all 有機會順著連結把人家的存檔一起刪掉。
@@ -405,10 +393,7 @@ pub async fn duplicate_instance(
     let base = Path::new(&base_dir);
     let source = instance_dir(base, &instance_name)?;
     if !source.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
 
     let id = unique_instance_id(base, &new_name).await?;
@@ -466,7 +451,7 @@ pub async fn unique_instance_id(base_dir: &Path, name: &str) -> CmdResult<String
             return Ok(candidate);
         }
     }
-    Err(CmdError::launcher("找不到可用的實例資料夾名稱"))
+    Err(CmdError::launcher_code("no_free_folder_name", &[]))
 }
 
 fn slugify(name: &str) -> String {
@@ -505,7 +490,12 @@ fn folder_target(base_dir: &Path, name: &str, target: &str) -> CmdResult<PathBuf
         "logs" => mc.join("logs"),
         "config" => mc.join("config"),
         "schematics" => mc.join("schematics"),
-        other => return Err(CmdError::launcher(format!("未知的資料夾: {}", other))),
+        other => {
+            return Err(CmdError::launcher_code(
+                "unknown_folder",
+                &[("name", &other)],
+            ))
+        }
     })
 }
 
@@ -522,5 +512,5 @@ pub async fn open_instance_folder(
     )?;
 
     tokio::fs::create_dir_all(&dir).await?;
-    open::that(&dir).map_err(|e| CmdError::launcher(format!("無法開啟資料夾: {}", e)))
+    open::that(&dir).map_err(|e| CmdError::launcher_code("open_folder_failed", &[("detail", &e)]))
 }

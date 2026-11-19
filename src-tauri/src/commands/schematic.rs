@@ -33,7 +33,7 @@ fn join_relative(root: &Path, rel: &str) -> CmdResult<PathBuf> {
             .components()
             .all(|c| matches!(c, Component::Normal(_)));
     if !ok {
-        return Err(CmdError::launcher(format!("路徑不合法: {}", rel)));
+        return Err(CmdError::launcher_code("invalid_path", &[("path", &rel)]));
     }
     Ok(root.join(rel_path))
 }
@@ -115,7 +115,10 @@ pub async fn delete_schematic(
     let root = schematics_dir(&base_dir, &instance_name)?;
     let path = join_relative(&root, &rel_path)?;
     if !is_schematic(&rel_path) {
-        return Err(CmdError::launcher(format!("不是藍圖檔: {}", rel_path)));
+        return Err(CmdError::launcher_code(
+            "not_schematic",
+            &[("path", &rel_path)],
+        ));
     }
     tokio::fs::remove_file(&path).await?;
     Ok(())
@@ -133,7 +136,7 @@ pub async fn import_schematic(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     if !is_schematic(&name) {
-        return Err(CmdError::launcher("只能匯入 .litematic 或 .schem"));
+        return Err(CmdError::launcher_code("import_schematic_format", &[]));
     }
 
     let root = schematics_dir(&base_dir, &instance_name)?;
@@ -154,17 +157,17 @@ pub async fn import_schematic(
     found
         .into_iter()
         .find(|f| Path::new(&f.path) == target)
-        .ok_or_else(|| CmdError::launcher("複製後找不到檔案"))
+        .ok_or_else(|| CmdError::launcher_code("copied_missing", &[]))
 }
 
 #[tauri::command]
 pub async fn read_schematic(path: String) -> CmdResult<String> {
     if !path.to_ascii_lowercase().ends_with(".litematic") {
-        return Err(CmdError::launcher("目前只能預覽 .litematic"));
+        return Err(CmdError::launcher_code("preview_litematic_only", &[]));
     }
     let meta = tokio::fs::metadata(&path).await?;
     if meta.len() > MAX_PREVIEW_BYTES {
-        return Err(CmdError::launcher("檔案太大，沒辦法預覽"));
+        return Err(CmdError::launcher_code("file_too_big_preview", &[]));
     }
     let bytes = tokio::fs::read(&path).await?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))

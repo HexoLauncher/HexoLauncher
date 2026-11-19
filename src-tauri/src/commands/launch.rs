@@ -92,9 +92,10 @@ pub async fn launch_instance(
     } = options;
 
     if state.is_running(&instance_name)? {
-        return Err(CmdError::new(
+        return Err(CmdError::coded(
             "alreadyRunning",
-            format!("instance {} 已經在執行中", instance_name),
+            "already_running",
+            &[("name", &instance_name)],
         ));
     }
 
@@ -123,7 +124,7 @@ pub async fn launch_instance(
 
     let commands = effective_commands(&launcher, &meta.settings);
     if !commands.0.is_empty() {
-        run_hook(&commands.0, &hook_vars, "啟動前指令").await?;
+        run_hook(&commands.0, &hook_vars, "pre").await?;
     }
 
     let online = account.access_token.is_some();
@@ -313,18 +314,15 @@ async fn run_hook(command: &str, vars: &HookVars, label: &str) -> CmdResult<()> 
     #[cfg(windows)]
     child.creation_flags(CREATE_NO_WINDOW);
 
-    let status = child
-        .status()
-        .await
-        .map_err(|e| CmdError::launcher(format!("{}執行失敗: {}", label, e)))?;
+    let status = child.status().await.map_err(|e| {
+        CmdError::launcher_code(&format!("hook_{}_failed", label), &[("detail", &e)])
+    })?;
 
     if !status.success() {
-        return Err(CmdError::launcher(format!(
-            "{}以錯誤結束（{}）: {}",
-            label,
-            status.code().unwrap_or(-1),
-            line
-        )));
+        return Err(CmdError::launcher_code(
+            &format!("hook_{}_exit", label),
+            &[("code", &status.code().unwrap_or(-1)), ("line", &line)],
+        ));
     }
     Ok(())
 }
@@ -501,7 +499,7 @@ fn watch_process(app: tauri::AppHandle, watch: Watch) {
         let _ = app.emit(super::instance::EVENT_INSTANCES_CHANGED, ());
 
         if !watch.post_exit.is_empty() {
-            let _ = run_hook(&watch.post_exit, &watch.hook_vars, "結束後指令").await;
+            let _ = run_hook(&watch.post_exit, &watch.hook_vars, "post").await;
         }
 
         crate::background::quit_if_idle(&app, None);

@@ -761,7 +761,7 @@
 							<p class="text-danger">
 								{m.settings_schematic_sync_instance_failed({
 									name: failure.instance,
-									message: failure.message
+									message: api.errorMessage(failure)
 								})}
 							</p>
 						{/each}

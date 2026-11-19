@@ -37,15 +37,13 @@ pub fn data_url(bytes: &[u8]) -> Option<String> {
 
 fn validate(bytes: &[u8]) -> CmdResult<()> {
     if bytes.len() > MAX_BYTES {
-        return Err(CmdError::launcher(format!(
-            "圖示太大（{} KiB），請換一張小於 4 MiB 的",
-            bytes.len() / 1024
-        )));
+        return Err(CmdError::launcher_code(
+            "icon_too_large",
+            &[("size", &(bytes.len() / 1024))],
+        ));
     }
     if mime_of(bytes).is_none() {
-        return Err(CmdError::launcher(
-            "不支援的圖片格式（可用 PNG、JPG、GIF、WebP、BMP）",
-        ));
+        return Err(CmdError::launcher_code("icon_bad_format", &[]));
     }
     Ok(())
 }
@@ -69,7 +67,7 @@ pub async fn copy_icon(dir: &Path, source: &Path) -> CmdResult<()> {
 
 pub async fn download_icon(dir: &Path, url: &str) -> CmdResult<()> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
-        return Err(CmdError::launcher(format!("不是網址: {}", url)));
+        return Err(CmdError::launcher_code("not_a_url", &[("url", &url)]));
     }
     let bytes = http()
         .get(url)
@@ -119,10 +117,7 @@ pub async fn set_instance_icon_image(
 ) -> CmdResult<String> {
     let dir: PathBuf = instance_dir(Path::new(&base_dir), &instance_name)?;
     if !dir.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
     copy_icon(&dir, Path::new(&path)).await?;
     let _ = app.emit(EVENT_INSTANCES_CHANGED, ());

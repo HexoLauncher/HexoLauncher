@@ -37,7 +37,7 @@ fn web_url() -> Option<String> {
 fn server_url() -> CmdResult<String> {
     SERVER
         .map(|url| url.trim_end_matches('/').to_string())
-        .ok_or_else(|| CmdError::new("blueprintUnavailable", "這個版本沒有設定藍圖庫伺服器"))
+        .ok_or_else(|| CmdError::coded("blueprintUnavailable", "blueprint_unavailable", &[]))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,7 +300,7 @@ async fn forget_session(server: &str, uuid: &str) -> CmdResult<()> {
 }
 
 fn not_signed_in() -> CmdError {
-    CmdError::new("blueprintAuth", "還沒有登入藍圖庫")
+    CmdError::coded("blueprintAuth", "blueprint_not_signed_in", &[])
 }
 
 struct Authed {
@@ -426,7 +426,7 @@ async fn camel_json(response: reqwest::Response) -> CmdResult<serde_json::Value>
 fn check_id(id: &str) -> CmdResult<&str> {
     let ok = !id.is_empty() && id.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
     if !ok {
-        return Err(CmdError::launcher(format!("id 不合法: {}", id)));
+        return Err(CmdError::launcher_code("invalid_id", &[("id", &id)]));
     }
     Ok(id)
 }
@@ -468,9 +468,10 @@ pub async fn blueprint_login(terms_version: Option<String>) -> CmdResult<Bluepri
     };
     let account = accounts::resolve(None).await?;
     let (Some(access_token), Some(uuid)) = (account.access_token, account.uuid) else {
-        return Err(CmdError::new(
+        return Err(CmdError::coded(
             "blueprintAuth",
-            "離線帳號不能登入藍圖庫，請切換到 Microsoft 帳號",
+            "blueprint_offline_account",
+            &[],
         ));
     };
 
@@ -491,12 +492,10 @@ pub async fn blueprint_login(terms_version: Option<String>) -> CmdResult<Bluepri
         .send()
         .await?;
     if !joined.status().is_success() {
-        return Err(CmdError::new(
+        return Err(CmdError::coded(
             "blueprintAuth",
-            format!(
-                "Mojang 拒絕了這次驗證（HTTP {}），請到設定重新整理或重新登入帳號",
-                joined.status().as_u16()
-            ),
+            "blueprint_mojang_rejected",
+            &[("status", &joined.status().as_u16())],
         ));
     }
 
@@ -631,7 +630,10 @@ pub async fn blueprint_view(id: String) -> CmdResult<()> {
 #[tauri::command]
 pub async fn blueprint_react(id: String, kind: String, on: bool) -> CmdResult<serde_json::Value> {
     if kind != "like" && kind != "favorite" {
-        return Err(CmdError::launcher(format!("不支援的操作: {}", kind)));
+        return Err(CmdError::launcher_code(
+            "unsupported_action",
+            &[("kind", &kind)],
+        ));
     }
     let auth = authed().await?;
     let url = format!("{}/{}", blueprint_url(&auth.server, &id)?, kind);
@@ -656,7 +658,10 @@ pub async fn blueprint_activity(
     per_page: u32,
 ) -> CmdResult<serde_json::Value> {
     if !matches!(kind.as_str(), "likes" | "favorites" | "views" | "downloads") {
-        return Err(CmdError::launcher(format!("不支援的紀錄: {}", kind)));
+        return Err(CmdError::launcher_code(
+            "unsupported_record",
+            &[("kind", &kind)],
+        ));
     }
     let auth = authed().await?;
     let request = http()
@@ -871,9 +876,10 @@ async fn fetch_file(blueprint: &Blueprint) -> CmdResult<Vec<u8>> {
         .await?
         .to_vec();
     if sha256_hex(&bytes) != sha {
-        return Err(CmdError::new(
+        return Err(CmdError::coded(
             "checksumMismatch",
-            format!("{} 下載後的 sha256 不符，請再試一次", blueprint.file.name),
+            "blueprint_sha_mismatch",
+            &[("name", &blueprint.file.name)],
         ));
     }
 
@@ -973,7 +979,7 @@ pub async fn blueprint_save_as(id: String, target_path: String) -> CmdResult<Str
 #[tauri::command]
 pub async fn blueprint_preview(id: String, format: String) -> CmdResult<String> {
     if format != "litematic" {
-        return Err(CmdError::launcher("目前只能預覽 .litematic"));
+        return Err(CmdError::launcher_code("preview_litematic_only", &[]));
     }
     let server = server_url()?;
     let url = format!("{}/preview", blueprint_url(&server, &id)?);
@@ -1013,7 +1019,7 @@ pub async fn blueprint_upload(request: UploadRequest) -> CmdResult<Blueprint> {
     let path = PathBuf::from(&request.path);
     let lower = request.path.to_ascii_lowercase();
     if !lower.ends_with(".litematic") && !lower.ends_with(".schem") {
-        return Err(CmdError::launcher("只能上傳 .litematic 或 .schem"));
+        return Err(CmdError::launcher_code("upload_format_only", &[]));
     }
     let bytes = tokio::fs::read(&path).await?;
 
@@ -1102,7 +1108,7 @@ pub async fn blueprint_add_images(id: String, paths: Vec<String>) -> CmdResult<B
     for raw in &paths {
         let path = PathBuf::from(raw);
         let mime = image_mime(&path)
-            .ok_or_else(|| CmdError::launcher(format!("只接受 PNG、JPEG、WebP: {}", raw)))?;
+            .ok_or_else(|| CmdError::launcher_code("image_format_only", &[("value", &raw)]))?;
         let bytes = tokio::fs::read(&path).await?;
         form = form.part("image", file_part(&path, bytes, mime)?);
     }

@@ -189,9 +189,10 @@ async fn remote_source(
         {
             Ok((source, platform))
         }
-        _ => Err(CmdError::new(
+        _ => Err(CmdError::coded(
             "modpackSourceUnknown",
-            "這個實例不是從 Modrinth 或 CurseForge 安裝的模組包，無法線上檢查更新；請改用本機檔案更新",
+            "modpack_source_unknown",
+            &[],
         )),
     }
 }
@@ -273,18 +274,14 @@ pub async fn update_remote_modpack(
         {
             (platform, id.trim().to_string())
         }
-        (Some(_), _) => {
-            return Err(CmdError::launcher(
-                "只能從 Modrinth 或 CurseForge 線上更新模組包",
-            ))
-        }
+        (Some(_), _) => return Err(CmdError::launcher_code("modpack_online_only", &[])),
         _ => {
             let (current, platform) = remote_source(&base_dir, &instance_name).await?;
             (platform, current.project_id)
         }
     };
     ensure_not_linked(Path::new(&base_dir), &instance_name).await?;
-    super::install::progress_emitter(&app, &instance_name)(0, 1, "正在下載模組包");
+    super::install::progress_emitter(&app, &instance_name)(0, 1, "progress.download_modpack");
     let path = download_pack(&base_dir, platform, &pack_id, &version_id).await?;
     let source = ModpackSource {
         platform: Some(platform),
@@ -307,7 +304,10 @@ fn segment(value: &str) -> CmdResult<&str> {
     if ok {
         Ok(value)
     } else {
-        Err(CmdError::launcher(format!("ID 不合法: {:?}", value)))
+        Err(CmdError::launcher_code(
+            "invalid_id",
+            &[("id", &format!("{:?}", value))],
+        ))
     }
 }
 
@@ -315,7 +315,7 @@ fn numeric_id(value: &str) -> CmdResult<u64> {
     value
         .trim()
         .parse()
-        .map_err(|_| CmdError::launcher(format!("ID 不合法: {:?}", value)))
+        .map_err(|_| CmdError::launcher_code("invalid_id", &[("id", &format!("{:?}", value))]))
 }
 
 fn safe_name(value: &str) -> CmdResult<&str> {

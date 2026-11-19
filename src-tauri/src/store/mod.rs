@@ -17,7 +17,7 @@ pub fn store_dir() -> CmdResult<PathBuf> {
     dirs::config_dir()
         .map(|d| d.join(APP_DIR))
         .or_else(|| std::env::current_dir().ok().map(|d| d.join("config")))
-        .ok_or_else(|| CmdError::launcher("無法取得系統設定目錄"))
+        .ok_or_else(|| CmdError::launcher_code("no_config_dir", &[]))
 }
 
 pub fn store_file(name: &str) -> CmdResult<PathBuf> {

@@ -24,7 +24,8 @@ pub fn shared_dir(base_dir: &Path) -> PathBuf {
 #[serde(rename_all = "camelCase")]
 pub struct SyncFailure {
     pub instance: String,
-    pub message: String,
+    #[serde(flatten)]
+    pub error: CmdError,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]
@@ -108,7 +109,7 @@ async fn sync_all(state: &AppState, base: &Path, enabled: bool) -> CmdResult<Sch
             }
             Err(e) => report.failed.push(SyncFailure {
                 instance: name,
-                message: e.message,
+                error: e,
             }),
         }
     }

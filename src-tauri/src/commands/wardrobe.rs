@@ -68,7 +68,7 @@ impl WardrobeStore {
         self.skins
             .iter()
             .find(|s| s.id == id)
-            .ok_or_else(|| CmdError::launcher(format!("衣櫃裡找不到這件皮膚: {}", id)))
+            .ok_or_else(|| CmdError::launcher_code("skin_not_found", &[("id", &id)]))
     }
 }
 
@@ -133,7 +133,7 @@ fn wardrobe_dir() -> CmdResult<PathBuf> {
 
 fn skin_file(id: &str) -> CmdResult<PathBuf> {
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
-        return Err(CmdError::launcher(format!("id 不合法: {}", id)));
+        return Err(CmdError::launcher_code("invalid_id", &[("id", &id)]));
     }
     Ok(wardrobe_dir()?.join(format!("{}.png", id)))
 }
@@ -149,19 +149,19 @@ fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
 
 fn check_skin(bytes: &[u8]) -> CmdResult<bool> {
     if bytes.len() > MAX_BYTES {
-        return Err(CmdError::launcher(format!(
-            "皮膚檔太大（{} KiB），Minecraft 皮膚通常只有幾 KiB",
-            bytes.len() / 1024
-        )));
+        return Err(CmdError::launcher_code(
+            "skin_too_large",
+            &[("size", &(bytes.len() / 1024))],
+        ));
     }
     match png_size(bytes) {
         Some((64, 64)) => Ok(false),
         Some((64, 32)) => Ok(true),
-        Some((w, h)) => Err(CmdError::launcher(format!(
-            "皮膚尺寸必須是 64×64 或 64×32，這張是 {}×{}",
-            w, h
-        ))),
-        None => Err(CmdError::launcher("皮膚必須是 PNG 圖片")),
+        Some((w, h)) => Err(CmdError::launcher_code(
+            "skin_dimensions",
+            &[("width", &w), ("height", &h)],
+        )),
+        None => Err(CmdError::launcher_code("skin_must_be_png", &[])),
     }
 }
 
@@ -203,10 +203,10 @@ async fn insert(
     check_skin(bytes)?;
     let sha256 = sha256_hex(bytes);
     if let Some(existing) = store.skins.iter().find(|s| s.sha256 == sha256) {
-        return Err(CmdError::launcher(format!(
-            "這件皮膚已經在衣櫃裡了（{}）",
-            existing.name
-        )));
+        return Err(CmdError::launcher_code(
+            "skin_duplicate",
+            &[("name", &existing.name)],
+        ));
     }
     let id = uuid::Uuid::new_v4().to_string();
     tokio::fs::create_dir_all(wardrobe_dir()?).await?;
@@ -230,9 +230,7 @@ async fn account_token(account_id: &str) -> CmdResult<(String, String)> {
     let account = resolve(Some(account_id)).await?;
     match (account.access_token, account.uuid) {
         (Some(token), Some(uuid)) => Ok((token, uuid)),
-        _ => Err(CmdError::launcher(
-            "離線帳號不能更換皮膚，請使用 Microsoft 帳號",
-        )),
+        _ => Err(CmdError::launcher_code("offline_no_skin", &[])),
     }
 }
 
@@ -243,18 +241,22 @@ async fn services(request: reqwest::RequestBuilder) -> CmdResult<ProfileResponse
         return Ok(response.json().await?);
     }
     let body = response.text().await.unwrap_or_default();
-    let message = match status.as_u16() {
-        401 => "Minecraft 登入已失效，請到帳號頁按「重新整理」或重新登入".to_string(),
-        429 => "更換太頻繁了，請稍等一下再試".to_string(),
-        code if body.trim().is_empty() => format!("Minecraft 服務回應 HTTP {}", code),
-        code => format!("Minecraft 服務回應 HTTP {}: {}", code, body.trim()),
-    };
     let kind = if status == reqwest::StatusCode::UNAUTHORIZED {
         "authError"
     } else {
         "launcher"
     };
-    Err(CmdError::new(kind, message))
+    let body = body.trim();
+    Err(match status.as_u16() {
+        401 => CmdError::coded(kind, "skin_service_401", &[]),
+        429 => CmdError::coded(kind, "skin_service_429", &[]),
+        code if body.is_empty() => CmdError::coded(kind, "skin_service_http", &[("status", &code)]),
+        code => CmdError::coded(
+            kind,
+            "skin_service_http_body",
+            &[("status", &code), ("body", &body)],
+        ),
+    })
 }
 
 async fn download(url: &str) -> CmdResult<Vec<u8>> {
@@ -367,7 +369,7 @@ pub async fn wardrobe_save_current(
         .skins
         .iter()
         .find(|s| s.state == "ACTIVE")
-        .ok_or_else(|| CmdError::launcher("這個帳號目前沒有皮膚"))?;
+        .ok_or_else(|| CmdError::launcher_code("account_no_skin", &[]))?;
     let bytes = download(&active.url).await?;
     let variant = SkinVariant::from_api(active.variant.as_deref().unwrap_or_default());
 

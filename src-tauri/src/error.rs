@@ -1,13 +1,20 @@
 use hexomc_lib::HexoError;
 use serde::Serialize;
 
+use std::collections::BTreeMap;
+use std::fmt::Display;
+
 /// `kind` 供前端做分支處理
-/// `message` 顯示的訊息。
-#[derive(Debug, Serialize)]
+/// `code` 與 `params` 讓前端用目前的語言組出訊息，`message` 只是沒有對應翻譯時的備援。
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CmdError {
     pub kind: String,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub params: BTreeMap<String, String>,
 }
 
 impl CmdError {
@@ -15,83 +22,115 @@ impl CmdError {
         Self {
             kind: kind.to_string(),
             message: message.into(),
+            code: None,
+            params: BTreeMap::new(),
+        }
+    }
+
+    pub fn coded(kind: &str, code: &str, params: &[(&str, &dyn Display)]) -> Self {
+        Self {
+            kind: kind.to_string(),
+            message: code.to_string(),
+            code: Some(code.to_string()),
+            params: params
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect(),
         }
     }
 
     pub fn launcher(message: impl Into<String>) -> Self {
         Self::new("launcher", message)
     }
+
+    pub fn launcher_code(code: &str, params: &[(&str, &dyn Display)]) -> Self {
+        Self::coded("launcher", code, params)
+    }
+
+    pub fn instance_not_found(name: &str) -> Self {
+        Self::coded("instanceNotFound", "instance_not_found", &[("name", &name)])
+    }
 }
 
 impl From<HexoError> for CmdError {
     fn from(err: HexoError) -> Self {
-        let kind = match &err {
-            HexoError::Network(_) => "network",
-            HexoError::Io(_) => "io",
-            HexoError::Json(_) => "json",
-            HexoError::Zip(_) => "zip",
-            HexoError::ChecksumMismatch { .. } => "checksumMismatch",
-            HexoError::VersionNotFound(_) => "versionNotFound",
-            HexoError::JavaNotFound { .. } => "javaNotFound",
-            HexoError::AuthError(_) => "authError",
-            HexoError::UnsupportedLoader(_) => "unsupportedLoader",
-            HexoError::InstanceNotFound(_) => "instanceNotFound",
-            HexoError::DownloadFailed { .. } => "downloadFailed",
-            HexoError::ProcessorFailed(_) => "processorFailed",
-            HexoError::UnsupportedPlatform(_) => {
-                return Self::new(
-                    "unsupportedPlatform",
-                    "ATLauncher 與 FTB 只提供模組包，沒辦法單獨下載模組或材質",
-                )
+        let detail = err.to_string();
+        match err {
+            HexoError::Network(e) => Self::coded("network", "lib_network", &[("detail", &e)]),
+            HexoError::Io(e) => Self::coded("io", "lib_io", &[("detail", &e)]),
+            HexoError::Json(e) => Self::coded("json", "lib_json", &[("detail", &e)]),
+            HexoError::Zip(e) => Self::coded("zip", "lib_zip", &[("detail", &e)]),
+            HexoError::ChecksumMismatch { path } => Self::coded(
+                "checksumMismatch",
+                "lib_checksum_mismatch",
+                &[("path", &path)],
+            ),
+            HexoError::VersionNotFound(v) => Self::coded(
+                "versionNotFound",
+                "lib_version_not_found",
+                &[("version", &v)],
+            ),
+            HexoError::JavaNotFound { required } => {
+                Self::coded("javaNotFound", "java_not_found", &[("version", &required)])
             }
-            HexoError::InvalidId(id) => return Self::launcher(format!("ID 不合法: {:?}", id)),
+            HexoError::AuthError(_) => Self::coded("authError", "lib_auth", &[("detail", &detail)]),
+            HexoError::UnsupportedLoader(name) => Self::coded(
+                "unsupportedLoader",
+                "lib_unsupported_loader",
+                &[("name", &name)],
+            ),
+            HexoError::InstanceNotFound(name) => Self::instance_not_found(&name),
+            HexoError::DownloadFailed { url, .. } => {
+                Self::coded("downloadFailed", "lib_download_failed", &[("url", &url)])
+            }
+            HexoError::ProcessorFailed(_) => Self::coded(
+                "processorFailed",
+                "lib_processor_failed",
+                &[("detail", &detail)],
+            ),
+            HexoError::UnsupportedPlatform(_) => {
+                Self::coded("unsupportedPlatform", "unsupported_platform", &[])
+            }
+            HexoError::InvalidId(id) => {
+                Self::launcher_code("invalid_id", &[("id", &format!("{:?}", id))])
+            }
             HexoError::InvalidMirrorUrl(url) => {
-                return Self::launcher(format!("鏡像網址無效: {}", url))
+                Self::launcher_code("invalid_mirror_url", &[("url", &url)])
             }
             HexoError::MissingApiKey => {
-                return Self::new(
-                    "curseforgeKeyMissing",
-                    "使用 CurseForge 需要 API 金鑰，請先到「設定」填入",
-                )
+                Self::coded("curseforgeKeyMissing", "curseforge_key_missing", &[])
             }
-            HexoError::DownloadBlocked { website, .. } => {
-                let mut message =
-                    "作者不允許第三方下載這個檔案，請到 CurseForge 網站下載後再自行安裝"
-                        .to_string();
-                if let Some(url) = website {
-                    message.push_str(&format!("：{}", url));
-                }
-                return Self::new("downloadBlocked", message);
+            HexoError::DownloadBlocked { website, .. } => Self::coded(
+                "downloadBlocked",
+                "download_blocked",
+                &[("url", &website.unwrap_or_default())],
+            ),
+            HexoError::Dependency(_) => {
+                Self::coded("modInstall", "lib_dependency", &[("detail", &detail)])
             }
-            HexoError::Dependency(_) => "modInstall",
             HexoError::Other(message) => {
-                if let Some(error) = modpack_path_error(message) {
+                if let Some(error) = modpack_path_error(&message) {
                     return error;
                 }
-                "other"
+                Self::coded("other", "lib_other", &[("detail", &message)])
             }
-        };
-        Self::new(kind, err.to_string())
+        }
     }
 }
 
 fn modpack_path_error(message: &str) -> Option<CmdError> {
     if let Some(path) = message.strip_prefix("linked path in modpack destination: ") {
-        return Some(CmdError::new(
+        return Some(CmdError::coded(
             "instanceLinked",
-            format!(
-                "無法寫入模組包檔案：{} 是連結到其他位置的資料夾（捷徑或符號連結）。為了避免改到其他啟動器或其他資料夾的內容，已停止這次操作。請移除這個連結，或把實例改成獨立的副本後再試一次。",
-                path
-            ),
+            "modpack_dest_linked",
+            &[("path", &path)],
         ));
     }
     if let Some(path) = message.strip_prefix("unsafe path in modpack: ") {
-        return Some(CmdError::new(
+        return Some(CmdError::coded(
             "unsafeModpack",
-            format!(
-                "這個模組包含有不安全的檔案路徑（{}），可能會寫到實例以外的地方，已停止安裝。請確認模組包來源是否可信。",
-                path
-            ),
+            "modpack_unsafe_path",
+            &[("path", &path)],
         ));
     }
     None
@@ -108,33 +147,33 @@ mod tests {
             HexoError::Other("linked path in modpack destination: C:\\inst\\.minecraft".into())
                 .into();
         assert_eq!(err.kind, "instanceLinked");
-        assert!(err.message.contains("C:\\inst\\.minecraft"));
-        assert!(!err.message.contains("linked path"));
+        assert_eq!(err.code.as_deref(), Some("modpack_dest_linked"));
+        assert_eq!(err.params["path"], "C:\\inst\\.minecraft");
     }
 
     #[test]
     fn other_errors_are_unchanged() {
         let err: CmdError = HexoError::Other("something else".into()).into();
         assert_eq!(err.kind, "other");
-        assert!(err.message.contains("something else"));
+        assert_eq!(err.params["detail"], "something else");
     }
 }
 
 impl From<std::io::Error> for CmdError {
     fn from(err: std::io::Error) -> Self {
-        Self::new("io", err.to_string())
+        Self::coded("io", "lib_io", &[("detail", &err)])
     }
 }
 
 impl From<serde_json::Error> for CmdError {
     fn from(err: serde_json::Error) -> Self {
-        Self::new("json", err.to_string())
+        Self::coded("json", "lib_json", &[("detail", &err)])
     }
 }
 
 impl From<reqwest::Error> for CmdError {
     fn from(err: reqwest::Error) -> Self {
-        Self::new("network", err.to_string())
+        Self::coded("network", "lib_network", &[("detail", &err)])
     }
 }
 

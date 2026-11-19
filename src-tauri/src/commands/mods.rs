@@ -176,7 +176,7 @@ pub async fn mod_details(
     let path = mods_dir(&base_dir, &instance_name, &file_name)?.join(&file_name);
 
     tokio::task::spawn_blocking(move || {
-        let not_found = || CmdError::launcher(format!("找不到模組: {}", file_name));
+        let not_found = || CmdError::launcher_code("mod_not_found", &[("name", &file_name)]);
         let file_meta = std::fs::metadata(&path).map_err(|_| not_found())?;
         let info = read_mod_info(&path).ok_or_else(not_found)?;
 
@@ -224,7 +224,10 @@ pub async fn set_mod_enabled(
     let mods_dir = mods_dir(&base_dir, &instance_name, &file_name)?;
     let from = mods_dir.join(&file_name);
     if !from.exists() {
-        return Err(CmdError::launcher(format!("找不到模組: {}", file_name)));
+        return Err(CmdError::launcher_code(
+            "mod_not_found",
+            &[("name", &file_name)],
+        ));
     }
 
     let target = if enabled {
@@ -261,10 +264,7 @@ pub async fn check_mod_updates(
 
     let loader = LoaderKind::from(&config.loader_type).mod_loader();
     if loader == ModLoader::Unknown {
-        return Err(CmdError::new(
-            "unsupportedLoader",
-            "原版 instance 沒有模組可以更新",
-        ));
+        return Err(CmdError::coded("unsupportedLoader", "vanilla_no_mods", &[]));
     }
 
     let mods_dir = minecraft_dir(base, &instance_name)?.join("mods");
@@ -307,7 +307,7 @@ pub async fn apply_mod_update(
 ) -> CmdResult<()> {
     let update = state
         .get_mod_update(&update_id)?
-        .ok_or_else(|| CmdError::launcher("更新項目不存在，請重新執行 check_mod_updates"))?;
+        .ok_or_else(|| CmdError::launcher_code("update_item_missing", &[]))?;
 
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
     update_mod(&update, &mods_dir).await?;
@@ -323,7 +323,10 @@ pub async fn delete_mod(
 ) -> CmdResult<()> {
     let path = mods_dir(&base_dir, &instance_name, &file_name)?.join(&file_name);
     if !path.exists() {
-        return Err(CmdError::launcher(format!("找不到模組: {}", file_name)));
+        return Err(CmdError::launcher_code(
+            "mod_not_found",
+            &[("name", &file_name)],
+        ));
     }
     tokio::fs::remove_file(&path).await?;
     Ok(())

@@ -15,10 +15,7 @@ const MS_CLIENT_ID: Option<&str> = option_env!("NOLAUNCHER_MS_CLIENT_ID");
 pub fn ms_auth() -> CmdResult<MicrosoftAuth> {
     let client_id = MS_CLIENT_ID.unwrap_or_default().trim();
     if client_id.is_empty() {
-        return Err(CmdError::new(
-            "authError",
-            "這個組建沒有內建 Microsoft 應用程式 ID，無法使用 Microsoft 登入",
-        ));
+        return Err(CmdError::coded("authError", "no_ms_client_id", &[]));
     }
     Ok(MicrosoftAuth::new(client_id)?)
 }
@@ -126,7 +123,7 @@ pub async fn resolve(account_id: Option<&str>) -> CmdResult<ResolvedAccount> {
 
     let account = store
         .take_selected(account_id)
-        .ok_or_else(|| CmdError::new("noAccount", "沒有可用的帳號，請先在設定裡新增一個"))?
+        .ok_or_else(|| CmdError::coded("noAccount", "no_account", &[]))?
         .clone();
 
     if account.kind == AccountKind::Offline {
@@ -140,9 +137,10 @@ pub async fn resolve(account_id: Option<&str>) -> CmdResult<ResolvedAccount> {
 
     let account = if account.expired() {
         if account.refresh_token.is_empty() {
-            return Err(CmdError::new(
+            return Err(CmdError::coded(
                 "authError",
-                format!("{} 的登入已過期，請重新登入", account.player_name),
+                "login_expired",
+                &[("name", &account.player_name)],
             ));
         }
         let refreshed = ms_auth()?.refresh_token(&account.refresh_token).await?;
@@ -193,12 +191,10 @@ pub async fn list_accounts() -> CmdResult<Vec<AccountView>> {
 pub async fn add_offline_account(player_name: String) -> CmdResult<Vec<AccountView>> {
     let name = player_name.trim().to_string();
     if name.is_empty() {
-        return Err(CmdError::launcher("玩家名稱不可為空"));
+        return Err(CmdError::launcher_code("player_name_empty", &[]));
     }
     if !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') || name.len() > 16 {
-        return Err(CmdError::launcher(
-            "離線帳號名稱只能用英數字與底線，且不超過 16 個字元",
-        ));
+        return Err(CmdError::launcher_code("offline_name_rules", &[]));
     }
 
     store_account(StoredAccount {
@@ -229,7 +225,10 @@ pub async fn remove_account(account_id: String) -> CmdResult<Vec<AccountView>> {
 pub async fn select_account(account_id: String) -> CmdResult<Vec<AccountView>> {
     let mut store = AccountStore::load().await?;
     if !store.accounts.iter().any(|a| a.id == account_id) {
-        return Err(CmdError::launcher(format!("找不到帳號: {}", account_id)));
+        return Err(CmdError::launcher_code(
+            "account_not_found",
+            &[("id", &account_id)],
+        ));
     }
     store.selected = Some(account_id);
     store.save().await?;
@@ -243,16 +242,13 @@ pub async fn refresh_account(account_id: String) -> CmdResult<Vec<AccountView>> 
         .accounts
         .iter()
         .find(|a| a.id == account_id)
-        .ok_or_else(|| CmdError::launcher(format!("找不到帳號: {}", account_id)))?;
+        .ok_or_else(|| CmdError::launcher_code("account_not_found", &[("id", &account_id)]))?;
 
     if account.kind == AccountKind::Offline {
-        return Err(CmdError::launcher("離線帳號不需要更新權杖"));
+        return Err(CmdError::launcher_code("offline_no_refresh", &[]));
     }
     if account.refresh_token.is_empty() {
-        return Err(CmdError::new(
-            "authError",
-            "這個帳號沒有可用的更新權杖，請重新登入",
-        ));
+        return Err(CmdError::coded("authError", "no_refresh_token", &[]));
     }
 
     let refreshed = ms_auth()?.refresh_token(&account.refresh_token).await?;

@@ -65,7 +65,7 @@ async fn fetch_skin(uuid: &str) -> CmdResult<Option<Vec<u8>>> {
 
     let decoded = base64::engine::general_purpose::STANDARD
         .decode(encoded.trim())
-        .map_err(|e| CmdError::launcher(format!("皮膚資料格式錯誤: {}", e)))?;
+        .map_err(|e| CmdError::launcher_code("skin_data_invalid", &[("detail", &e)]))?;
     let textures: Textures = serde_json::from_slice(&decoded)?;
     let Some(skin) = textures.textures.skin else {
         return Ok(None);

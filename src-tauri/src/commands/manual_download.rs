@@ -54,7 +54,7 @@ pub async fn watch_manual_downloads(
     items: Vec<WatchItem>,
 ) -> CmdResult<WatchStarted> {
     let downloads =
-        dirs::download_dir().ok_or_else(|| CmdError::launcher("找不到系統的「下載」資料夾"))?;
+        dirs::download_dir().ok_or_else(|| CmdError::launcher_code("no_downloads_dir", &[]))?;
     let mc_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?;
 
     let mut pending = Vec::new();
@@ -117,7 +117,10 @@ fn relative_dest(dest: &str) -> CmdResult<PathBuf> {
     if safe {
         Ok(path.to_path_buf())
     } else {
-        Err(CmdError::launcher(format!("目的地路徑不合法: {}", dest)))
+        Err(CmdError::launcher_code(
+            "invalid_destination",
+            &[("dest", &dest)],
+        ))
     }
 }
 

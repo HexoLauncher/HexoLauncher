@@ -2,17 +2,25 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type { RichTextFormat } from '$lib/richtext';
 import type { ThemeConfig } from '$lib/theme';
+import { m } from '$lib/paraglide/messages.js';
 
 export type LoaderKind = 'vanilla' | 'fabric' | 'forge' | 'neoforge';
 
 export interface NolauncherCmdError {
 	kind: string;
 	message: string;
+	code?: string;
+	params?: Record<string, string>;
 }
 
 export function errorMessage(error: unknown): string {
-	if (error && typeof error === 'object' && 'message' in error) {
-		return String((error as NolauncherCmdError).message);
+	if (error && typeof error === 'object') {
+		const { code, params, message } = error as Partial<NolauncherCmdError>;
+		if (code) {
+			const translate = (m as unknown as Record<string, unknown>)[`err_${code}`];
+			if (typeof translate === 'function') return String(translate(params ?? {}));
+		}
+		if (message !== undefined) return String(message);
 	}
 	return String(error);
 }
@@ -385,10 +393,9 @@ export interface ForeignImportRequest {
 	group?: string | null;
 }
 
-export interface ForeignImportFailure {
+export interface ForeignImportFailure extends NolauncherCmdError {
 	path: string;
 	name: string;
-	message: string;
 }
 
 export interface ForeignImportResult {
@@ -795,7 +802,6 @@ export const stopInstance = (instanceName: string) =>
 
 export const runningInstances = () => invoke<RunningGame[]>('running_instances');
 
-export const setUiLocale = (locale: string) => invoke<void>('set_ui_locale', { locale });
 
 export const gameLog = (instanceName: string) =>
 	invoke<GameLogLine[]>('game_log', { instanceName });
@@ -1278,7 +1284,7 @@ export interface SchematicSyncReport {
 	sharedDir: string;
 	changed: string[];
 	pending: string[];
-	failed: { instance: string; message: string }[];
+	failed: (NolauncherCmdError & { instance: string })[];
 	renamed: number;
 }
 
@@ -1347,7 +1353,15 @@ export interface GameOutput {
 export const onInstallProgress = (
 	handler: (progress: InstallProgress) => void
 ): Promise<UnlistenFn> =>
-	listen<InstallProgress>('nolauncher://install-progress', (event) => handler(event.payload));
+	listen<InstallProgress>('nolauncher://install-progress', (event) =>
+		handler({ ...event.payload, message: progressMessage(event.payload.message) })
+	);
+
+function progressMessage(message: string): string {
+	if (!message.startsWith('progress.')) return message;
+	const translate = (m as unknown as Record<string, unknown>)[`progress_${message.slice(9)}`];
+	return typeof translate === 'function' ? String(translate({})) : message;
+}
 
 export const onGameStart = (handler: (info: RunningGame) => void): Promise<UnlistenFn> =>
 	listen<RunningGame>('nolauncher://game-start', (event) => handler(event.payload));

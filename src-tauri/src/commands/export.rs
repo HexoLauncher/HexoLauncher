@@ -45,13 +45,10 @@ pub async fn export_instance(request: ExportRequest) -> CmdResult<ExportResult> 
 
     let source = instance_dir(Path::new(&base_dir), &instance_name)?;
     if !source.exists() {
-        return Err(CmdError::new(
-            "instanceNotFound",
-            format!("找不到 instance: {}", instance_name),
-        ));
+        return Err(CmdError::instance_not_found(&instance_name));
     }
     if !target_path.to_ascii_lowercase().ends_with(".zip") {
-        return Err(CmdError::launcher("匯出的檔名要以 .zip 結尾"));
+        return Err(CmdError::launcher_code("export_zip_ext", &[]));
     }
 
     let target = PathBuf::from(&target_path);
@@ -59,7 +56,7 @@ pub async fn export_instance(request: ExportRequest) -> CmdResult<ExportResult> 
         write_archive(&source, &target, include_saves, include_screenshots)
     })
     .await
-    .map_err(|e| CmdError::launcher(format!("匯出中斷: {}", e)))?
+    .map_err(|e| CmdError::launcher_code("export_interrupted", &[("detail", &e)]))?
 }
 
 fn write_archive(
@@ -111,7 +108,9 @@ fn write_archive(
             buffer.clear();
             File::open(&path)
                 .and_then(|mut file| file.read_to_end(&mut buffer))
-                .map_err(|e| CmdError::launcher(format!("無法讀取 {}: {}", name, e)))?;
+                .map_err(|e| {
+                    CmdError::launcher_code("read_failed", &[("name", &name), ("detail", &e)])
+                })?;
             zip.start_file(&name, options).map_err(zip_error)?;
             zip.write_all(&buffer)?;
             file_count += 1;
@@ -181,7 +180,7 @@ pub async fn import_instance(
         let archive = archive.clone();
         tokio::task::spawn_blocking(move || extract(&archive, &target))
             .await
-            .map_err(|e| CmdError::launcher(format!("匯入中斷: {}", e)))??;
+            .map_err(|e| CmdError::launcher_code("import_interrupted", &[("detail", &e)]))??;
     }
 
     let mut meta = InstanceMeta::load(&target, &id).await?;

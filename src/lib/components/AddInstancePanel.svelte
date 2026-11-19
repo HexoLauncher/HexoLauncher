@@ -445,7 +445,7 @@
 						{#each done.failed as item (item.path)}
 							<li class="border-b border-line px-3 py-2 last:border-b-0">
 								<div class="truncate text-ink">{item.name}</div>
-								<div class="text-faint">{item.message}</div>
+								<div class="text-faint">{api.errorMessage(item)}</div>
 							</li>
 						{/each}
 					</ul>

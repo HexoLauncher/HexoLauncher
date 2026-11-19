@@ -1,6 +1,6 @@
 pub mod assets;
-pub mod backup;
 pub mod auth;
+pub mod backup;
 pub mod blueprint;
 pub mod content;
 pub mod crash;
@@ -20,8 +20,8 @@ pub mod process;
 pub mod schematic;
 pub mod schematic_sync;
 pub mod skin;
-pub mod tools;
 pub mod theme;
+pub mod tools;
 pub mod version;
 pub mod wardrobe;
 
@@ -110,10 +110,10 @@ pub fn validate_instance_name(name: &str) -> CmdResult<()> {
         || Path::new(name).is_absolute();
 
     if bad {
-        return Err(CmdError::launcher(format!(
-            "instance 名稱不合法: {:?}（不可為空、不可含路徑分隔符）",
-            name
-        )));
+        return Err(CmdError::launcher_code(
+            "invalid_instance_name",
+            &[("name", &format!("{:?}", name))],
+        ));
     }
     Ok(())
 }
@@ -125,7 +125,10 @@ pub fn validate_file_name(name: &str) -> CmdResult<()> {
         (Some(Component::Normal(_)), None)
     );
     if !single || name.contains(['/', '\\', ':']) {
-        return Err(CmdError::launcher(format!("檔名不合法: {}", name)));
+        return Err(CmdError::launcher_code(
+            "invalid_file_name",
+            &[("name", &name)],
+        ));
     }
     Ok(())
 }

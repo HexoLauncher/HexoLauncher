@@ -91,12 +91,13 @@ pub fn open_crash_file(
 ) -> CmdResult<()> {
     let crash = state
         .crash(&instance_name)?
-        .ok_or_else(|| CmdError::launcher("沒有這個實例的崩潰紀錄"))?;
+        .ok_or_else(|| CmdError::launcher_code("no_crash_report", &[]))?;
     let path = match kind.as_str() {
         "crashReport" => crash.crash_report,
         "jvmReport" => crash.jvm_report,
-        other => return Err(CmdError::launcher(format!("未知的檔案: {}", other))),
+        other => return Err(CmdError::launcher_code("unknown_file", &[("name", &other)])),
     }
-    .ok_or_else(|| CmdError::launcher("這次崩潰沒有產生這個檔案"))?;
-    open::that(PathBuf::from(path)).map_err(|e| CmdError::launcher(format!("無法開啟檔案: {}", e)))
+    .ok_or_else(|| CmdError::launcher_code("crash_file_missing", &[]))?;
+    open::that(PathBuf::from(path))
+        .map_err(|e| CmdError::launcher_code("open_file_failed", &[("detail", &e)]))
 }
