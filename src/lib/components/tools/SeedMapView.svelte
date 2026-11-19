@@ -7,7 +7,7 @@
 	import {
 		MapCache,
 		WorkerPool,
-		biomeName,
+		biomeLabel,
 		mainSeedMap,
 		type Dimension,
 		type StrongholdPos
@@ -53,7 +53,24 @@
 	const cache = new MapCache(MAX_TILES);
 	const { loading, structures } = cache;
 	let strongholds: { key: string; list: StrongholdPos[] } | null = null;
-	let markers: { sx: number; sy: number; text: string }[] = [];
+	interface Selection {
+		title: string;
+		subtitle: string;
+		icon: string;
+		x: number;
+		z: number;
+		biome: string;
+	}
+	interface Marker {
+		sx: number;
+		sy: number;
+		text: string;
+		pick?: Omit<Selection, 'biome'>;
+	}
+	let markers: Marker[] = [];
+	let selected = $state<Selection | null>(null);
+	let panelPos = $state<{ sx: number; sy: number; w: number; h: number } | null>(null);
+	let copied = $state('');
 	let colors: ThemeColors = { bg: '#1d1518', ink: '#e8e8e8', line: '#342d30', brand: '#e5343f' };
 	let terrain: RegionStore | null = null;
 
@@ -212,6 +229,7 @@
 		drawChunkGrid(ctx, f);
 		drawStructures(ctx, f, wanted);
 		drawFocus(ctx, f);
+		drawSelection(ctx, f);
 
 		pool.prune((key) => wanted.has(key) || key.startsWith('sh|'));
 	}
@@ -314,7 +332,18 @@
 					}
 					for (const s of list) {
 						drawIconMarker(ctx, f, f.toX(s.x), f.toY(s.z), info.color, structureSprite(set, info.color, () => canvas?.redraw()));
-						markers.push({ sx: f.toX(s.x), sy: f.toY(s.z), text: `${info.label()} · ${s.structure ?? ''} · ${s.x}, ${s.z}` });
+						markers.push({
+							sx: f.toX(s.x),
+							sy: f.toY(s.z),
+							text: `${info.label()} · ${s.structure ?? ''} · ${s.x}, ${s.z}`,
+							pick: {
+								title: info.label(),
+								subtitle: prettyStructure(s.structure),
+								icon: structureSpriteUrl(set, info.color),
+								x: s.x,
+								z: s.z
+							}
+						});
 					}
 				}
 			}
@@ -323,7 +352,18 @@
 			requestStrongholds();
 			for (const s of strongholds?.list ?? []) {
 				drawIconMarker(ctx, f, f.toX(s.x), f.toY(s.z), '#7fffd4', structureSprite('strongholds', '#7fffd4', () => canvas?.redraw()));
-				markers.push({ sx: f.toX(s.x), sy: f.toY(s.z), text: `${m.tools_strongholds()} · ${s.x}, ${s.z}` });
+				markers.push({
+					sx: f.toX(s.x),
+					sy: f.toY(s.z),
+					text: `${m.tools_strongholds()} · ${s.x}, ${s.z}`,
+					pick: {
+						title: m.tools_strongholds(),
+						subtitle: '',
+						icon: structureSpriteUrl('strongholds', '#7fffd4'),
+						x: s.x,
+						z: s.z
+					}
+				});
 			}
 		}
 		if (tools.mode === 'world' && tools.world) {
@@ -334,6 +374,67 @@
 			}
 		}
 		hiddenSets = hidden;
+	}
+
+	function drawSelection(ctx: CanvasRenderingContext2D, f: Frame) {
+		if (!selected) {
+			panelPos = null;
+			return;
+		}
+		const sx = f.toX(selected.x);
+		const sy = f.toY(selected.z);
+		ctx.strokeStyle = colors.brand;
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(sx, sy, 17, 0, Math.PI * 2);
+		ctx.stroke();
+		const p = panelPos;
+		if (!p || p.sx !== sx || p.sy !== sy || p.w !== f.width || p.h !== f.height) {
+			panelPos = { sx, sy, w: f.width, h: f.height };
+		}
+	}
+
+	function biomeAt(x: number, z: number) {
+		if (!main) return '';
+		try {
+			return biomeLabel(main.biomeIds(tools.dimension, x, z, 1, 1, 1)[0]);
+		} catch {
+			return '';
+		}
+	}
+
+	function pick(x: number, z: number, sx: number, sy: number) {
+		copied = '';
+		let best: Marker | null = null;
+		let bestDist = 15 ** 2;
+		for (const mk of markers) {
+			if (!mk.pick) continue;
+			const d = (mk.sx - sx) ** 2 + (mk.sy - sy) ** 2;
+			if (d < bestDist) {
+				bestDist = d;
+				best = mk;
+			}
+		}
+		selected = best?.pick ? { ...best.pick, biome: biomeAt(best.pick.x, best.pick.z) } : null;
+		canvas?.redraw();
+	}
+
+	function closePanel() {
+		selected = null;
+		canvas?.redraw();
+	}
+
+	async function copyText(text: string, label: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copied = label;
+		} catch {
+			copied = '';
+		}
+	}
+
+	function prettyStructure(id: string | null) {
+		return (id ?? '').replace('minecraft:', '').replaceAll('_', ' ');
 	}
 
 	function drawFocus(ctx: CanvasRenderingContext2D, f: Frame) {
@@ -373,14 +474,7 @@
 
 	function describe(x: number, z: number, sx: number, sy: number) {
 		if (!tools.seed) return [];
-		let biome = '';
-		if (main) {
-			try {
-				biome = biomeName(main.biomeIds(tools.dimension, x, z, 1, 1, 1)[0]).replace('minecraft:', '');
-			} catch {
-				biome = '';
-			}
-		}
+		const biome = biomeAt(x, z);
 		let best = '';
 		let bestDist = 100;
 		for (const mk of markers) {
@@ -408,6 +502,20 @@
 		tools.sets = on ? [...tools.sets, name] : tools.sets.filter((s) => s !== name);
 	}
 
+	$effect(() => {
+		void [seedKey, tools.dimension];
+		selected = null;
+	});
+
+	const otherDimension = $derived.by(() => {
+		if (!selected) return null;
+		if (tools.dimension === 'overworld')
+			return { label: m.tools_info_in_nether(), x: Math.floor(selected.x / 8), z: Math.floor(selected.z / 8) };
+		if (tools.dimension === 'the_nether')
+			return { label: m.tools_info_in_overworld(), x: selected.x * 8, z: selected.z * 8 };
+		return null;
+	});
+
 	onMount(() => {
 		colors = themeColors();
 		canvas?.redraw();
@@ -419,6 +527,8 @@
 		terrain?.dispose();
 	});
 </script>
+
+<svelte:window onkeydown={(e) => e.key === 'Escape' && selected && closePanel()} />
 
 <div class="flex min-h-0 flex-1 flex-col gap-2">
 	{#if !compact}
@@ -460,8 +570,58 @@
 	{/if}
 
 	<div class="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border border-line">
-		<MapCanvas bind:this={canvas} view={tools.seedView} {draw} {describe}>
+		<MapCanvas bind:this={canvas} view={tools.seedView} {draw} {describe} onblockclick={pick}>
 			{#snippet overlay()}
+				{#if selected && panelPos}
+					{@const flipX = panelPos.sx > panelPos.w - 300}
+					{@const flipY = panelPos.sy > panelPos.h - 280}
+					<div
+						class="absolute z-10 w-64 rounded-lg border border-line bg-raised p-3 text-[12.5px] shadow-md"
+						style:left="{panelPos.sx + (flipX ? -24 : 24)}px"
+						style:top="{panelPos.sy + (flipY ? 12 : -12)}px"
+						style:transform="translate({flipX ? '-100%' : '0'}, {flipY ? '-100%' : '0'})"
+						role="dialog"
+						aria-label={selected.title}
+					>
+						<div class="mb-2 flex items-start gap-2">
+							{#if selected.icon}
+								<img src={selected.icon} alt="" class="size-7 shrink-0" />
+							{/if}
+							<div class="min-w-0 flex-1">
+								<div class="truncate font-semibold">{selected.title}</div>
+								{#if selected.subtitle}
+									<div class="truncate text-faint">{selected.subtitle}</div>
+								{/if}
+							</div>
+							<button class="text-faint hover:text-ink" onclick={closePanel} aria-label={m.common_close()}>
+								<Icon name="close" size={14} />
+							</button>
+						</div>
+						<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 tabular-nums">
+							<dt class="text-faint">{m.tools_info_coords()}</dt>
+							<dd>X {selected.x} · Z {selected.z}</dd>
+							{#if otherDimension}
+								<dt class="text-faint">{otherDimension.label}</dt>
+								<dd>X {otherDimension.x} · Z {otherDimension.z}</dd>
+							{/if}
+							{#if selected.biome}
+								<dt class="text-faint">{m.tools_info_biome()}</dt>
+								<dd class="truncate">{selected.biome}</dd>
+							{/if}
+						</dl>
+						<div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+							<Button icon="copy" onclick={() => copyText(`${selected!.x} ${selected!.z}`, 'coords')}>
+								{m.tools_info_copy_coords()}
+							</Button>
+							<Button icon="copy" onclick={() => copyText(`/tp @s ${selected!.x} ~ ${selected!.z}`, 'tp')}>
+								{m.tools_info_copy_tp()}
+							</Button>
+							{#if copied}
+								<span class="text-brand">{m.tools_info_copied()}</span>
+							{/if}
+						</div>
+					</div>
+				{/if}
 				{#if !tools.seed}
 					<div class="pointer-events-none absolute inset-0 grid place-items-center text-muted">{m.tools_no_seed()}</div>
 				{/if}

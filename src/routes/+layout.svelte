@@ -7,6 +7,12 @@
 
 	let { children } = $props();
 
+	function suppressNativeMenu(event: MouseEvent) {
+		const target = event.target as HTMLElement | null;
+		if (target?.closest('input, textarea, [contenteditable="true"], [data-native-menu]')) return;
+		event.preventDefault();
+	}
+
 	onMount(() => {
 		applyDocumentLocale();
 		loadTheme();
@@ -20,6 +26,8 @@
 		return () => unlisten?.();
 	});
 </script>
+
+<svelte:window oncontextmenu={suppressNativeMenu} />
 
 <div class="app-backdrop" aria-hidden="true">
 	<div class="image"></div>

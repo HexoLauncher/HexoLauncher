@@ -1,5 +1,6 @@
 import init, { SeedMap, biomeNames } from './pkg/mcmap_wasm.js';
 import wasmUrl from './pkg/mcmap_wasm_bg.wasm?url';
+import { m } from '$lib/paraglide/messages.js';
 
 export type Dimension = 'overworld' | 'the_nether' | 'the_end';
 
@@ -67,6 +68,13 @@ export async function mainSeedMap(seed: string, version: string): Promise<SeedMa
 export function biomeName(index: number): string {
 	names ??= biomeNames();
 	return names[index] ?? '?';
+}
+
+/** 生物群系的顯示名稱；沒有翻譯的（例如新版本才有的）退回 id 本身。 */
+export function biomeLabel(index: number): string {
+	const id = biomeName(index).replace('minecraft:', '');
+	const translate = (m as unknown as Record<string, unknown>)[`biome_${id}`];
+	return typeof translate === 'function' ? String(translate({})) : id.replaceAll('_', ' ');
 }
 
 interface Pending {

@@ -233,6 +233,10 @@
 	onOpenFolder={(id) => openFolder(id)}
 	onMoveGroup={moveToGroup}
 	onNewGroup={(id) => (groupDialog = { id, value: '', creating: true })}
+	onNewInstance={() => openAppWindow(windowSpecs.newInstance())}
+	onRefresh={() => refreshInstances()}
+	onOpenInstancesFolder={() =>
+		api.openLauncherFolder('instances').catch((e) => reportError(m.error_open_folder(), e))}
 	onDelete={(id) => {
 		app.selectedId = id;
 		confirmingDelete = true;

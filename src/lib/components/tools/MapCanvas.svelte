@@ -45,7 +45,7 @@
 		describe?: (x: number, z: number, sx: number, sy: number) => string[];
 		mode?: 'pan' | 'select';
 		onselectrect?: (rect: ChunkRect, additive: boolean) => void;
-		onblockclick?: (x: number, z: number) => void;
+		onblockclick?: (x: number, z: number, sx: number, sy: number) => void;
 		overlay?: Snippet;
 	} = $props();
 
@@ -185,7 +185,7 @@
 			if (!drag.moved) {
 				const p = local(event);
 				const w = blockAt(p.x, p.y);
-				onblockclick?.(Math.floor(w.x), Math.floor(w.z));
+				onblockclick?.(Math.floor(w.x), Math.floor(w.z), p.x, p.y);
 			}
 			drag = null;
 		}

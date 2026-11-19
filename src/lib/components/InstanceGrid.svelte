@@ -23,7 +23,10 @@
 		onRepair,
 		onOpenFolder,
 		onMoveGroup,
-		onNewGroup
+		onNewGroup,
+		onNewInstance,
+		onRefresh,
+		onOpenInstancesFolder
 	}: {
 		instances: InstanceView[];
 		groupOrder: string[];
@@ -43,10 +46,14 @@
 		onOpenFolder: (id: string) => void;
 		onMoveGroup: (id: string, group: string) => void;
 		onNewGroup: (id: string) => void;
+		onNewInstance: () => void;
+		onRefresh: () => void;
+		onOpenInstancesFolder: () => void;
 	} = $props();
 
 	let collapsed = $state<Record<string, boolean>>({});
 	let context = $state<{ x: number; y: number; id: string } | null>(null);
+	let blankContext = $state<{ x: number; y: number } | null>(null);
 
 	const matches = $derived(
 		instances.filter((i) => {
@@ -162,6 +169,7 @@
 
 	function openContext(event: MouseEvent, id: string) {
 		event.preventDefault();
+		event.stopPropagation();
 		onSelect(id);
 		context = { x: event.clientX, y: event.clientY, id };
 	}
@@ -211,6 +219,10 @@
 		bind:this={scroller}
 		class="min-h-0 flex-1 overflow-y-auto px-3.5 pt-0.5 {dragged ? 'pb-20' : 'pb-6'}"
 		onclick={(e) => e.target === e.currentTarget && onSelect('')}
+		oncontextmenu={(e) => {
+			e.preventDefault();
+			blankContext = { x: e.clientX, y: e.clientY };
+		}}
 		onclickcapture={(e) => {
 			if (!swallowClick) return;
 			swallowClick = false;
@@ -352,6 +364,15 @@
 		<InstanceIcon name={dragged.icon} image={dragged.iconImage} size={22} />
 		<span class="max-w-40 truncate font-medium">{dragged.name}</span>
 	</div>
+{/if}
+
+{#if blankContext}
+	<ContextMenu x={blankContext.x} y={blankContext.y} width="184px" onclose={() => (blankContext = null)}>
+		<MenuItem icon="plus" onclick={onNewInstance}>{m.menu_new_instance()}</MenuItem>
+		<MenuSeparator />
+		<MenuItem icon="refresh" onclick={onRefresh}>{m.common_refresh()}</MenuItem>
+		<MenuItem icon="folder" onclick={onOpenInstancesFolder}>{m.folder_instances()}</MenuItem>
+	</ContextMenu>
 {/if}
 
 {#if context}
