@@ -7,7 +7,8 @@
 	import { untrack } from 'svelte';
 	import { m } from '$lib/paraglide/messages.js';
 
-	type OnlinePlatform = 'modrinth' | 'curseforge';
+	const platforms = ['modrinth', 'curseforge', 'atlauncher', 'ftb'] as const;
+	type OnlinePlatform = (typeof platforms)[number];
 
 	let {
 		baseDir,
@@ -24,9 +25,7 @@
 	} = $props();
 
 	const source = $derived(instance.modpack);
-	const known = $derived(
-		!!source?.projectId && (source.platform === 'modrinth' || source.platform === 'curseforge')
-	);
+	const known = $derived(!!source?.projectId && !!source.platform);
 
 	let linking = $state(false);
 	const mode = $derived(instance.linkedTo ? 'blocked' : known && !linking ? 'known' : 'link');
@@ -34,11 +33,12 @@
 	let checking = $state(false);
 	let checkError = $state('');
 	let versions = $state<RemoteVersion[]>([]);
+	let currentVersionFound = $state(false);
 	let selected = $state('');
 	let missing = $state<string[]>([]);
 
 	let platform = $state<OnlinePlatform>(
-		untrack(() => (instance.modpack?.platform === 'curseforge' ? 'curseforge' : 'modrinth'))
+		untrack(() => instance.modpack?.platform ?? 'modrinth')
 	);
 	let hit = $state<PackHit | null>(null);
 	let linkVersion = $state<RemoteVersion | null>(null);
@@ -56,6 +56,7 @@
 			.then(([check, absent]) => {
 				if (cancelled) return;
 				versions = check.versions;
+				currentVersionFound = check.currentVersionFound;
 				selected = check.versions[0]?.id ?? '';
 				missing = absent;
 			})
@@ -100,7 +101,13 @@
 	const linkRepair = $derived(sameSelected && missing.length > 0);
 
 	function platformLabel(id: string | null | undefined) {
-		return id === 'modrinth' ? 'Modrinth' : id === 'curseforge' ? 'CurseForge' : m.editor_version_modpack_local();
+		switch (id) {
+			case 'modrinth': return 'Modrinth';
+			case 'curseforge': return 'CurseForge';
+			case 'atlauncher': return 'ATLauncher';
+			case 'ftb': return 'FTB';
+			default: return m.editor_version_modpack_local();
+		}
 	}
 
 	function versionLabel(v: RemoteVersion) {
@@ -179,14 +186,24 @@
 			{:else if checkError}
 				<p class="rounded-lg bg-danger-soft px-3 py-2 leading-[1.7] text-danger">{checkError}</p>
 			{:else if versions.length === 0}
+				{#if !currentVersionFound}
+					<p class="text-muted">{m.editor_pack_current_unknown()}</p>
+				{/if}
 				{#if missing.length > 0}
-					<p>{m.editor_pack_latest_but_missing()}</p>
+					{#if currentVersionFound}
+						<p>{m.editor_pack_latest_but_missing()}</p>
+					{/if}
 					{@render missingNote()}
-					<p class="leading-[1.7] text-muted">{m.editor_pack_repair_hint()}</p>
-				{:else}
+					{#if repair}
+						<p class="leading-[1.7] text-muted">{m.editor_pack_repair_hint()}</p>
+					{/if}
+				{:else if currentVersionFound}
 					<p class="text-muted">{m.editor_status_pack_up_to_date()}</p>
 				{/if}
 			{:else}
+				{#if !currentVersionFound}
+					<p class="text-muted">{m.editor_pack_current_unknown()}</p>
+				{/if}
 				{#if missing.length > 0}
 					{@render missingNote()}
 				{/if}
@@ -212,7 +229,7 @@
 				{known ? m.editor_pack_link_change() : m.editor_pack_link_intro()}
 			</p>
 			<div class="flex shrink-0 gap-1.5">
-				{#each ['modrinth', 'curseforge'] as const as id (id)}
+				{#each platforms as id (id)}
 					<Button
 						variant={platform === id ? 'primary' : 'default'}
 						onclick={() => {

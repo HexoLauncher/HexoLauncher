@@ -3,15 +3,17 @@ use std::path::Path;
 
 use base64::Engine;
 use hexomc_lib::{
-    check_updates, read_mod_icon, read_mod_info, update_mod, CurseForgeClient, DependencyKind,
-    ModInfo, ModLoader, ModUpdate, ModrinthClient, UpdateSource,
+    check_updates, inspect_mod_dependencies, read_mod_icon, read_mod_info, update_mod,
+    CurseForgeClient, DependencyKind, ModDependencyReport, ModInfo, ModLoader, ModUpdate,
+    ModrinthClient, UpdateSource,
 };
 use serde::Serialize;
 
 use super::instance::load_config;
-use super::{minecraft_dir, path_string, validate_file_name, LoaderKind};
+use super::{instance_dir, minecraft_dir, path_string, validate_file_name, LoaderKind};
 use crate::error::{CmdError, CmdResult};
 use crate::state::AppState;
+use crate::store::instance_meta::InstanceMeta;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -165,6 +167,28 @@ pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec
 
     mods.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     Ok(mods)
+}
+
+#[tauri::command]
+pub async fn check_mod_dependencies(
+    base_dir: String,
+    instance_name: String,
+) -> CmdResult<ModDependencyReport> {
+    let base = Path::new(&base_dir);
+    let dir = instance_dir(base, &instance_name)?;
+    let mods = minecraft_dir(base, &instance_name)?.join("mods");
+    let meta = InstanceMeta::load(&dir, &instance_name).await?;
+    let mut runtime = vec!["minecraft", "java"];
+    match meta.loader {
+        LoaderKind::Vanilla => {}
+        LoaderKind::Fabric => runtime.push("fabricloader"),
+        LoaderKind::Forge => runtime.extend(["forge", "fml"]),
+        LoaderKind::NeoForge => runtime.extend(["neoforge", "fml"]),
+    }
+    tokio::task::spawn_blocking(move || inspect_mod_dependencies(&mods, &runtime))
+        .await
+        .map_err(|error| CmdError::launcher(error.to_string()))?
+        .map_err(Into::into)
 }
 
 #[tauri::command]

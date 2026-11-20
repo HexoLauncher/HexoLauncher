@@ -1807,9 +1807,7 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexomc-lib"
-version = "0.1.10-alpha.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3977fe74d97c218d8c63ebd9b7a091e223f659fd385353340e91d9158786f876"
+version = "0.1.10-alpha.3"
 dependencies = [
  "async-trait",
  "digest 0.10.7",
@@ -1826,6 +1824,7 @@ dependencies = [
  "sha1 0.10.7",
  "sha2 0.10.9",
  "tar",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",

@@ -9,6 +9,7 @@
 	import VersionPicker from './VersionPicker.svelte';
 	import ContentBrowser from './ContentBrowser.svelte';
 	import ModpackUpdateDialog from './ModpackUpdateDialog.svelte';
+	import ModDependencyDialog from './ModDependencyDialog.svelte';
 	import ManualDownloadList from './ManualDownloadList.svelte';
 	import * as api from '$lib/api';
 	import type {
@@ -121,6 +122,7 @@
 
 
 	let mods = $state<ModEntry[]>([]);
+	let dependencyDialog = $state(false);
 	let modSearch = $state('');
 	const visibleMods = $derived.by(() => {
 		const query = modSearch.trim().toLowerCase();
@@ -1105,6 +1107,7 @@
 						{@render sideButtons([
 							{ label: m.editor_download_mods(), action: () => (browse = 'mod') },
 							{ label: m.editor_check_updates(), disabled: mods.length === 0, action: requestModUpdates },
+							{ label: m.editor_dependency_check(), action: () => (dependencyDialog = true) },
 							{
 								label: m.common_remove(),
 								disabled: !selectedMod,
@@ -1582,6 +1585,10 @@
 	</Dialog>
 {/if}
 
+{#if dependencyDialog}
+	<ModDependencyDialog {baseDir} instanceId={instance.id} onclose={() => (dependencyDialog = false)} />
+{/if}
+
 {#if packDialog}
 	<ModpackUpdateDialog
 		{baseDir}
@@ -1623,6 +1630,17 @@
 				</details>
 			{/if}
 
+			{#if result.preservedFiles.length > 0}
+				<details open>
+					<summary class="cursor-pointer">{m.editor_pack_preserved({ count: result.preservedFiles.length })}</summary>
+					<ul class="mt-1 flex flex-col gap-0.5 break-all font-mono text-[11px] text-muted">
+						{#each result.preservedFiles as file (file)}
+							<li>{file}</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+
 			{#if result.skipped.length > 0}
 				<details>
 					<summary class="cursor-pointer">{m.editor_pack_skipped({ count: result.skipped.length })}</summary>
@@ -1634,7 +1652,7 @@
 				</details>
 			{/if}
 
-			{#if result.manualDownloads.length === 0 && result.removedFiles.length === 0 && result.skipped.length === 0}
+			{#if result.manualDownloads.length === 0 && result.removedFiles.length === 0 && result.preservedFiles.length === 0 && result.skipped.length === 0}
 				<p class="text-muted">{m.editor_pack_nothing_manual()}</p>
 			{/if}
 		</div>

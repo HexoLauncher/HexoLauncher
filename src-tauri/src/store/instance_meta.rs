@@ -45,6 +45,7 @@ pub struct ModpackSource {
     pub project_id: String,
     pub version_id: String,
     pub version_name: String,
+    pub include_optional: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

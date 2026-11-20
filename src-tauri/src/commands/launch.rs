@@ -91,6 +91,7 @@ pub async fn launch_instance(
         account_id,
     } = options;
 
+    let _pack_lock = super::modpack::lock_pack_instance(&instance_name).await;
     if state.is_running(&instance_name)? {
         return Err(CmdError::coded(
             "alreadyRunning",

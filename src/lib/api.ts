@@ -482,6 +482,7 @@ export const inspectModpack = (packPath: string) =>
 export interface ModpackUpdateResult extends ModpackInstallResult {
 	/** 舊版模組包帶進來、這次更新之後被刪掉的檔案（相對 .minecraft）。 */
 	removedFiles: string[];
+	preservedFiles: string[];
 }
 
 export const installModpackFile = (target: PackTarget, packPath: string) =>
@@ -492,6 +493,7 @@ export const updateModpackFile = (baseDir: string, instanceName: string, packPat
 
 export interface ModpackUpdateCheck {
 	current: ModpackSource;
+	currentVersionFound: boolean;
 	versions: RemoteVersion[];
 }
 
@@ -825,6 +827,27 @@ export interface ModDependency {
 	version: string | null;
 	kind: 'required' | 'optional' | 'incompatible';
 }
+
+export type ModDependencyStatus = 'installed' | 'disabled' | 'missing' | 'runtime';
+
+export interface ModDependencyEdge {
+	fileName: string;
+	modId: string;
+	modName: string;
+	dependencyId: string;
+	requirement: string | null;
+	kind: ModDependency['kind'];
+	status: ModDependencyStatus;
+	providers: { fileName: string; version: string; enabled: boolean }[];
+}
+
+export interface ModDependencyReport {
+	relationships: ModDependencyEdge[];
+	unrecognizedFiles: string[];
+}
+
+export const checkModDependencies = (baseDir: string, instanceName: string) =>
+	invoke<ModDependencyReport>('check_mod_dependencies', { baseDir, instanceName });
 
 export interface ModDetails extends ModEntry {
 	size: number;

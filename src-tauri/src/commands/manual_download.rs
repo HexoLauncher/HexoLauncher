@@ -172,7 +172,13 @@ async fn watch(
                     rejected.insert(path.clone(), *size);
                     continue;
                 }
-                if move_file(path, &item.target).await.is_ok() {
+                let _pack_lock = super::modpack::lock_pack_instance(&instance_name).await;
+                if !is_current(&instance_name, generation) {
+                    return;
+                }
+                if is_in_place(&item.target, item.sha1.as_deref()).await
+                    || move_file(path, &item.target).await.is_ok()
+                {
                     moved = true;
                     break;
                 }
@@ -233,11 +239,25 @@ async fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     if let Some(parent) = to.parent() {
         tokio::fs::create_dir_all(parent).await?;
     }
-    if tokio::fs::rename(from, to).await.is_ok() {
-        return Ok(());
+    let mut source = tokio::fs::File::open(from).await?;
+    let mut destination = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(to)
+        .await?;
+    let copied = tokio::io::copy(&mut source, &mut destination).await;
+    let result = match copied {
+        Ok(_) => destination.sync_all().await,
+        Err(error) => Err(error),
+    };
+    drop(destination);
+    drop(source);
+    if let Err(error) = result {
+        let _ = tokio::fs::remove_file(to).await;
+        return Err(error);
     }
-    tokio::fs::copy(from, to).await?;
-    tokio::fs::remove_file(from).await
+    let _ = tokio::fs::remove_file(from).await;
+    Ok(())
 }
 
 #[cfg(test)]

@@ -130,6 +130,7 @@ fn main() {
             commands::crash::crash_analysis,
             commands::crash::open_crash_file,
             commands::mods::list_mods,
+            commands::mods::check_mod_dependencies,
             commands::mods::mod_details,
             commands::mods::set_mod_enabled,
             commands::mods::check_mod_updates,

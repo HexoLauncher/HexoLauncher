@@ -1,15 +1,18 @@
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Component, Path, PathBuf, MAIN_SEPARATOR};
+use std::sync::{Arc, Mutex, Weak};
 
 use hexomc_lib::{
-    detect_modpack_format, file_curseforge_fingerprint, install_modpack_files, read_cf_manifest,
-    read_hmcl_pack, read_mcbbs_manifest, read_mrpack_index, resolve_forge_version, update_modpack,
-    update_modpack_files, Browser, CurseForgeClient, HexoError, LoaderType, ManualDownload,
-    ModpackFormat, ModpackInfo, ModpackInstallResult, ModpackUpdateResult, ModrinthClient,
-    Platform, ProgressFn,
+    apply_online_modpack, identify_modpack, install_modpack_files, modpack_file_sha1,
+    modpack_game_matches, resolve_forge_version, update_modpack, update_modpack_files, Browser,
+    CurseForgeClient, HexoError, LoaderType, ManualDownload, ModpackFormat, ModpackInfo,
+    ModpackInstallResult, ModpackUpdateResult, OnlineModpack, PackGameInstall, ProgressFn,
 };
 use serde::{Deserialize, Serialize};
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+
+use crate::state::AppState;
 
 use super::install::{progress_emitter, tool_java};
 use super::instance::{build_view, unique_instance_id, InstanceView, EVENT_INSTANCES_CHANGED};
@@ -103,8 +106,8 @@ pub struct ModpackUpdateDto {
 
     pub skipped: Vec<String>,
 
-    /// 上一版模組包帶進來、這次不再需要而被刪掉的檔案（相對 `.minecraft`）。
     pub removed_files: Vec<String>,
+    pub preserved_files: Vec<String>,
 }
 
 #[tauri::command]
@@ -136,7 +139,7 @@ pub(super) async fn install_local_pack(
 
     let source = match source {
         Some(source) => source,
-        None => identify_local_pack(&path, &preview).await,
+        None => identify_local_pack(&path, &preview, curseforge.as_ref()).await,
     };
 
     install_pack(
@@ -151,54 +154,39 @@ pub(super) async fn install_local_pack(
     .await
 }
 
-async fn identify_local_pack(path: &Path, preview: &ModpackPreview) -> ModpackSource {
-    let unknown = ModpackSource {
-        version_name: preview.version.clone().unwrap_or_default(),
-        ..ModpackSource::default()
+async fn identify_local_pack(
+    path: &Path,
+    preview: &ModpackPreview,
+    curseforge: Option<&CurseForgeClient>,
+) -> ModpackSource {
+    let format = match preview.format {
+        PackFormat::Modrinth => ModpackFormat::Modrinth,
+        PackFormat::CurseForge => ModpackFormat::CurseForge,
+        PackFormat::Hmcl => ModpackFormat::Hmcl,
+        PackFormat::Mcbbs => ModpackFormat::Mcbbs,
+        _ => unreachable!("a local archive has a local format"),
     };
-    let found = match preview.format {
-        PackFormat::Modrinth => identify_modrinth_pack(path).await,
-        PackFormat::CurseForge => identify_curseforge_pack(path).await,
-        _ => None,
-    };
-    found.unwrap_or(unknown)
-}
-
-async fn identify_modrinth_pack(path: &Path) -> Option<ModpackSource> {
-    let sha1 = file_sha1(path).await.ok()?;
-    let version = ModrinthClient::new()
-        .get_version_by_hash(&sha1)
+    identify_modpack(path, format, curseforge)
         .await
-        .ok()??;
-    Some(ModpackSource {
-        platform: Some(Platform::Modrinth),
-        project_id: version.project_id,
-        version_id: version.id,
-        version_name: version.name,
-    })
-}
-
-async fn identify_curseforge_pack(path: &Path) -> Option<ModpackSource> {
-    let client = CurseForgeClient::new(curseforge_key().await.ok()?);
-    let fingerprint = file_curseforge_fingerprint(path).await.ok()?;
-    let found = client
-        .match_fingerprints(&[fingerprint])
-        .await
-        .ok()?
-        .into_iter()
-        .next()?;
-    Some(ModpackSource {
-        platform: Some(Platform::CurseForge),
-        project_id: found.mod_id.to_string(),
-        version_id: found.file.id.to_string(),
-        version_name: found.file.display_name,
-    })
+        .ok()
+        .flatten()
+        .map_or_else(
+            || ModpackSource {
+                version_name: preview.version.clone().unwrap_or_default(),
+                ..ModpackSource::default()
+            },
+            |found| ModpackSource {
+                platform: Some(found.platform),
+                project_id: found.project_id,
+                version_id: found.version_id,
+                version_name: found.version_name,
+                ..ModpackSource::default()
+            },
+        )
 }
 
 pub(super) async fn file_sha1(path: &Path) -> CmdResult<String> {
-    use sha1::{Digest, Sha1};
-    let bytes = tokio::fs::read(path).await?;
-    Ok(format!("{:x}", Sha1::digest(&bytes)))
+    Ok(modpack_file_sha1(path).await?)
 }
 
 pub(super) async fn browser() -> CmdResult<Browser> {
@@ -215,52 +203,27 @@ pub(super) async fn curseforge_key() -> CmdResult<String> {
 }
 
 async fn read_pack_file(path: &Path) -> CmdResult<ModpackPreview> {
-    let format = detect_modpack_format(path).await.map_err(|e| match e {
-        HexoError::Other(_) => CmdError::coded("notModpack", "not_modpack", &[]),
-        other => other.into(),
-    })?;
-
-    Ok(match format {
-        ModpackFormat::Modrinth => {
-            let index = read_mrpack_index(path).await?;
-            let count = index
-                .files
-                .iter()
-                .filter(|f| f.is_client_supported())
-                .count();
-            ModpackPreview::new(PackFormat::Modrinth, index.info()?, count)
-        }
-        ModpackFormat::CurseForge => {
-            let manifest = read_cf_manifest(path).await?;
-            let count = manifest.files.iter().filter(|f| f.required).count();
-            ModpackPreview::new(PackFormat::CurseForge, manifest.info()?, count)
-        }
-        ModpackFormat::Hmcl => {
-            let info = read_hmcl_pack(path).await?.info()?;
-            let count = count_zip_files(path, "minecraft/").await?.saturating_sub(1);
-            ModpackPreview::new(PackFormat::Hmcl, info, count)
-        }
-        ModpackFormat::Mcbbs => {
-            let info = read_mcbbs_manifest(path).await?.info()?;
-            let count = count_zip_files(path, "overrides/").await?;
-            ModpackPreview::new(PackFormat::Mcbbs, info, count)
-        }
-    })
-}
-
-async fn count_zip_files(path: &Path, prefix: &'static str) -> CmdResult<usize> {
-    let path = path.to_path_buf();
-    tokio::task::spawn_blocking(move || {
-        let file = std::fs::File::open(&path)?;
-        let archive = zip::ZipArchive::new(std::io::BufReader::new(file))
-            .map_err(|e| CmdError::new("zip", e.to_string()))?;
-        Ok(archive
-            .file_names()
-            .filter(|n| n.starts_with(prefix) && !n.ends_with('/'))
-            .count())
-    })
-    .await
-    .map_err(|e| CmdError::launcher(e.to_string()))?
+    let preview = hexomc_lib::inspect_modpack(path)
+        .await
+        .map_err(|error| match error {
+            HexoError::Other(ref message)
+                if message.starts_with("unrecognized modpack format:") =>
+            {
+                CmdError::coded("notModpack", "not_modpack", &[])
+            }
+            other => other.into(),
+        })?;
+    let format = match preview.format {
+        ModpackFormat::Modrinth => PackFormat::Modrinth,
+        ModpackFormat::CurseForge => PackFormat::CurseForge,
+        ModpackFormat::Hmcl => PackFormat::Hmcl,
+        ModpackFormat::Mcbbs => PackFormat::Mcbbs,
+    };
+    Ok(ModpackPreview::new(
+        format,
+        preview.info,
+        preview.file_count,
+    ))
 }
 
 #[tauri::command]
@@ -300,18 +263,41 @@ pub(super) async fn ensure_not_linked(base: &Path, instance_name: &str) -> CmdRe
 }
 
 fn same_game_version(meta: &InstanceMeta, preview: &ModpackPreview) -> bool {
-    if meta.mc_version != preview.mc_version || meta.loader != preview.loader {
-        return false;
-    }
-    if preview.loader == LoaderKind::Vanilla {
-        return true;
-    }
-    let Some(wanted) = preview.loader_version.as_deref() else {
-        return false;
+    modpack_game_matches(
+        &meta.mc_version,
+        &meta.loader.into(),
+        &meta.loader_version,
+        &preview.mc_version,
+        &preview.loader.into(),
+        preview.loader_version.as_deref(),
+    )
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum PackUpdate<'a> {
+    Archive(&'a Path),
+    Online(&'a OnlineModpack, PackFormat),
+}
+
+type InstanceLock = tokio::sync::Mutex<()>;
+static INSTANCE_LOCKS: Mutex<Option<HashMap<String, Weak<InstanceLock>>>> = Mutex::new(None);
+
+pub(super) async fn lock_pack_instance(instance_name: &str) -> tokio::sync::OwnedMutexGuard<()> {
+    let lock = {
+        let mut locks = INSTANCE_LOCKS
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let locks = locks.get_or_insert_with(HashMap::new);
+        locks.retain(|_, lock| lock.strong_count() > 0);
+        if let Some(lock) = locks.get(instance_name).and_then(Weak::upgrade) {
+            lock
+        } else {
+            let lock = Arc::new(InstanceLock::new(()));
+            locks.insert(instance_name.to_owned(), Arc::downgrade(&lock));
+            lock
+        }
     };
-    let current = meta.loader_version.as_str();
-    let full = format!("{}-{}", preview.mc_version, wanted);
-    current == wanted || current == full || current.starts_with(&format!("{}-", full))
+    lock.lock_owned().await
 }
 
 pub(super) async fn update_from_path(
@@ -321,6 +307,24 @@ pub(super) async fn update_from_path(
     path: PathBuf,
     source: Option<ModpackSource>,
 ) -> CmdResult<ModpackUpdateDto> {
+    update_pack(
+        app,
+        base_dir,
+        instance_name,
+        PackUpdate::Archive(&path),
+        source,
+    )
+    .await
+}
+
+pub(super) async fn update_pack(
+    app: tauri::AppHandle,
+    base_dir: &str,
+    instance_name: &str,
+    pack: PackUpdate<'_>,
+    source: Option<ModpackSource>,
+) -> CmdResult<ModpackUpdateDto> {
+    let _lock = lock_pack_instance(instance_name).await;
     let base = PathBuf::from(base_dir);
     let dir = instance_dir(&base, instance_name)?;
     if !dir.exists() {
@@ -328,10 +332,26 @@ pub(super) async fn update_from_path(
     }
     ensure_not_linked(&base, instance_name).await?;
 
-    let preview = read_pack_file(&path).await?;
-
+    if app.state::<AppState>().is_running(instance_name)? {
+        return Err(CmdError::launcher_code("game_running_close_first", &[]));
+    }
+    super::manual_download::stop_manual_downloads(instance_name.to_owned());
+    let include_optional = source
+        .as_ref()
+        .is_some_and(|source| source.include_optional);
+    let preview = match &pack {
+        PackUpdate::Archive(path) => read_pack_file(path).await?,
+        PackUpdate::Online(pack, format) => {
+            ModpackPreview::new(*format, pack.info()?, pack.file_count(include_optional))
+        }
+    };
     let curseforge = match preview.format {
         PackFormat::CurseForge => Some(CurseForgeClient::new(curseforge_key().await?)),
+        PackFormat::Ftb => LauncherConfig::load()
+            .await?
+            .api
+            .curseforge_key()
+            .map(CurseForgeClient::new),
         _ => None,
     };
 
@@ -350,25 +370,53 @@ pub(super) async fn update_from_path(
         .await
         .is_ok_and(|config| super::instance::is_healthy(&dir, &config));
 
+    let needs_game = !installed || !same_game_version(&meta, &preview);
+    let java = if needs_game && matches!(preview.loader, LoaderKind::Forge | LoaderKind::NeoForge) {
+        Some(tool_java(None).await?)
+    } else {
+        None
+    };
+    let game = if needs_game {
+        PackGameInstall::WithGame {
+            java_path: java.as_deref(),
+        }
+    } else {
+        PackGameInstall::FilesOnly
+    };
     let ModpackUpdateResult {
         install,
         removed_files,
-    } = if installed && same_game_version(&meta, &preview) {
-        update_modpack_files(&path, instance_name, &base, curseforge.as_ref(), progress).await?
-    } else {
-        let java = match preview.loader {
-            LoaderKind::Forge | LoaderKind::NeoForge => Some(tool_java(None).await?),
-            _ => None,
-        };
-        update_modpack(
-            &path,
-            instance_name,
-            &base,
-            java.as_deref(),
-            curseforge.as_ref(),
-            progress,
-        )
-        .await?
+        preserved_files,
+    } = match pack {
+        PackUpdate::Archive(path) => match game {
+            PackGameInstall::WithGame { java_path } => {
+                update_modpack(
+                    path,
+                    instance_name,
+                    &base,
+                    java_path,
+                    curseforge.as_ref(),
+                    progress,
+                )
+                .await?
+            }
+            PackGameInstall::FilesOnly => {
+                update_modpack_files(path, instance_name, &base, curseforge.as_ref(), progress)
+                    .await?
+            }
+        },
+        PackUpdate::Online(pack, _) => {
+            apply_online_modpack(
+                pack,
+                instance_name,
+                &base,
+                game,
+                curseforge.as_ref(),
+                include_optional,
+                progress,
+            )
+            .await?
+        }
     };
 
     let ModpackInstallResult {
@@ -377,9 +425,12 @@ pub(super) async fn update_from_path(
         skipped,
     } = install;
 
-    let source = match source {
-        Some(source) => source,
-        None => identify_local_pack(&path, &preview).await,
+    let source = match (source, pack) {
+        (Some(source), _) => source,
+        (None, PackUpdate::Archive(path)) => {
+            identify_local_pack(path, &preview, curseforge.as_ref()).await
+        }
+        (None, PackUpdate::Online(..)) => unreachable!("online updates supply a modpack source"),
     };
 
     meta.loader = LoaderKind::from(&info.loader);
@@ -395,6 +446,10 @@ pub(super) async fn update_from_path(
         instance: build_view(&base, instance_name, &LocalStore::load().await?).await?,
         manual_downloads: manual_download_dtos(manual_downloads, &mc_dir),
         skipped,
+        preserved_files: preserved_files
+            .iter()
+            .map(|p| relative_path(p, &mc_dir))
+            .collect(),
         removed_files: removed_files
             .iter()
             .map(|p| relative_path(p, &mc_dir))
