@@ -149,6 +149,7 @@
 	let javaCandidates = $state<JavaInfo[]>([]);
 
 	const loaded: string[] = [];
+	let pending = $state<string[]>([]);
 
 
 
@@ -209,6 +210,7 @@
 	async function load(target: string, force = false) {
 		if (loaded.includes(target) && !force) return;
 		loaded.push(target);
+		pending.push(target);
 		try {
 			switch (target) {
 				case 'mods':
@@ -249,6 +251,8 @@
 		} catch (e) {
 			loaded.splice(loaded.indexOf(target), 1);
 			fail(m.editor_error_load(), e);
+		} finally {
+			pending.splice(pending.indexOf(target), 1);
 		}
 	}
 
@@ -1098,7 +1102,9 @@
 									{/each}
 								</tbody>
 							</Table>
-							{#if mods.length === 0}
+							{#if pending.includes(page) && mods.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if mods.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_mods_empty()}</p>
 							{:else if visibleMods.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.content_empty_mod()}</p>
@@ -1175,7 +1181,9 @@
 									{/each}
 								</tbody>
 							</Table>
-							{#if packs.length === 0}
+							{#if pending.includes(page) && packs.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if packs.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
 									{isShader ? m.editor_shaderpacks_empty() : m.editor_resourcepacks_empty()}
 								</p>
@@ -1273,7 +1281,9 @@
 									</div>
 								</button>
 							{/each}
-							{#if worlds.length === 0}
+							{#if pending.includes(page) && worlds.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if worlds.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_worlds_empty()}</p>
 							{:else if visibleWorlds.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_worlds_no_match()}</p>
@@ -1327,7 +1337,9 @@
 									{/each}
 								</tbody>
 							</Table>
-							{#if backups.length === 0}
+							{#if pending.includes(page) && backups.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if backups.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_backups_empty()}</p>
 							{/if}
 						</TableBox>
@@ -1374,7 +1386,9 @@
 									{/each}
 								</tbody>
 							</Table>
-							{#if servers.length === 0}
+							{#if pending.includes(page) && servers.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if servers.length === 0}
 								<p class="px-3 py-4 text-center text-muted">
 									{m.editor_servers_empty()}
 								</p>
@@ -1402,7 +1416,9 @@
 									{/each}
 								</tbody>
 							</Table>
-							{#if screenshots.length === 0}
+							{#if pending.includes(page) && screenshots.length === 0}
+								<p class="px-3 py-4 text-center text-muted" role="status">{m.common_loading()}</p>
+							{:else if screenshots.length === 0}
 								<p class="px-3 py-4 text-center text-muted">{m.editor_screenshots_empty()}</p>
 							{/if}
 						</TableBox>

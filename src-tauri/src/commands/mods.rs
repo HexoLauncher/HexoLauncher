@@ -14,6 +14,7 @@ use super::{instance_dir, minecraft_dir, path_string, validate_file_name, Loader
 use crate::error::{CmdError, CmdResult};
 use crate::state::AppState;
 use crate::store::instance_meta::InstanceMeta;
+use crate::store::mod_cache::{fingerprint, scan_mods};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,11 +52,6 @@ impl ModDto {
             enabled,
         }
     }
-}
-
-fn is_mod_file(path: &Path) -> bool {
-    let name = path.to_string_lossy().to_ascii_lowercase();
-    name.ends_with(".jar") || name.ends_with(".jar.disabled")
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,14 +147,8 @@ pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec
     let mods_dir = minecraft_dir(Path::new(&base_dir), &instance_name)?.join("mods");
 
     let mut mods = tokio::task::spawn_blocking(move || {
-        let Ok(entries) = std::fs::read_dir(&mods_dir) else {
-            return Vec::new();
-        };
-        entries
-            .flatten()
-            .map(|entry| entry.path())
-            .filter(|path| is_mod_file(path))
-            .filter_map(|path| read_mod_info(&path))
+        scan_mods(&mods_dir)
+            .into_iter()
             .map(ModDto::from_info)
             .collect::<Vec<_>>()
     })
@@ -171,6 +161,7 @@ pub async fn list_mods(base_dir: String, instance_name: String) -> CmdResult<Vec
 
 #[tauri::command]
 pub async fn check_mod_dependencies(
+    state: tauri::State<'_, AppState>,
     base_dir: String,
     instance_name: String,
 ) -> CmdResult<ModDependencyReport> {
@@ -185,10 +176,25 @@ pub async fn check_mod_dependencies(
         LoaderKind::Forge => runtime.extend(["forge", "fml"]),
         LoaderKind::NeoForge => runtime.extend(["neoforge", "fml"]),
     }
-    tokio::task::spawn_blocking(move || inspect_mod_dependencies(&mods, &runtime))
+    let runtime: Vec<String> = runtime.into_iter().map(String::from).collect();
+
+    let dir = mods.clone();
+    let stamps = tokio::task::spawn_blocking(move || fingerprint(&dir))
         .await
-        .map_err(|error| CmdError::launcher(error.to_string()))?
-        .map_err(Into::into)
+        .map_err(|error| CmdError::launcher(error.to_string()))?;
+    if let Some(report) = state.dependency_report(&mods, &stamps, &runtime)? {
+        return Ok(report);
+    }
+
+    let (dir, ids) = (mods.clone(), runtime.clone());
+    let report = tokio::task::spawn_blocking(move || {
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        inspect_mod_dependencies(&dir, &ids)
+    })
+    .await
+    .map_err(|error| CmdError::launcher(error.to_string()))??;
+    state.set_dependency_report(mods, stamps, runtime, &report)?;
+    Ok(report)
 }
 
 #[tauri::command]

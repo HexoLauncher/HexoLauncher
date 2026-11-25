@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod instance_meta;
 pub mod launcher;
+pub mod mod_cache;
 pub mod running;
 
 use std::path::{Path, PathBuf};

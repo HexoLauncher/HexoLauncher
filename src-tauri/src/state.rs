@@ -1,14 +1,16 @@
 use std::collections::{HashMap, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use hexomc_lib::auth::microsoft::MsDeviceCodeResponse;
-use hexomc_lib::{GameProcess, ModUpdate};
+use hexomc_lib::{GameProcess, ModDependencyReport, ModUpdate};
 use serde::Serialize;
 
 use crate::commands::crash::CrashAnalysis;
 use crate::commands::process;
 use crate::error::CmdError;
+use crate::store::mod_cache::Fingerprint;
 use crate::store::now_secs;
 use crate::store::running::RunningRecord;
 
@@ -90,6 +92,20 @@ pub struct AppState {
     mod_updates: Mutex<HashMap<String, ModUpdate>>,
     pub schematic_sync: tokio::sync::Mutex<()>,
     crashes: Mutex<HashMap<String, CrashAnalysis>>,
+    dependency_reports: Mutex<HashMap<PathBuf, CachedReport>>,
+}
+
+struct CachedReport {
+    fingerprint: Fingerprint,
+    runtime: Vec<String>,
+    report: ModDependencyReport,
+}
+
+fn copy_report(report: &ModDependencyReport) -> ModDependencyReport {
+    ModDependencyReport {
+        relationships: report.relationships.clone(),
+        unrecognized_files: report.unrecognized_files.clone(),
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -309,6 +325,44 @@ impl AppState {
     pub fn crash(&self, instance_name: &str) -> Result<Option<CrashAnalysis>, CmdError> {
         let map = self.crashes.lock().map_err(|_| poisoned("crashes"))?;
         Ok(map.get(instance_name).cloned())
+    }
+
+    pub fn dependency_report(
+        &self,
+        mods_dir: &Path,
+        fingerprint: &Fingerprint,
+        runtime: &[String],
+    ) -> Result<Option<ModDependencyReport>, CmdError> {
+        let map = self
+            .dependency_reports
+            .lock()
+            .map_err(|_| poisoned("dependencyReports"))?;
+        Ok(map
+            .get(mods_dir)
+            .filter(|cached| &cached.fingerprint == fingerprint && cached.runtime == runtime)
+            .map(|cached| copy_report(&cached.report)))
+    }
+
+    pub fn set_dependency_report(
+        &self,
+        mods_dir: PathBuf,
+        fingerprint: Fingerprint,
+        runtime: Vec<String>,
+        report: &ModDependencyReport,
+    ) -> Result<(), CmdError> {
+        let mut map = self
+            .dependency_reports
+            .lock()
+            .map_err(|_| poisoned("dependencyReports"))?;
+        map.insert(
+            mods_dir,
+            CachedReport {
+                fingerprint,
+                runtime,
+                report: copy_report(report),
+            },
+        );
+        Ok(())
     }
 
     pub fn remove_mod_update(&self, id: &str) -> Result<(), CmdError> {
