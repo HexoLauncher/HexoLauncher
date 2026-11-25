@@ -100,8 +100,10 @@
 		} catch {}
 	}
 
+	const previewable = (f: SchematicFile) => f.format === 'litematic' || f.format === 'nbt';
+
 	function preview(f: SchematicFile) {
-		if (f.format !== 'litematic') return;
+		if (!previewable(f)) return;
 		openAppWindow(
 			windowSpecs.viewer({ kind: 'local', path: f.path, instance: instanceId }, f.name)
 		);
@@ -113,7 +115,7 @@
 			const { open } = await import('@tauri-apps/plugin-dialog');
 			const chosen = await open({
 				multiple: true,
-				filters: [{ name: m.blueprint_file_filter(), extensions: ['litematic', 'schem'] }]
+				filters: [{ name: m.blueprint_file_filter(), extensions: ['litematic', 'schem', 'nbt'] }]
 			});
 			picked = Array.isArray(chosen) ? chosen : typeof chosen === 'string' ? [chosen] : [];
 		} catch {
@@ -309,8 +311,8 @@
 			<Button
 				variant="primary"
 				icon="eye"
-				disabled={!file || file.format !== 'litematic'}
-				title={file && file.format !== 'litematic' ? m.blueprint_preview_litematic_only() : undefined}
+				disabled={!file || !previewable(file)}
+				title={file && !previewable(file) ? m.blueprint_preview_litematic_only() : undefined}
 				onclick={() => file && preview(file)}
 			>
 				{m.blueprint_preview()}

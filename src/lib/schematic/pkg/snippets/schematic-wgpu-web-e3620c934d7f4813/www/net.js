@@ -1,4 +1,5 @@
 // @ts-nocheck
+// @ts-nocheck
 const CACHE_NAME = "schematic-viewer-v1";
 
 async function cached(key, load) {

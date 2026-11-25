@@ -59,6 +59,7 @@ import LuPlus from '~icons/lucide/plus';
 import LuRefreshCw from '~icons/lucide/refresh-cw';
 import LuRotateCcw from '~icons/lucide/rotate-ccw';
 import LuRss from '~icons/lucide/rss';
+import LuScan from '~icons/lucide/scan';
 import LuSearch from '~icons/lucide/search';
 import LuServer from '~icons/lucide/server';
 import LuSettings from '~icons/lucide/settings';
@@ -83,6 +84,7 @@ export const ICONS: Record<string, Component> = {
 	check: LuCheck,
 	close: LuX,
 	search: LuSearch,
+	scan: LuScan,
 	refresh: LuRefreshCw,
 	arrow: LuArrowRight,
 	back: LuArrowLeft,

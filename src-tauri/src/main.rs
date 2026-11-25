@@ -188,6 +188,7 @@ fn main() {
             commands::schematic::read_schematic,
             commands::schematic::local_block_assets,
             commands::schematic::pack_block_assets,
+            commands::schematic::mod_block_assets,
             commands::schematic_sync::set_schematic_sync,
             commands::tools::tools_world_info,
             commands::tools::tools_world_regions,

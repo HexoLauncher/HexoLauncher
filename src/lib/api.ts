@@ -1288,7 +1288,7 @@ export interface SchematicFile {
 	/** 相對 schematics/，用 / 分隔 */
 	relPath: string;
 	path: string;
-	format: 'litematic' | 'schem';
+	format: 'litematic' | 'schem' | 'nbt';
 	size: number;
 	modified: number;
 }
@@ -1322,6 +1322,31 @@ export const localBlockAssets = (baseDir: string, version: string, prefer?: stri
 	invoke<string | null>('local_block_assets', { baseDir, version, prefer });
 
 export const packBlockAssets = (path: string) => invoke<string>('pack_block_assets', { path });
+
+export interface ModBlockAssets {
+	/** 這個模組提供的方塊命名空間，例如 `create` */
+	namespaces: string[];
+	name: string;
+	/** 只剩方塊素材的 zip */
+	path: string;
+	source: 'instance' | 'modrinth';
+}
+
+/** 找藍圖用到的模組方塊素材：先找各實例（依序）的 mods/，找不到再從 Modrinth 下載。 */
+export const modBlockAssets = (
+	baseDir: string,
+	instances: string[],
+	namespaces: string[],
+	mcVersion: string | null,
+	download = true
+) =>
+	invoke<{ found: ModBlockAssets[]; missing: string[] }>('mod_block_assets', {
+		baseDir,
+		instances,
+		namespaces,
+		mcVersion,
+		download
+	});
 
 export interface InstallProgress {
 	instanceName: string;

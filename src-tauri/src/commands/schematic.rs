@@ -12,6 +12,8 @@ use crate::error::{CmdError, CmdResult};
 use crate::store::store_dir;
 
 const MAX_PREVIEW_BYTES: u64 = 64 * 1024 * 1024;
+/// 精簡素材包的格式版本；`is_block_asset` 收的檔案變了就加一，舊快取才會重做。
+const SLIM_VERSION: u32 = 2;
 
 pub fn block_assets_dir() -> CmdResult<PathBuf> {
     Ok(store_dir()?.join("block-assets"))
@@ -23,7 +25,12 @@ fn schematics_dir(base_dir: &str, instance_name: &str) -> CmdResult<PathBuf> {
 
 fn is_schematic(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    lower.ends_with(".litematic") || lower.ends_with(".schem")
+    lower.ends_with(".litematic") || lower.ends_with(".schem") || lower.ends_with(".nbt")
+}
+
+fn is_previewable(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".litematic") || lower.ends_with(".nbt")
 }
 
 fn join_relative(root: &Path, rel: &str) -> CmdResult<PathBuf> {
@@ -75,10 +82,15 @@ fn collect(root: &Path, dir: &Path, depth: usize, out: &mut Vec<SchematicFile>) 
             .collect::<Vec<_>>()
             .join("/");
         out.push(SchematicFile {
-            format: if name.to_ascii_lowercase().ends_with(".schem") {
-                "schem"
-            } else {
-                "litematic"
+            format: {
+                let lower = name.to_ascii_lowercase();
+                if lower.ends_with(".schem") {
+                    "schem"
+                } else if lower.ends_with(".nbt") {
+                    "nbt"
+                } else {
+                    "litematic"
+                }
             },
             name,
             rel_path,
@@ -162,7 +174,7 @@ pub async fn import_schematic(
 
 #[tauri::command]
 pub async fn read_schematic(path: String) -> CmdResult<String> {
-    if !path.to_ascii_lowercase().ends_with(".litematic") {
+    if !is_previewable(&path) {
         return Err(CmdError::launcher_code("preview_litematic_only", &[]));
     }
     let meta = tokio::fs::metadata(&path).await?;
@@ -183,7 +195,10 @@ fn is_block_asset(path: &str) -> bool {
     let Some((_, rest)) = rest.split_once('/') else {
         return false;
     };
-    rest.starts_with("blockstates/")
+    let geo = rest.strip_prefix("geo/").is_some_and(|g| {
+        g.ends_with(".geo.json") && !g.contains("entity/") && !g.contains("item/")
+    });
+    geo || rest.starts_with("blockstates/")
         || rest.starts_with("models/block/")
         || (rest.starts_with("textures/block/")
             && (rest.ends_with(".png") || rest.ends_with(".mcmeta")))
@@ -263,6 +278,7 @@ async fn slim_pack(source: PathBuf, prefix: &str) -> CmdResult<String> {
         .unwrap_or_default();
 
     let mut hasher = DefaultHasher::new();
+    SLIM_VERSION.hash(&mut hasher);
     source.hash(&mut hasher);
     meta.len().hash(&mut hasher);
     modified.hash(&mut hasher);
@@ -323,9 +339,415 @@ pub async fn pack_block_assets(path: String) -> CmdResult<String> {
     slim_pack(PathBuf::from(path), "pack").await
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModBlockAssets {
+    /// 這個模組提供的方塊命名空間，例如 `create`。
+    pub namespaces: Vec<String>,
+    pub name: String,
+    /// 精簡過、只剩方塊素材的 zip。
+    pub path: String,
+    /// `instance` 或 `modrinth`。
+    pub source: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModBlockAssetsResult {
+    pub found: Vec<ModBlockAssets>,
+    /// 本機和 Modrinth 都找不到的命名空間。
+    pub missing: Vec<String>,
+}
+
+fn is_namespace(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes()
+            .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'-' | b'.'))
+}
+
+fn jar_namespaces(jar: &Path, wanted: &[String]) -> Vec<String> {
+    let Ok(file) = std::fs::File::open(jar) else {
+        return Vec::new();
+    };
+    let Ok(archive) = zip::ZipArchive::new(std::io::BufReader::new(file)) else {
+        return Vec::new();
+    };
+    wanted
+        .iter()
+        .filter(|ns| {
+            let prefix = format!("assets/{ns}/blockstates/");
+            archive.file_names().any(|n| n.starts_with(&prefix))
+        })
+        .cloned()
+        .collect()
+}
+
+fn find_local_mods(
+    base_dir: &Path,
+    instances: &[String],
+    wanted: &[String],
+) -> Vec<(PathBuf, Vec<String>)> {
+    let mut left: Vec<String> = wanted.to_vec();
+    let mut found = Vec::new();
+    for name in instances {
+        if left.is_empty() {
+            break;
+        }
+        let Ok(dir) = minecraft_dir(base_dir, name) else {
+            continue;
+        };
+        let Ok(entries) = std::fs::read_dir(dir.join("mods")) else {
+            continue;
+        };
+        let mut jars: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case("jar")))
+            .collect();
+        jars.sort();
+        for jar in jars {
+            let provides = jar_namespaces(&jar, &left);
+            if provides.is_empty() {
+                continue;
+            }
+            left.retain(|ns| !provides.contains(ns));
+            found.push((jar, provides));
+            if left.is_empty() {
+                break;
+            }
+        }
+    }
+    found
+}
+
+#[derive(serde::Deserialize)]
+struct ModrinthVersion {
+    version_number: String,
+    files: Vec<ModrinthFile>,
+}
+
+#[derive(serde::Deserialize)]
+struct ModrinthFile {
+    url: String,
+    #[serde(default)]
+    primary: bool,
+    hashes: ModrinthHashes,
+}
+
+#[derive(serde::Deserialize)]
+struct ModrinthHashes {
+    sha1: String,
+}
+
+/// 命名空間和 Modrinth 專案名稱差很多、搜尋也找不到的常見模組。
+const MODRINTH_ALIASES: &[(&str, &str)] = &[
+    ("sfm", "super-factory-manager"),
+    ("extendedae", "extended-ae"),
+    ("ae2", "ae2"),
+    ("mekanism", "mekanism"),
+    ("immersiveengineering", "immersive-engineering"),
+    ("botania", "botania"),
+    ("thermal", "thermal-expansion"),
+];
+
+#[derive(serde::Deserialize)]
+struct ModrinthSearch {
+    hits: Vec<ModrinthHit>,
+}
+
+#[derive(serde::Deserialize)]
+struct ModrinthHit {
+    slug: String,
+}
+
+async fn modrinth_candidates(namespace: &str, mc_version: Option<&str>) -> Vec<String> {
+    use super::modpack_browse::{get_json, http};
+
+    let mut slugs: Vec<String> = MODRINTH_ALIASES
+        .iter()
+        .filter(|(ns, _)| *ns == namespace)
+        .map(|(_, slug)| slug.to_string())
+        .collect();
+    slugs.push(namespace.to_string());
+    slugs.push(namespace.replace('_', "-"));
+    let mut facets = vec![vec!["project_type:mod".to_string()]];
+    if let Some(v) = mc_version.filter(|v| !v.is_empty()) {
+        facets.push(vec![format!("versions:{v}")]);
+    }
+    let facets = serde_json::to_string(&facets).unwrap_or_default();
+    for query in [namespace.replace('_', " "), namespace.to_string()] {
+        let request = http().get("https://api.modrinth.com/v2/search").query(&[
+            ("query", query.as_str()),
+            ("limit", "5"),
+            ("facets", facets.as_str()),
+        ]);
+        if let Ok(found) = get_json::<ModrinthSearch>(request).await {
+            slugs.extend(found.hits.into_iter().map(|h| h.slug));
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    slugs.retain(|s| seen.insert(s.clone()));
+    slugs
+}
+
+async fn remote_jar_has_blocks(url: &str, namespace: &str) -> Option<bool> {
+    use super::modpack_browse::http;
+
+    let range = |r: String| async move {
+        let response = http()
+            .get(url)
+            .header(reqwest::header::RANGE, r)
+            .send()
+            .await
+            .ok()?;
+        if response.status() != reqwest::StatusCode::PARTIAL_CONTENT {
+            return None;
+        }
+        response.bytes().await.ok()
+    };
+
+    let tail = range("bytes=-65558".into()).await?;
+    let eocd = tail
+        .windows(4)
+        .rposition(|w| w == [0x50, 0x4b, 0x05, 0x06])?;
+    let field = |at: usize| {
+        tail.get(eocd + at..eocd + at + 4)
+            .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let (size, offset) = (field(12)?, field(16)?);
+    if size == u32::MAX || offset == u32::MAX || size == 0 {
+        return None;
+    }
+    let directory = range(format!(
+        "bytes={}-{}",
+        offset,
+        offset as u64 + size as u64 - 1
+    ))
+    .await?;
+    let prefix = format!("assets/{namespace}/blockstates/");
+    Some(
+        directory
+            .windows(prefix.len())
+            .any(|w| w == prefix.as_bytes()),
+    )
+}
+
+/// 從 Modrinth 找提供 `namespace` 方塊的模組並下載，只留下方塊素材。
+/// 專案名稱不一定等於命名空間（`ars_nouveau` 是 `ars-nouveau`），所以會試別名、
+/// slug 和搜尋結果，並先讀 jar 目錄確認真的有這個命名空間的方塊。
+/// 每個專案優先選 `mc_version` 的最新版，沒有就用最新版。
+async fn modrinth_mod(
+    namespace: &str,
+    mc_version: Option<&str>,
+) -> CmdResult<Option<ModBlockAssets>> {
+    for slug in modrinth_candidates(namespace, mc_version).await {
+        if let Some(found) = modrinth_project(namespace, &slug, mc_version).await? {
+            return Ok(Some(found));
+        }
+    }
+    Ok(None)
+}
+
+async fn modrinth_project(
+    namespace: &str,
+    slug: &str,
+    mc_version: Option<&str>,
+) -> CmdResult<Option<ModBlockAssets>> {
+    use super::modpack_browse::{get_json, http};
+
+    if !is_namespace(&slug.replace('-', "_")) {
+        return Ok(None);
+    }
+    let url = format!("https://api.modrinth.com/v2/project/{slug}/version");
+    let mut versions: Vec<ModrinthVersion> = Vec::new();
+    if let Some(v) = mc_version.filter(|v| !v.is_empty()) {
+        let filter = serde_json::to_string(&[v]).unwrap_or_default();
+        match get_json(http().get(&url).query(&[("game_versions", filter)])).await {
+            Ok(list) => versions = list,
+            // 沒有這個專案。
+            Err(_) => return Ok(None),
+        }
+    }
+    if versions.is_empty() {
+        versions = match get_json(http().get(&url)).await {
+            Ok(list) => list,
+            Err(_) => return Ok(None),
+        };
+    }
+    let Some((number, file)) = versions.into_iter().find_map(|v| {
+        let i = v.files.iter().position(|f| f.primary).unwrap_or(0);
+        v.files.into_iter().nth(i).map(|f| (v.version_number, f))
+    }) else {
+        return Ok(None);
+    };
+    if !file.hashes.sha1.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Ok(None);
+    }
+
+    let dir = block_assets_dir()?;
+    let target = dir.join(format!("modrinth-v{SLIM_VERSION}-{}.zip", file.hashes.sha1));
+    if !target.exists() {
+        if remote_jar_has_blocks(&file.url, namespace).await == Some(false) {
+            return Ok(None);
+        }
+        let bytes = http()
+            .get(&file.url)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        tokio::fs::create_dir_all(&dir).await?;
+        let jar = target.with_extension("jar.tmp");
+        tokio::fs::write(&jar, &bytes).await?;
+        let jar_for_task = jar.clone();
+        let slim = tokio::task::spawn_blocking(move || slim_from_zip(&jar_for_task))
+            .await
+            .map_err(|e| CmdError::launcher(e.to_string()));
+        let _ = tokio::fs::remove_file(&jar).await;
+        let tmp = target.with_extension("zip.tmp");
+        tokio::fs::write(&tmp, slim??).await?;
+        tokio::fs::rename(&tmp, &target).await?;
+    }
+
+    let namespaces = jar_namespaces(&target, &[namespace.to_string()]);
+    if namespaces.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(ModBlockAssets {
+        namespaces,
+        name: format!("{slug} {number} (Modrinth)"),
+        path: path_string(&target),
+        source: "modrinth",
+    }))
+}
+
+#[tauri::command]
+pub async fn mod_block_assets(
+    base_dir: String,
+    instances: Vec<String>,
+    namespaces: Vec<String>,
+    mc_version: Option<String>,
+    download: bool,
+) -> CmdResult<ModBlockAssetsResult> {
+    let wanted: Vec<String> = namespaces
+        .into_iter()
+        .filter(|ns| is_namespace(ns))
+        .collect();
+    let base = PathBuf::from(&base_dir);
+    let wanted_for_task = wanted.clone();
+    let local =
+        tokio::task::spawn_blocking(move || find_local_mods(&base, &instances, &wanted_for_task))
+            .await
+            .map_err(|e| CmdError::launcher(e.to_string()))?;
+
+    let mut found = Vec::new();
+    let mut missing: Vec<String> = wanted.clone();
+    for (jar, provides) in local {
+        let name = jar
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let path = slim_pack(jar, "mod").await?;
+        missing.retain(|ns| !provides.contains(ns));
+        found.push(ModBlockAssets {
+            namespaces: provides,
+            name,
+            path,
+            source: "instance",
+        });
+    }
+
+    if download {
+        let mut still = Vec::new();
+        for ns in missing {
+            match modrinth_mod(&ns, mc_version.as_deref()).await {
+                Ok(Some(assets)) => found.push(assets),
+                _ => still.push(ns),
+            }
+        }
+        missing = still;
+    }
+    Ok(ModBlockAssetsResult { found, missing })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn write_jar(path: &Path, files: &[&str]) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(path).unwrap());
+        for name in files {
+            zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            zip.write_all(b"{}").unwrap();
+        }
+        zip.finish().unwrap();
+    }
+
+    #[test]
+    fn finds_mods_by_block_namespace_in_instance_order() {
+        let base = std::env::temp_dir().join(format!("nolauncher-mods-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let mods = |instance: &str| base.join("instance").join(instance).join(".minecraft/mods");
+        write_jar(
+            &mods("a").join("create-old.jar"),
+            &["assets/create/blockstates/belt.json"],
+        );
+        write_jar(
+            &mods("b").join("create.jar"),
+            &["assets/create/blockstates/belt.json"],
+        );
+        write_jar(
+            &mods("b").join("jei.jar"),
+            &["assets/jei/textures/gui/x.png"],
+        );
+        write_jar(
+            &mods("b").join("other.jar.disabled"),
+            &["assets/farm/blockstates/x.json"],
+        );
+
+        let wanted = vec!["create".to_string(), "farm".to_string(), "jei".to_string()];
+        let found = find_local_mods(&base, &["b".into(), "a".into()], &wanted);
+        assert_eq!(
+            found,
+            vec![(mods("b").join("create.jar"), vec!["create".to_string()])]
+        );
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[tokio::test]
+    #[ignore = "連到 Modrinth，並寫進 block-assets 快取"]
+    async fn downloads_create_from_modrinth() {
+        let assets = modrinth_mod("create", Some("1.21.1"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(assets.namespaces, ["create"]);
+        assert!(assets.name.starts_with("create "), "{}", assets.name);
+        assert!(Path::new(&assets.path).is_file());
+        assert!(modrinth_mod("no-such-mod-namespace-xyz", None)
+            .await
+            .unwrap()
+            .is_none());
+        for ns in ["ars_nouveau", "sfm", "extendedae"] {
+            let found = modrinth_mod(ns, Some("1.21.1")).await.unwrap();
+            let found = found.unwrap_or_else(|| panic!("{ns} not found"));
+            assert_eq!(found.namespaces, [ns], "{}", found.name);
+            println!("{ns} -> {}", found.name);
+        }
+    }
+
+    #[test]
+    fn namespaces_are_url_safe() {
+        assert!(is_namespace("create"));
+        assert!(is_namespace("create_new-age.x"));
+        for bad in ["", "Create", "a/b", "a?b", "../x"] {
+            assert!(!is_namespace(bad), "{bad}");
+        }
+    }
 
     #[test]
     fn relative_paths_cannot_escape() {

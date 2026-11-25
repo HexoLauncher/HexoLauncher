@@ -66,7 +66,17 @@
 	const vanillaCache: Record<string, VanillaAssets> = {};
 	let applySeq = 0;
 
-	const allPacks = $derived(packGroups.flatMap((g) => g.packs));
+	// 藍圖用到的模組方塊（例如機械動力的 create:）沒有資源包提供時，自動從實例的
+	// mods/ 或 Modrinth 找來，放在最下層，讓使用者的資源包仍然優先。
+	let autoPacks = $state<{ name: string; path: string }[]>([]);
+	const autoPaths = $derived(new Set(autoPacks.map((p) => p.path)));
+	let modWarning = $state('');
+	const modCache: Record<string, ReturnType<typeof api.modBlockAssets>> = {};
+
+	const allPacks = $derived<{ name: string; path: string }[]>([
+		...packGroups.flatMap((g) => g.packs),
+		...autoPacks
+	]);
 	const activePacks = $derived(active.map((path) => allPacks.find((p) => p.path === path)).filter((p) => !!p));
 
 	async function show(result: Promise<unknown>) {
@@ -186,14 +196,32 @@
 		return fetchLocal(await api.packBlockAssets(path));
 	}
 
+	/** 先找開啟這個藍圖的實例，再找同版本的，最後其他實例。 */
+	function instanceOrder() {
+		const rank = (i: InstanceView) => (i.id === preferInstance ? 0 : i.versionId === source ? 1 : 2);
+		return [...instances].sort((a, b) => rank(a) - rank(b)).map((i) => i.id);
+	}
+
+	async function findMods(namespaces: string[]) {
+		const key = `${source}|${namespaces.join(',')}`;
+		modCache[key] ??= api.modBlockAssets(baseDir, instanceOrder(), namespaces, source || null);
+		try {
+			return await modCache[key];
+		} catch (e) {
+			delete modCache[key];
+			throw e;
+		}
+	}
+
 	function applySource() {
 		if (!source) return;
 		return task(async (_, current) => {
 			const base = await vanilla(source, current);
 			if (current !== applySeq) return;
 
-
-			const lowestFirst = [...active].reverse();
+			// 換版本時，自動加入的模組要重新找。
+			const user = active.filter((path) => !autoPaths.has(path));
+			const lowestFirst = [...user].reverse();
 			const extra: Uint8Array[] = [];
 			for (const path of lowestFirst) {
 				extra.push(await packBytes(path));
@@ -206,6 +234,34 @@
 			lowestFirst.forEach((path, i) => {
 				result = viewer!.add_pack(packName(path), extra[i]);
 			});
+			active = user;
+			autoPacks = [];
+			modWarning = '';
+
+			const namespaces = viewer.missing_namespaces;
+			if (namespaces.length) {
+				status = m.viewer_status_mods({ names: namespaces.join(', ') });
+				let found: Awaited<ReturnType<typeof api.modBlockAssets>>;
+				try {
+					found = await findMods(namespaces);
+				} catch (e) {
+					found = { found: [], missing: namespaces };
+					console.warn(e);
+				}
+				if (current !== applySeq || !viewer) return;
+				const added: { name: string; path: string }[] = [];
+				for (const mod of found.found) {
+					status = m.viewer_status_pack({ name: mod.name });
+					const bytes = await fetchLocal(mod.path);
+					if (current !== applySeq || !viewer) return;
+					viewer.add_pack(mod.name, bytes);
+					result = viewer.move_pack(0, viewer.packs.length - 1);
+					added.push({ name: mod.name, path: mod.path });
+				}
+				autoPacks = added;
+				active = [...user, ...added.map((p) => p.path)];
+				if (found.missing.length) modWarning = m.viewer_mods_missing({ names: found.missing.join(', ') });
+			}
 			await show(result);
 		});
 	}
@@ -399,6 +455,9 @@
 										<Icon name="menu" size={12} />
 									</button>
 									<span class="min-w-0 flex-1 truncate" title={pack.name}>{pack.name}</span>
+									{#if autoPaths.has(pack.path)}
+										<span class="shrink-0 text-[10.5px] text-faint">{m.viewer_mod_auto()}</span>
+									{/if}
 									<button
 										class="grid size-5 shrink-0 place-items-center rounded text-muted hover:bg-btn-hi hover:text-ink disabled:opacity-40"
 										aria-label={m.viewer_remove_pack({ name: pack.name })}
@@ -421,6 +480,10 @@
 						<span class="text-muted">{m.viewer_status_meshing({ percent: Math.round(meshing * 100) })}</span>
 						<Progress value={meshing} max={1} class="bg-btn" />
 					</div>
+				{/if}
+
+				{#if modWarning}
+					<p class="text-[11.5px] leading-[1.6] break-words text-warn">{modWarning}</p>
 				{/if}
 
 				{#if status}
