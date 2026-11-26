@@ -51,6 +51,7 @@ fn main() {
             store::launcher::resolve_paths,
             commands::misc::prepare_base_dir,
             commands::misc::open_external,
+            commands::news::news_latest,
             commands::misc::open_launcher_folder,
             commands::theme::set_background_image,
             commands::theme::background_image_path,

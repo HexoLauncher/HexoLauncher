@@ -16,6 +16,7 @@ pub mod misc;
 pub mod modpack;
 pub mod modpack_browse;
 pub mod mods;
+pub mod news;
 pub mod process;
 pub mod schematic;
 pub mod schematic_sync;

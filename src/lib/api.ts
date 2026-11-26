@@ -107,6 +107,15 @@ export const openLauncherFolder = (target: LauncherFolder) =>
 
 export const openExternal = (url: string) => invoke<void>('open_external', { url });
 
+export type NewsItem = {
+	title: string;
+	link: string | null;
+	description: string | null;
+	pubDate: string | null;
+};
+
+export const newsLatest = () => invoke<NewsItem | null>('news_latest');
+
 export const setBackgroundImage = (source: string) =>
 	invoke<string>('set_background_image', { source });
 
