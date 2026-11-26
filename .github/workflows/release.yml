@@ -68,7 +68,7 @@ jobs:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event_name == 'release' && github.event.release.tag_name || 'v__VERSION__' }}
           releaseName: 'Nolauncher v__VERSION__'
-          releaseBody: 'See the assets below to download and install this version.'
+          releaseBody: ${{ github.event.release.body || 'See the assets below to download and install this version.' }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
